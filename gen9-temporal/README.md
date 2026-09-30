@@ -156,7 +156,7 @@ node ../e2e/temporal.mjs   # sign-in, roles, the codec endpoint, in Chrome
 | --- | --- |
 | Status | `docker compose ps -a` (`schema` and `namespace` show `Exited (0)`: they ran) |
 | The CLI | `docker compose run --rm cli temporal workflow list` (namespace `gen9`, as the stack's operator) |
-| Backup | `make backup DIR=…` at the root backs up every stack, and `make restore DIR=…` restores it (README, "Back up and restore"). A logical dump of Temporal's databases alone: `docker compose exec postgres pg_dumpall -U postgres > temporal.sql` |
+| Backup | `make backup DIR=…` at the root backs up every stack, and `make restore DIR=…` restores it ([docs/operations.md, "Back up and restore"](../docs/operations.md#back-up-and-restore)). A logical dump of Temporal's databases alone: `docker compose exec postgres pg_dumpall -U postgres > temporal.sql` |
 | Stop (keeps data) | `docker compose down` |
 | Renew the internode certificate | `./init-tls.sh --force`, then `docker compose up -d --wait` |
 | Reset (**deletes every workflow**) | `docker compose down -v`, then `./init-env.sh --force` |

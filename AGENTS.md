@@ -42,10 +42,12 @@ Only then implement. The same applies to design and UX work, and to any change o
   the end. A check that passes without exercising the path proves nothing.
 - **Decoupled stacks.** Each `gen9-*` folder is its own Compose project, with its own `.env`,
   volumes and network; stacks reach each other only over `gen9-<stack>` networks and only the ones
-  they call (README, "How stacks stay decoupled"). Don't merge stacks or share databases.
+  they call ([docs/development.md, "How stacks stay decoupled"](docs/development.md#how-stacks-stay-decoupled)).
+  Don't merge stacks or share databases.
 - **Keep the top level in sync.** A change to how something is run, started or checked updates the
-  `Makefile`, the root `README.md`, the stack's README, `e2e/README.md` and `gen9-learn` (its page
-  and verifier) in the same commit.
+  `Makefile`, `docs/operations.md` or `docs/development.md` (and the root `README.md` if its quick
+  start or summary changes), the stack's README, `e2e/README.md` and `gen9-learn` (its page and
+  verifier) in the same commit. Each fact lives in one place; everywhere else links to it.
 - **Python is async from the ground up.** This covers every Python service, worker, CLI, script and
   test.
 
@@ -112,10 +114,13 @@ Only then implement. The same applies to design and UX work, and to any change o
 
 | What                                                               | Where                                                      |
 | ------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Stacks, `make` commands, how stacks stay decoupled               | `README.md`, `Makefile`, each `gen9-*/README.md`     |
+| What Gen9 is, its stacks, the quick start                         | `README.md`, each `gen9-*/README.md`                   |
+| `make` commands, requirements, setup                              | `docs/operations.md`, `Makefile` (`make` lists them)   |
+| How the repository is developed and checked, how stacks stay decoupled, adding a stack | `docs/development.md` |
+| Proposing a change; the code of conduct                            | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/` (issue and pull request templates) |
 | Reporting a vulnerability, and where each part of Gen9's security is described | `SECURITY.md` |
 | Active plans (goal, progress, decisions, surprises)                | `docs/plans/`, written as `docs/PLANS.md` says         |
-| Operating Gen9: back up and restore, stop every agent, upgrade    | `README.md` ("Back up and restore", "Stop every agent at once", "Upgrade") |
+| Operating Gen9: upgrade, back up and restore, stop every agent, start over, disk | `docs/operations.md` |
 | Architecture: identity and tokens                                  | `docs/auth-architecture.md`                              |
 | Secrets: each one, where it lives, how to replace it              | `docs/secrets.md`                                        |
 | UI/UX: principles, design system, screens                          | `docs/design/` and `gen9-design/` (tokens, font, logo) |

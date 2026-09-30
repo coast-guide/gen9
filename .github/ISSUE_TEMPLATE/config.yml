@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability
+    url: https://github.com/coast-guide/gen9/security/advisories/new
+    about: Privately, never in an issue (SECURITY.md).
+  - name: Understand how Gen9 works
+    url: https://github.com/coast-guide/gen9/tree/main/gen9-learn
+    about: One page that follows one user through every service, checked against the running system.

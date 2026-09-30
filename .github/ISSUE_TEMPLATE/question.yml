@@ -1,0 +1,15 @@
+name: Question
+description: Ask how something in Gen9 works, or how to do something with it.
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Worth a look first: docs/operations.md (running Gen9), gen9-learn (how it works, end to end), and AGENTS.md, "Where things live".
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What you want to do or understand, and what you have tried or read so far.
+    validations:
+      required: true

@@ -141,7 +141,7 @@ That serves:
 To turn it off, remove `COMPOSE_PROFILES` from `.env` and run `make down STACKS=models`, then
 `make up STACKS=models`: `make up` alone leaves Ollama and the reranker running, as Compose
 doesn't touch the services of a profile it isn't given. The downloaded models (about 1.1 GB) stay
-in their volumes, and `make wipe` keeps them too (README, "Start over").
+in their volumes, and `make wipe` keeps them too ([docs/operations.md, "Start over"](../docs/operations.md#start-over)).
 
 To serve an existing alias locally, point it at Ollama in `config.yaml`, for example `embed` at
 `{model: ollama/embeddinggemma, api_base: "http://ollama:11434"}`. Then run

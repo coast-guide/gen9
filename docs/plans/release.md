@@ -99,6 +99,20 @@ something to do". Then: "looks good logo and everything".
     request that turns it on for the result.
   - [ ] `SECURITY.md`, `.github/dependabot.yml`, CI on every pull request and on `main`; then the
     ruleset requires its jobs.
+- [ ] M8 The README and the docs, for people and for any AI agent (Decision Log, "The README").
+  - [x] `README.md`: what Gen9 is and does, a quick start, how it is built, where to read more, and
+    where agents start; everything else it held moved, word for word, to `docs/operations.md`
+    (requirements, setup, everyday commands, upgrade, backup, stopping the agents, starting over,
+    disk) and `docs/development.md` (working on Gen9, checks, how stacks stay decoupled, adding a
+    stack). The long list of what `make e2e` checks became a summary and a link: each item is in
+    `e2e/README.md`, checked one by one.
+  - [x] `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 3.0), issue forms (bug, feature,
+    question; security and the guide as links), a pull request template.
+  - [x] Every reference to a moved section points at its new place, as a link where the file
+    renders Markdown; AGENTS.md's map and its "keep the top level in sync" rule follow.
+  - [x] Checked: every relative link and anchor in the Markdown docs resolves (lychee 0.24.2,
+    offline: 154 checked, 0 errors); gen9-learn's `page.mjs` and `reference.mjs` pass on the
+    changed page. The pages as GitHub renders them: on the pull request.
 
 ## Surprises & Discoveries
 
@@ -278,6 +292,22 @@ something to do". Then: "looks good logo and everything".
   where to report, when to expect an answer, a 90-day disclosure. It links to the documents
   that describe Gen9's security rather than repeating them. The owner can shorten or lengthen
   the 7 days it promises for an acknowledgement.
+
+- Decision: the README is for people, AGENTS.md for agents, and both lead to the same documents.
+  The README answers what the project does, why it is useful, how to start, where to get help and
+  who maintains it ([GitHub, "About READMEs"](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes);
+  [Open Source Guides, "Starting an open source project"](https://opensource.guide/starting-a-project/)),
+  and sends coding agents to AGENTS.md, which most of them read by themselves and which the Linux
+  Foundation's Agentic AI Foundation now stewards ([agents.md](https://agents.md/)). The operating
+  and developing detail moved to `docs/`, not away: each fact stays in one place and the rest
+  link to it (the owner's direction). No `llms.txt`: it is a convention for websites, and no major
+  model provider has said its systems read one.
+- Decision: the community files GitHub's community profile asks for (it scored the repository
+  42%): a contributing guide, a code of conduct (Contributor Covenant 3.0, from
+  `EthicalSource/contributor_covenant`), issue forms and a pull request template
+  ([configuring issue templates](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository)).
+  Conduct reports go to the maintainer by email: GitHub's reporting to maintainers exists only
+  for repositories an organization owns.
 
 ## Outcomes & Retrospective
 

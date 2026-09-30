@@ -103,7 +103,7 @@ docker compose exec -e PGPASSWORD=<app pw> postgres psql -h 127.0.0.1 -U gen9_ag
 | --- | --- |
 | Status | `docker compose ps` |
 | psql (superuser) | `docker compose exec postgres psql -U postgres -d gen9_agent` |
-| Backup | `make backup DIR=…` at the root backs up every stack, keys included, and `make restore DIR=…` restores it (README, "Back up and restore"). A logical dump of this database alone, for another major version of Postgres: `docker compose exec postgres pg_dump -U postgres -Fc gen9_agent > gen9_agent.dump` |
+| Backup | `make backup DIR=…` at the root backs up every stack, keys included, and `make restore DIR=…` restores it ([docs/operations.md, "Back up and restore"](../docs/operations.md#back-up-and-restore)). A logical dump of this database alone, for another major version of Postgres: `docker compose exec postgres pg_dump -U postgres -Fc gen9_agent > gen9_agent.dump` |
 | Stop (keeps data) | `docker compose down` |
 | Reset (**deletes all data**) | `docker compose down -v`, then `./init-env.sh --force` with the two `--agent-…-env-file` flags |
 

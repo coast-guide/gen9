@@ -1058,7 +1058,7 @@ Nothing of a person's acts once they can't use Gen9, and an operator can stop ev
 - **Everyone's:** `gen9-agent-stop` cancels every run not yet over, waiting until each has
   ended, and pauses every scheduled task's Schedule with a note. `--resume` unpauses those with
   that note only. `make stop-agents` / `make resume-agents` wrap it and stop or start the worker
-  (root README).
+  ([docs/operations.md, "Stop every agent at once"](../docs/operations.md#stop-every-agent-at-once)).
 
 ## Deletion
 
@@ -1095,7 +1095,7 @@ Deleting a chat or an account is a Temporal workflow (`workflows/deletion.py`, A
   - `thread.delete`, by a chat's owner, one for each of its background tasks' chats too.
 
   `make restore` reads those made after its backup's time.
-- **After a restore:** `gen9-agent-erase --users SUB... --threads ID...` (`erase.py`, run in the worker's container by `scripts/restore.sh`) deletes again what a backup brought back. It uses the same workflows, waiting for each one's `deleted` Update. A chat whose row wasn't restored still gets its workflow, for the traces and history that were. Each is recorded as `restore.account.delete` or `restore.thread.delete` (root README, "Back up and restore").
+- **After a restore:** `gen9-agent-erase --users SUB... --threads ID...` (`erase.py`, run in the worker's container by `scripts/restore.sh`) deletes again what a backup brought back. It uses the same workflows, waiting for each one's `deleted` Update. A chat whose row wasn't restored still gets its workflow, for the traces and history that were. Each is recorded as `restore.account.delete` or `restore.thread.delete` ([docs/operations.md, "Back up and restore"](../docs/operations.md#back-up-and-restore)).
 
 ## How auth works
 

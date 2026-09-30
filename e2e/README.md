@@ -4,7 +4,7 @@ End-to-end checks that cross stacks, run in real Chrome against the running stac
 
 ## Calls between stacks (`stacks.mjs`)
 
-Every call one stack makes to another, set off the way a user does. Containers reach each other over the per-stack networks (root README, "How stacks stay decoupled"), so this is what shows those work.
+Every call one stack makes to another, set off the way a user does. Containers reach each other over the per-stack networks ([docs/development.md, "How stacks stay decoupled"](../docs/development.md#how-stacks-stay-decoupled)), so this is what shows those work.
 
 | Step | Checked (the call it proves) |
 | --- | --- |

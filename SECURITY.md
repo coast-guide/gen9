@@ -30,4 +30,4 @@ configuration makes one easier to exploit.
 - Every secret, where it lives and how to replace it: [docs/secrets.md](docs/secrets.md)
 - Where the agent runs commands, and what it can reach: [gen9-sandbox/README.md](gen9-sandbox/README.md)
 - The model router's hardening: [gen9-models/README.md](gen9-models/README.md)
-- Stopping every agent at once: [README.md, "Stop every agent at once"](README.md#stop-every-agent-at-once)
+- Stopping every agent at once: [docs/operations.md, "Stop every agent at once"](docs/operations.md#stop-every-agent-at-once)
