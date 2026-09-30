@@ -2483,10 +2483,32 @@ start a model run are kept out of any fuzzing.
 
 ### P6-A. Upstream
 
-- [ ] A1 (from P5-A1) Keycloak 26.8 (milestone due 2026-09-30; 71 issues open, 147 closed) or 26.7.5, when released: its release notes against Gen9's realm and theme, then
+- [x] A1 (from P5-A1) Keycloak 26.8 (milestone due 2026-09-30; 71 issues open, 147 closed) or 26.7.5, when released: its release notes against Gen9's realm and theme, then
   the Keycloak checks (`gen9-keycloak/verify.sh`, `e2e/stacks.mjs`, `passkeys`, `recovery`).
   Whether it fixes #53060 (CVE-2026-94000, open): a `manage-users` holder can join a group that
   maps an admin role. Until then, Gen9's realm has no such group.
+  (2026-10-01) 26.7.5 was released on 2026-09-30 (26.8's milestone had 0 open issues, not
+  released). Its notes: 14 security fixes, among them CVE-2026-88770 (#52783: the device grant,
+  `gen9 login`'s, issuing tokens to a locked account) and others in features Gen9 doesn't use
+  (CIBA, SAML, client policies, token exchange, dynamic registration); Quarkus 3.33.4; no
+  migration steps for a 26.7 realm. #53060 is fixed on main only (commit 308b6b2, "Prevent
+  privilege escalation via group membership to admin-role groups", not in 26.7.4...26.7.5), so
+  for 26.8; Gen9's realm still has no such group (live: `admins` maps `gen9-admin`,
+  `gen9:admin`, `temporal-system:read`, none of `realm-management`'s). Taken: the Dockerfile at
+  26.7.5 by digest (`docker buildx imagetools inspect`), the image tag with it.
+  - Its bundled libraries, by the image's jars: `netty-handler` 4.1.136 → 4.1.138,
+    `bcprov-jdk18on` 1.84 → 1.86, FreeMarker 2.3.32 → 2.3.35, which fix the critical findings
+    the README listed as awaiting a backport. Trivy (Docker Scout needs a Docker login): on
+    26.7.4, 13 fixed findings (4 critical, 9 high); on 26.7.5, 1 high, the SQL Server driver
+    (`mssql-jdbc`), which Gen9's Keycloak, on PostgreSQL, never loads.
+  - CVE-2026-88770, live: a throwaway account signed in on the web, locked by 5 wrong passwords
+    in another browser, then `gen9 login`'s code confirmed in the browser that still held its
+    session. On 26.7.4 (its image run again for the test) the terminal was signed in; on 26.7.5
+    it got "Invalid user credentials". Now a check of its own, `e2e/lockout.mjs` (4 checks, in
+    `make e2e`), which fails on 26.7.4 and passes on 26.7.5.
+  - Live on 26.7.5: `verify.sh` 34/34; e2e `stacks` (12), `passkeys` (16), `recovery` (15),
+    `keyboard` (14), `temporal` (12), `demotion` (6), `audit` (20) and `lockout` (4) all
+    passed; gen9-learn's `page.mjs` and `reference.mjs` pass. The theme needed no change.
 - [ ] A2 (from P5-A2) `TEMPORAL_PAYLOAD_KEYS`' old key `k3` out, once its histories pass
   their 72-hour retention, Schedules rewritten first.
 - [ ] A3 (from P5-A3, not before its day has passed) The raw event file holding P4-E3's deleted

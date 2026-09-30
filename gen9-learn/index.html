@@ -2359,7 +2359,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
   <div class="table"><table>
     <thead><tr><th>Service</th><th>What it does</th><th>Ports, volume</th><th>Seen in</th></tr></thead>
     <tbody>
-      <tr data-service="gen9-keycloak/keycloak"><td><code>keycloak</code></td><td>Keycloak 26.7.4 with Gen9's theme, built here. Realm <code>gen9</code>, imported once from <code>realm/gen9-realm.json</code>: users, sign-in, clients, tokens, the admin console</td><td>15000 → 8080 (sign-in, console), 15001 → 9000 (health, metrics)</td><td><a href="#b1-1">Start the sign-up</a></td></tr>
+      <tr data-service="gen9-keycloak/keycloak"><td><code>keycloak</code></td><td>Keycloak 26.7.5 with Gen9's theme, built here. Realm <code>gen9</code>, imported once from <code>realm/gen9-realm.json</code>: users, sign-in, clients, tokens, the admin console</td><td>15000 → 8080 (sign-in, console), 15001 → 9000 (health, metrics)</td><td><a href="#b1-1">Start the sign-up</a></td></tr>
       <tr data-service="gen9-keycloak/configure"><td><code>configure</code></td><td>One-shot after every start: re-applies Gen9's settings to the realm (<code>config/configure.sh</code>): the forgot-password flow, recovery codes, the back-channel logout URL, who may use Temporal and its web UI, the agents' client and scopes (MCP, A2A, self-registering clients), how long admin events are kept</td><td>none</td><td><a href="#b7-1">Restart Keycloak</a></td></tr>
       <tr data-service="gen9-keycloak/ready"><td><code>ready</code></td><td>Idles, so <code>make up</code> waits until <code>configure</code> succeeded, and fails if it failed</td><td>none</td><td><a href="#b7-1">Restart Keycloak</a></td></tr>
       <tr data-service="gen9-keycloak/postgres"><td><code>postgres</code></td><td>Keycloak's own Postgres: users, credentials, login sessions, events, admin events</td><td>15003 → 5432; <code>gen9-keycloak_postgres_data</code></td><td><a href="#b1-2">Submit the form</a></td></tr>
@@ -2969,7 +2969,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
   <div class="table"><table>
     <thead><tr><th>Known risk</th><th>Where it's tracked</th></tr></thead>
     <tbody>
-      <tr><td>Keycloak 26.7.4: the device grant can issue tokens to a locked account's existing browser session (CVE-2026-88770, fixed for 26.7.5); the device-code page has no rate limit (#51275, open: rate-limit it at your proxy); bundled netty and Bouncy Castle findings awaiting a 26.7 backport</td><td><code>gen9-keycloak/README.md</code>, "Upgrade"</td></tr>
+      <tr><td>Keycloak 26.7.5: the device-code page has no rate limit (#51275, open: rate-limit it at your proxy); a <code>manage-users</code> holder could join a group that maps an admin role (CVE-2026-94000, fixed for 26.8; Gen9's realm has no such group)</td><td><code>gen9-keycloak/README.md</code>, "Upgrade"</td></tr>
       <tr><td>LiteLLM's record (backdoored PyPI releases in March 2026, key-check bugs): only its signed image runs, pinned, with features off</td><td><code>gen9-models/README.md</code>, "Security"</td></tr>
       <tr><td>What the agent sends a model reaches that provider; what it fetches can carry instructions</td><td>This page, <a href="#goals">Goals and limits</a>; the sandbox's closed network</td></tr>
       <tr><td>Web search scrapes public engines, which block heavy use</td><td><code>gen9-models/searxng/settings.yml</code></td></tr>

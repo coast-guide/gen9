@@ -720,6 +720,19 @@ Keycloak's built-in reset flow lets the email link set up a new authenticator ap
 
 Both users are deleted at the end, whatever happens. With Keycloak's built-in flow bound instead, the link offers to set up a new authenticator and the check fails.
 
+## A locked account signs nothing in (`lockout.mjs`)
+
+Keycloak locks an account after 5 wrong passwords (the realm's brute-force protection). As a throwaway person, in Chrome and on the terminal (no model call):
+
+| Step | Checked |
+| --- | --- |
+| Signed in to the web app | Lands in the app |
+| 5 wrong passwords in another browser, then the right one | Refused; Keycloak's Admin API holds the account locked |
+| `gen9 login` (the device grant), its code confirmed in the first browser, still signed in | The page says the device is signed in, and the terminal gets no token ("Invalid user credentials"). Keycloak 26.7.4 gave it one (CVE-2026-88770, fixed in 26.7.5): run on 26.7.4, this step fails |
+| The lockout cleared (as an admin's *Unlock sign-in* does), the same confirmation | The terminal is signed in |
+
+The person is deleted at the end, whatever happens.
+
 ## Passkeys (`passkeys.mjs`)
 
 Creating a passkey needs the operating system's authenticator (Touch ID, Windows Hello, a security key), which browser automation can't drive. This check uses Chrome's virtual authenticator instead: the DevTools [WebAuthn domain](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/) sets up a platform authenticator with discoverable credentials and user verification. Everything else is real: Chrome, gen9-ui, Keycloak and the Gen9 theme.

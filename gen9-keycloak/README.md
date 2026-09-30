@@ -1,6 +1,6 @@
 # gen9-keycloak
 
-[Keycloak](https://www.keycloak.org) 26.7.4 is the identity provider for Gen9: users, passwords, 2FA, sessions and tokens. It runs as an independent stack with its own Postgres and its own mail catcher ([Mailpit](https://mailpit.axllent.org)). Apps only need the issuer URL and their client credentials.
+[Keycloak](https://www.keycloak.org) 26.7.5 is the identity provider for Gen9: users, passwords, 2FA, sessions and tokens. It runs as an independent stack with its own Postgres and its own mail catcher ([Mailpit](https://mailpit.axllent.org)). Apps only need the issuer URL and their client credentials.
 
 **Requires:** Docker with Compose v2, bash, openssl.
 
@@ -123,14 +123,10 @@ Put TLS in front of `127.0.0.1:15000` (and rate-limit `/realms/gen9/device` ther
 
 Read the [upgrading guide](https://www.keycloak.org/docs/latest/upgrading/). Update `KEYCLOAK_IMAGE` in the `Dockerfile` (the digest comes from `docker buildx imagetools inspect quay.io/keycloak/keycloak:<version>`), then run `docker compose up -d --build --wait && ./verify.sh`.
 
-**Known findings in 26.7.4 (checked with `docker scout cves gen9-keycloak:26.7.4 --only-fixed --only-severity critical,high`):** libraries bundled inside Keycloak itself, fixed upstream but not yet in a 26.7 release. Upgrade to the first 26.7.x that includes them (26.7.4 is the latest release today; nightly builds are not for production).
-
-| Library | Finding | Keycloak issue |
-| --- | --- | --- |
-| `io.netty:netty-handler` 4.1.136 | CVE-2026-75595 (critical), fixed in 4.1.137 | [#52763](https://github.com/keycloak/keycloak/issues/52763): fixed on main, backport to 26.7 open |
-| `org.bouncycastle:bcprov-jdk18on` 1.84 | CVE-2026-8763 (critical), CVE-2026-13506 (high), fixed in 1.85 | [#52971](https://github.com/keycloak/keycloak/issues/52971): labelled for backport to 26.7 |
+**Known findings in 26.7.5 (checked with Trivy, `aquasec/trivy image --severity CRITICAL,HIGH --ignore-unfixed gen9-keycloak:26.7.5`, which on 26.7.4 found the 13 that 26.7.5 fixes):** one, in a library bundled with Keycloak that Gen9 never loads: `com.microsoft.sqlserver:mssql-jdbc` (CVE-2025-59250, high), the SQL Server driver; Gen9's Keycloak uses PostgreSQL. 26.7.5's Quarkus 3.33.4 brought `netty-handler` 4.1.138 and `bcprov-jdk18on` 1.86, which fix the critical findings of 26.7.4 (CVE-2026-75595, CVE-2026-8763, CVE-2026-13506), and FreeMarker 2.3.35 (CVE-2026-84939).
 
 **In Keycloak itself:**
 
-- CVE-2026-88770 ([#52783](https://github.com/keycloak/keycloak/issues/52783)): the device grant, which `gen9 login` uses, issues tokens to an account locked for too many wrong passwords, to someone who still holds a browser session of that account. Fixed for 26.7.5, not yet released: take it when it is.
+- CVE-2026-88770 ([#52783](https://github.com/keycloak/keycloak/issues/52783)), fixed in 26.7.5: the device grant, which `gen9 login` uses, issued tokens to an account locked for too many wrong passwords, to someone who still held a browser session of that account. `e2e/lockout.mjs` checks it: on 26.7.4 the terminal was signed in, on 26.7.5 it gets "Invalid user credentials".
+- CVE-2026-94000 ([#53060](https://github.com/keycloak/keycloak/issues/53060)), fixed on Keycloak's main branch (26.8), not in 26.7.5: someone holding only `manage-users` can join a group that maps an admin role. Gen9's realm has no such group: its `admins` group maps `gen9-admin` and Temporal's roles (`gen9:admin`, `temporal-system:read`), none of Keycloak's own admin roles in `realm-management`. The one holder of `manage-users` is gen9-agent's service account, used only by gen9-agent.
 - Guessing device codes ([#51275](https://github.com/keycloak/keycloak/issues/51275), open): the page where a person types the code from their terminal has no rate limit (30 wrong codes in 7 s, the same message each time). A guessed code signs the guesser's own account into the terminal that asked (RFC 8628, 5.1), and `gen9 login` says which account it signed in as. The codes are 8 letters from 20 (RFC 8628's recommendation, 20^8) and last 10 minutes. In production, rate-limit `GET /realms/gen9/device` at the proxy in front of Keycloak, as the RFC asks.
