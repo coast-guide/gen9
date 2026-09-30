@@ -1,0 +1,132 @@
+# Logs rotate: three files of 10 MB a container, compressed (Docker's local driver). Docker's
+# default, json-file, keeps a container's log for as long as the container lives, unbounded, with
+# what it holds: Keycloak's sign-in failures name the user and their address (manual-e2e.md, P4-E5)
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
+
+# Our changes on top of the upstream docker-compose.yml (never edit that file).
+# Every image is pinned as tag@digest: the tag is for humans, the digest is what Docker pulls.
+# Host ports: all published on 127.0.0.1 in an uncommon block (13000-13007) to avoid clashes with other tools.
+services:
+  langfuse-web:
+    logging: *logging
+    image: docker.langfuse.com/langfuse/langfuse:4.46.0@sha256:755b821ba8f73a20d43d90e68f2b75d2f597dd164c55890f67a05f5a8d0f0e24
+    labels:  # where to open it; the root Makefile lists these after make up
+      gen9.name: Langfuse (traces)
+      gen9.url: ${NEXTAUTH_URL:-http://localhost:13000}
+    ports: !override
+      - "127.0.0.1:${LANGFUSE_PORT:-13000}:3000"  # UI + API
+    environment:
+      # Public media URL handed to browsers + SDKs (set per deployment via .env)
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: "${LANGFUSE_MEDIA_PUBLIC_URL:-http://localhost:13001}"
+      # Langfuse's own server-side media reads stay on its internal network
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: "http://minio:9000"
+      # Next.js listens on $HOSTNAME, which Docker sets to the container ID: that is one address on
+      # one network. Listen on every interface, so gen9-agent reaches it on the gen9-langfuse network.
+      HOSTNAME: 0.0.0.0
+    networks:
+      default: {}
+      gen9-langfuse:
+        aliases: [gen9-langfuse]
+    # Upstream has no healthcheck, so `up --wait` returned before the web app answered (it runs its
+    # migrations first). Endpoints: https://langfuse.com/self-hosting/configuration/health-readiness-endpoints
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null -T 3 \"http://127.0.0.1:3000/api/public/health?failIfDatabaseUnavailable=true\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+      start_interval: 2s
+
+  langfuse-worker:
+    logging: *logging
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.46.0@sha256:3568d2d1eb5dd570f4087b37972ddffa3f6ae4f872553e0b0e2eedf4896a29e9
+    ports: !override
+      - "127.0.0.1:${LANGFUSE_WORKER_PORT:-13003}:3030"  # worker health check
+    environment:
+      HOSTNAME: 0.0.0.0  # as langfuse-web
+    depends_on:
+      # The raw events' expiry in place before any are written (and Compose's --wait then expects
+      # the one-shot to exit)
+      minio-lifecycle:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null -T 3 http://127.0.0.1:3030/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+      start_interval: 2s
+
+  minio:
+    logging: *logging
+    # Chainguard's free tier only publishes :latest, so the digest is the only real pin. MinIO's own
+    # repository is archived; Chainguard builds its fork (chainguard-forks/minio), which still takes
+    # fixes: this digest is its RELEASE.2026-09-22T19-25-18Z (`minio --version` in the image)
+    image: cgr.dev/chainguard/minio:latest@sha256:6a1d0b45c8669726bba580ced0bfa4cb9fdeed1ed636dfabd81d1577beb6937b
+    ports: !override
+      - "127.0.0.1:${LANGFUSE_MEDIA_PORT:-13001}:9000"           # S3 API: media uploads/downloads
+      - "127.0.0.1:${LANGFUSE_MINIO_CONSOLE_PORT:-13002}:9001"   # MinIO web console
+    # gen9-agent uploads a trace's images here: the presigned URLs name the browser's address,
+    # localhost, which inside its container is itself (gen9-agent/src/gen9_agent/langfuse_tracer.py)
+    networks:
+      default: {}
+      gen9-langfuse:
+        aliases: [gen9-langfuse-media]
+
+  minio-lifecycle:
+    logging: *logging
+    # One-shot, safe on every start: Langfuse's raw event files (events/, one per batch it ingests,
+    # the messages in them) expire a day after they're written. Deleting a chat or an account erases
+    # its traces in ClickHouse, but not these files, filed by time: every deleted chat's text stayed
+    # here (docs/plans/manual-e2e.md, P4-E5). Langfuse re-reads them only to retry ingestion, and
+    # OpenTelemetry's needs nothing older (its blob storage guide recommends an expiry rule). S3
+    # rounds an expiry to the next midnight UTC, so a file goes within two days.
+    image: cgr.dev/chainguard/minio:latest@sha256:6a1d0b45c8669726bba580ced0bfa4cb9fdeed1ed636dfabd81d1577beb6937b
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null &&
+        echo '{"Rules":[{"ID":"gen9-expire-raw-events","Status":"Enabled","Filter":{"Prefix":"events/"},"Expiration":{"Days":1}}]}' |
+        mc ilm import local/langfuse && mc ilm rule ls local/langfuse
+    environment:
+      MC_CONFIG_DIR: /tmp/mc
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+
+  postgres:
+    logging: *logging
+    image: docker.io/postgres:17.11@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
+    ports: !override
+      - "127.0.0.1:${LANGFUSE_POSTGRES_PORT:-13004}:5432"
+
+  redis:
+    logging: *logging
+    image: docker.io/redis:7.4.11@sha256:c6eabf748fc7a61dbb5a705c78bcf3d6377b1127a97d0ce965c11c44ba46896f
+    ports: !override
+      - "127.0.0.1:${LANGFUSE_REDIS_PORT:-13005}:6379"
+
+  clickhouse:
+    logging: *logging
+    # Not upstream's 25.12, which ClickHouse no longer fixes: its LTS line (README.md, "ClickHouse's version")
+    image: docker.io/clickhouse/clickhouse-server:26.8.13.2@sha256:d3cdda9b2137852b20b96b1262b043dbedbe78c2b2c7063a3da60781a29e3463
+    # Its own logs, bounded: Langfuse reads none of them (clickhouse/disk.xml)
+    volumes:
+      - ./clickhouse/disk.xml:/etc/clickhouse-server/config.d/gen9-disk.xml:ro
+    ports: !override
+      - "127.0.0.1:${LANGFUSE_CLICKHOUSE_HTTP_PORT:-13006}:8123"    # HTTP interface
+      - "127.0.0.1:${LANGFUSE_CLICKHOUSE_NATIVE_PORT:-13007}:9000"  # native protocol
+
+networks:
+  # How gen9-agent reaches Langfuse (it joins this network too). External: `make up` creates it,
+  # or once by hand: docker network create gen9-langfuse
+  gen9-langfuse:
+    name: gen9-langfuse
+    external: true

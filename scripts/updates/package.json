@@ -1,0 +1,9 @@
+{
+  "name": "gen9-updates",
+  "private": true,
+  "description": "make updates: Renovate's dry run over the stacks' images (scripts/updates.sh)",
+  "type": "module",
+  "dependencies": {
+    "renovate": "44.115.12"
+  }
+}

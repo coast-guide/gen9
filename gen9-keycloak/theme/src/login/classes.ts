@@ -1,0 +1,138 @@
+import type { ClassKey } from "keycloakify/login";
+
+// Gen9 styles for Keycloak's pages: every class key of Keycloakify's default markup, mapped to the
+// design system (Tailwind + gen9-theme.css). Pages we don't rewrite still look like Gen9.
+const field = "grid gap-2";
+const input =
+  "h-12 w-full rounded-xl border border-input bg-card px-4 text-base text-foreground outline-hidden transition-[border-color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25 aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/20";
+const button =
+  "inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full px-6 text-[0.9375rem] font-medium transition-colors outline-hidden focus-visible:ring-3 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50";
+
+export const gen9Classes = {
+  kcHtmlClass: "",
+  kcBodyClass: "",
+  kcLoginClass: "",
+  kcHeaderClass: "",
+  kcHeaderWrapperClass: "",
+  kcFormCardClass: "",
+  kcFormHeaderClass: "",
+  kcContentWrapperClass: "",
+  kcContainerClass: "",
+  kcContentClass: "",
+  kcFormAreaClass: "",
+  kcInfoAreaClass: "",
+  kcInfoAreaWrapperClass: "",
+  kcSignUpClass: "",
+  kcLogoClass: "",
+  kcLogoLink: "",
+  kcFeedbackAreaClass: "",
+
+  kcFormClass: "grid gap-5",
+  kcFormGroupClass: field,
+  kcFormGroupHeader: "text-[0.9375rem] font-semibold",
+  kcFormGroupErrorClass: "",
+  kcLabelWrapperClass: "",
+  kcLabelClass: "text-sm font-medium",
+  kcInputWrapperClass: "grid gap-2",
+  kcInputClass: input,
+  kcTextareaClass: `${input} h-auto min-h-24 py-3`,
+  kcInputLargeClass: "",
+  kcInputGroup: "relative flex items-center [&>input]:pr-12",
+  kcInputErrorMessageClass: "text-sm text-destructive",
+  kcInputHelperTextBeforeClass: "text-sm text-muted-foreground",
+  kcInputHelperTextAfterClass: "text-sm text-muted-foreground",
+  kcFormPasswordVisibilityButtonClass:
+    "absolute right-1.5 grid size-10 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden",
+  kcFormPasswordVisibilityIconShow: "gen9-icon gen9-icon-eye",
+  kcFormPasswordVisibilityIconHide: "gen9-icon gen9-icon-eye-off",
+
+  kcFormSettingClass: "",
+  kcFormOptionsClass: "text-sm",
+  kcFormOptionsWrapperClass: "text-sm",
+  kcFormButtonsClass: "grid gap-3 pt-1",
+  kcFormButtonsWrapperClass: "grid gap-3",
+
+  kcButtonClass: button,
+  kcButtonPrimaryClass: "bg-primary text-primary-foreground hover:bg-primary/85",
+  kcButtonSecondaryClass: "border bg-card text-foreground hover:bg-accent",
+  kcButtonDefaultClass: "border bg-card text-foreground hover:bg-accent",
+  kcButtonBlockClass: "w-full",
+  kcButtonLargeClass: "",
+
+  kcCheckboxInputClass: "",
+  kcCheckClass: "flex items-center gap-2.5",
+  kcCheckInputClass: "",
+  kcCheckLabelClass: "text-sm",
+  kcInputClassCheckbox: "flex items-center gap-2.5",
+  kcInputClassCheckboxInput: "",
+  kcInputClassCheckboxLabel: "text-sm",
+  kcInputClassRadio: "flex items-center gap-2.5",
+  kcInputClassRadioInput: "",
+  kcInputClassRadioLabel: "text-sm",
+  kcInputClassRadioCheckboxLabelDisabled: "opacity-50",
+
+  kcAlertClass: "flex items-start gap-3 rounded-xl border px-4 py-3 text-sm leading-relaxed",
+  kcAlertTitleClass: "min-w-0",
+  kcFeedbackErrorIcon: "gen9-icon gen9-icon-error mt-0.5",
+  kcFeedbackWarningIcon: "gen9-icon gen9-icon-warning mt-0.5",
+  kcFeedbackSuccessIcon: "gen9-icon gen9-icon-success mt-0.5",
+  kcFeedbackInfoIcon: "gen9-icon gen9-icon-info mt-0.5",
+  kcResetFlowIcon: "gen9-icon gen9-icon-chevron",
+  kcSrOnlyClass: "sr-only",
+
+  kcFormSocialAccountSectionClass: "grid gap-3 pt-2",
+  kcFormSocialAccountListClass: "grid gap-2.5",
+  kcFormSocialAccountListGridClass: "grid grid-cols-2 gap-2.5",
+  kcFormSocialAccountListButtonClass: `${button} w-full border bg-card text-foreground hover:bg-accent`,
+  kcFormSocialAccountGridItem: "",
+  kcFormSocialAccountNameClass: "",
+  kcFormSocialAccountLinkClass: "",
+  kcCommonLogoIdP: "",
+
+  kcSelectAuthListClass: "grid gap-2.5",
+  kcSelectAuthListItemClass:
+    "flex cursor-pointer items-center gap-4 rounded-2xl border bg-card p-4 text-left transition-colors hover:bg-accent",
+  kcSelectAuthListItemIconClass: "grid size-10 place-items-center rounded-xl bg-muted text-foreground",
+  kcSelectAuthListItemIconPropertyClass: "",
+  kcSelectAuthListItemBodyClass: "min-w-0 flex-1",
+  kcSelectAuthListItemHeadingClass: "text-sm font-medium",
+  kcSelectAuthListItemDescriptionClass: "text-sm text-muted-foreground",
+  kcSelectAuthListItemFillClass: "",
+  kcSelectAuthListItemArrowClass: "text-muted-foreground",
+  kcSelectAuthListItemArrowIconClass: "gen9-icon gen9-icon-chevron",
+  kcSelectAuthListItemTitle: "text-sm font-medium",
+  kcAuthenticatorDefaultClass: "gen9-icon gen9-icon-key",
+  kcAuthenticatorPasswordClass: "gen9-icon gen9-icon-key",
+  kcAuthenticatorOTPClass: "gen9-icon gen9-icon-phone",
+  kcAuthenticatorWebAuthnClass: "gen9-icon gen9-icon-key",
+  kcAuthenticatorWebAuthnPasswordlessClass: "gen9-icon gen9-icon-key",
+
+  kcLoginOTPListClass:
+    "flex cursor-pointer items-center gap-3 rounded-2xl border bg-card p-4 has-[input:checked]:border-ring has-[input:checked]:ring-2 has-[input:checked]:ring-ring/25",
+  kcLoginOTPListInputClass: "sr-only",
+  kcLoginOTPListItemHeaderClass: "flex items-center gap-3",
+  kcLoginOTPListItemIconBodyClass: "grid size-10 place-items-center rounded-xl bg-muted",
+  kcLoginOTPListItemIconClass: "gen9-icon gen9-icon-phone",
+  kcLoginOTPListItemTitleClass: "text-sm font-medium",
+
+  kcWebAuthnKeyIcon: "gen9-icon gen9-icon-key",
+  kcWebAuthnDefaultIcon: "gen9-icon gen9-icon-key",
+  kcWebAuthnUnknownIcon: "gen9-icon gen9-icon-key",
+  kcWebAuthnUSB: "gen9-icon gen9-icon-key",
+  kcWebAuthnNFC: "gen9-icon gen9-icon-key",
+  kcWebAuthnBLE: "gen9-icon gen9-icon-key",
+  kcWebAuthnInternal: "gen9-icon gen9-icon-key",
+
+  kcRecoveryCodesWarning: "rounded-xl border px-4 py-3 text-sm",
+  kcRecoveryCodesList: "grid grid-cols-2 gap-2 rounded-xl bg-muted p-4 font-mono text-sm",
+  kcRecoveryCodesActions: "flex flex-wrap gap-2",
+  kcRecoveryCodesConfirmation: "flex items-center gap-2.5 text-sm",
+
+  kcLocaleMainClass: "",
+  kcLocaleWrapperClass: "",
+  kcLocaleDropDownClass: "",
+  kcLocaleListClass: "",
+  kcLocaleListItemClass: "",
+  kcLocaleItemClass: "",
+  kcLocaleClass: "",
+} satisfies { [key in ClassKey]?: string };

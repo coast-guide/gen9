@@ -1,0 +1,69 @@
+[project]
+name = "gen9-agent"
+version = "0.1.0"
+description = "Gen9 agent API: FastAPI + Deep Agents, protected by Keycloak"
+readme = "README.md"
+authors = [
+    { name = "SK SAHIL" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "a2a-sdk[http-server]>=1.1.5",
+    "ag-ui-protocol>=1.0.0",
+    "aiosmtplib>=5.1.3",
+    "alembic>=1.20.0",
+    "cryptography>=46",
+    "deepagents>=0.7.19",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "httpx2>=2.13.1",
+    "jsonschema>=4.26.0",
+    "langchain-openai>=1.6.4",
+    "langchain[mcp]>=1.4.2",
+    "langfuse>=4.15.4",
+    "langgraph-checkpoint-postgres>=3.1.2",
+    "opensandbox==1.1.0",
+    "pgvector>=0.5.0",
+    "psycopg[binary,pool]>=3.3.6",
+    "pydantic-settings>=2.15.0",
+    "pyjwt[crypto]>=2.15.0",
+    "sqlalchemy[asyncio]>=2.0.54",
+    "temporalio>=1.33.0",
+    "uvicorn[standard]>=0.53.0",
+]
+
+[project.scripts]
+gen9-agent = "gen9_agent.main:main"
+gen9-agent-migrate = "gen9_agent.migrate:main"
+gen9-agent-worker = "gen9_agent.worker:main"
+gen9-agent-reseal = "gen9_agent.reseal:main"
+gen9-agent-erase = "gen9_agent.erase:main"
+gen9-agent-stop = "gen9_agent.stop:main"
+
+[build-system]
+requires = ["uv_build>=0.12.15,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=1",
+    "ruff>=0.16.8",
+    "ty>=0.0.83",
+    # The evals' tests run with the checks
+    { include-group = "evals" },
+]
+# gen9-agent/evals (make evals)
+evals = [
+    "httpx-sse>=0.4.3",
+    "openevals>=0.2.0",
+]
+
+[tool.pytest.ini_options]
+# tests/ imports the evals package from the project's root
+pythonpath = ["."]
+
+[tool.ruff.lint]
+# Defaults (E4, E7, E9, F) + import sorting, pyupgrade, bugbear, and flake8-async: nothing blocks
+# the event loop (AGENTS.md, "Python is async from the ground up")
+extend-select = ["I", "UP", "B", "ASYNC"]

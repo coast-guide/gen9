@@ -1,0 +1,197 @@
+# Logs rotate: three files of 10 MB a container, compressed (Docker's local driver). Docker's
+# default, json-file, keeps a container's log for as long as the container lives, unbounded, with
+# what it holds: Keycloak's sign-in failures name the user and their address (manual-e2e.md, P4-E5)
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
+
+# gen9-keycloak: identity provider for Gen9 (users, login, sessions, tokens).
+#   docker compose up -d --build --wait     -> http://localhost:15000 (admin console: /admin) from the
+#                                              host, http://gen9-keycloak:8080 on the gen9-keycloak network
+# Decoupled: its own Postgres and its own SMTP catcher (Mailpit). Apps only need the issuer URL
+# and their client credentials.
+services:
+  keycloak:
+    logging: *logging
+    build: .
+    image: gen9-keycloak:26.7.4
+    restart: unless-stopped
+    labels:  # where to open it; the root Makefile lists these after make up
+      gen9.name: Keycloak admin console
+      gen9.url: ${KC_HOSTNAME:-http://localhost:15000}/admin/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    environment:
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?run ./init-env.sh first}
+      # One issuer for browsers and containers: tokens always say iss=KC_HOSTNAME, while back-channel
+      # endpoints (token, JWKS, userinfo) follow the request host, so containers can use
+      # gen9-keycloak:8080. See https://www.keycloak.org/server/hostname
+      KC_HOSTNAME: ${KC_HOSTNAME:-http://localhost:15000}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # Plain HTTP only because everything is bound to 127.0.0.1; put TLS in front on a VM
+      KC_HTTP_ENABLED: "true"
+      # Temporary admin for the master realm (Keycloak asks you to replace it with a permanent one)
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?run ./init-env.sh first}
+      KC_LOG_LEVEL: info
+      # Read by realm/gen9-realm.json placeholders on first import only
+      GEN9_UI_CLIENT_SECRET: ${GEN9_UI_CLIENT_SECRET:?run ./init-env.sh first}
+      GEN9_AGENT_CLIENT_SECRET: ${GEN9_AGENT_CLIENT_SECRET:?run ./init-env.sh first}
+      GEN9_UI_URL: ${GEN9_UI_URL:-http://localhost:14000}
+      GEN9_UI_DEV_URL: ${GEN9_UI_DEV_URL:-http://localhost:14001}
+      GEN9_UI_BACKCHANNEL_LOGOUT_URL: ${GEN9_UI_BACKCHANNEL_LOGOUT_URL:-http://gen9-ui:3000/auth/backchannel-logout}
+      GEN9_SEED_ADMIN_EMAIL: ${GEN9_SEED_ADMIN_EMAIL:-ada@gen9.test}
+      GEN9_SEED_ADMIN_PASSWORD: ${GEN9_SEED_ADMIN_PASSWORD:?run ./init-env.sh first}
+      GEN9_SEED_USER_EMAIL: ${GEN9_SEED_USER_EMAIL:-alan@gen9.test}
+      GEN9_SEED_USER_PASSWORD: ${GEN9_SEED_USER_PASSWORD:?run ./init-env.sh first}
+    volumes:
+      - ./realm:/opt/keycloak/data/import:ro
+    networks:
+      default: {}
+      gen9-keycloak:
+        aliases: [gen9-keycloak]
+      gen9-ui: {}  # back-channel logout: Keycloak tells gen9-ui when a session ends
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PORT:-15000}:8080"
+      - "127.0.0.1:${KEYCLOAK_MANAGEMENT_PORT:-15001}:9000"
+    healthcheck:
+      # Healthy = the gen9 realm answers, not just the server: /health/ready turns UP before the
+      # --import-realm step has run (seen on 26.7.4), so dependants could start too early.
+      # The image has no curl/wget, so bash's /dev/tcp sends the request.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /realms/gen9/.well-known/openid-configuration HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200 '"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+      start_interval: 2s
+
+  configure:
+    logging: *logging
+    # One-shot: realm settings the first-boot import can't express (config/configure.sh). Runs after
+    # every start and exits; each step is idempotent.
+    image: gen9-keycloak:26.7.4
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    entrypoint: ["/opt/gen9/configure.sh"]
+    environment:
+      # kcadm starts a JVM per call (58 in configure.sh): quick JIT, serial GC and a class-data archive made
+      # by the first call and reused by the rest take a call from 0.99 s to 0.58 s (measured, 10 reads; P2-K4)
+      KC_OPTS: -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:SharedArchiveFile=/tmp/kcadm.jsa -XX:+AutoCreateSharedArchive
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?run ./init-env.sh first}
+      GEN9_UI_BACKCHANNEL_LOGOUT_URL: ${GEN9_UI_BACKCHANNEL_LOGOUT_URL:-http://gen9-ui:3000/auth/backchannel-logout}
+      # Temporal's web UI client (make setup STACKS=keycloak adds the secret to an older .env)
+      GEN9_TEMPORAL_UI_URL: ${GEN9_TEMPORAL_UI_URL:-http://localhost:18000}
+      # Gen9's MCP server (gen9-agent), the audience of tokens for it
+      GEN9_MCP_URL: ${GEN9_MCP_URL:-http://localhost:17000/mcp}
+      # Gen9 as an A2A agent (gen9-agent), the audience of tokens for it
+      GEN9_A2A_URL: ${GEN9_A2A_URL:-http://localhost:17000/a2a}
+      # Where MCP clients' Client ID Metadata Documents may come from, and whether over http:
+      # Claude's, VS Code's and the loopback hosts, and host.docker.internal over http for
+      # e2e/mcp-server.mjs. Production: https only, and only the clients it trusts
+      GEN9_MCP_CLIENT_DOMAINS: ${GEN9_MCP_CLIENT_DOMAINS:-claude.ai,vscode.dev,code.visualstudio.com,localhost,127.0.0.1,host.docker.internal}
+      GEN9_MCP_CLIENT_ALLOW_HTTP: ${GEN9_MCP_CLIENT_ALLOW_HTTP:-true}
+      GEN9_TEMPORAL_UI_CLIENT_SECRET: ${GEN9_TEMPORAL_UI_CLIENT_SECRET:?run make setup STACKS=keycloak}
+    volumes:
+      - ./config:/opt/gen9:ro
+    restart: "no"
+
+  ready:
+    logging: *logging
+    # Holds `docker compose up --wait` (and make up) until configure has succeeded, and fails it if
+    # configure fails: Compose doesn't wait for a one-shot job that nothing depends on
+    # (docker/compose#9273, #9572). Without it, up returned while a new realm still had Keycloak's
+    # built-in forgot-password flow. Idles on the image already built; init: true so it stops at once.
+    image: gen9-keycloak:26.7.4
+    entrypoint: ["sleep", "infinity"]
+    init: true
+    depends_on:
+      configure:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  postgres:
+    logging: *logging
+    # Pinned as tag@digest. To upgrade: docker buildx imagetools inspect postgres:<version>-trixie
+    image: postgres:18.6-trixie@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?run ./init-env.sh first}
+      POSTGRES_INITDB_ARGS: --data-checksums --auth-host=scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:${KEYCLOAK_POSTGRES_PORT:-15003}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak -h 127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+
+  mailpit:
+    logging: *logging
+    # Catches every email Keycloak sends (verify email, reset password) and Gen9's notifications
+    # (gen9-agent's notices.py) for local testing.
+    # Pinned as tag@digest. To upgrade: docker buildx imagetools inspect axllent/mailpit:<version>
+    image: axllent/mailpit:v1.31.3@sha256:ed9b00c609e77e99c79b93f1178255ebc271868920f2c69a8d166bd5634ed10d
+    restart: unless-stopped
+    labels:
+      gen9.name: Mailpit (emails; user gen9, MAILPIT_UI_PASSWORD in gen9-keycloak/.env)
+      gen9.url: http://localhost:${MAILPIT_PORT:-15002}
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "5000"
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      # Its web UI and API ask for a password: it holds every email, password resets included,
+      # and every container on gen9-keycloak's network reaches it. SMTP stays open to Keycloak and
+      # gen9-agent's worker
+      MP_UI_AUTH_FILE: /tmp/ui-auth
+      MAILPIT_UI_PASSWORD: ${MAILPIT_UI_PASSWORD:?run make setup STACKS=keycloak}
+    # The password file, written from .env at start (Mailpit reads a file only)
+    entrypoint:
+      - /bin/sh
+      - -c
+      - umask 077 && printf 'gen9:%s\n' "$$MAILPIT_UI_PASSWORD" > /tmp/ui-auth && exec /mailpit
+    volumes:
+      - mailpit_data:/data
+    networks:
+      default: {}
+      # gen9-agent's worker sends its notification emails here in development (SMTP_URL)
+      gen9-keycloak:
+        aliases: [gen9-mailpit]
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:-15002}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      start_interval: 1s
+
+volumes:
+  postgres_data:
+  mailpit_data:
+
+networks:
+  # One per stack, external (make up creates them, or: docker network create <name>): this stack's
+  # own, which gen9-agent and gen9-ui join to call Keycloak, and gen9-ui's for back-channel logout
+  gen9-keycloak:
+    name: gen9-keycloak
+    external: true
+  gen9-ui:
+    name: gen9-ui
+    external: true

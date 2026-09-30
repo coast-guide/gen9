@@ -1,0 +1,266 @@
+# gen9-models: the model router. Every model Gen9 uses, of every kind, wherever it is hosted, is
+# reached here by alias (config.yaml): LiteLLM Proxy, with its own Postgres for keys and spend.
+#   docker compose up -d --wait   -> OpenAI-compatible API on 127.0.0.1:19000 (/v1/...)
+# Other stacks' containers reach it at gen9-models:4000 over the gen9-models network, which only
+# gen9-agent joins. Why LiteLLM, and how it is hardened: README.md, docs/plans/harness.md.
+x-litellm-image: &litellm-image
+  # v1.102.1 from its stable branch, pinned by digest after `cosign verify` against the key at
+  # BerriAI/litellm@0112e53 (README, Upgrade). Published for linux/amd64 only: on Apple silicon it
+  # runs under emulation.
+  image: ghcr.io/berriai/litellm:v1.103.0@sha256:bd089afdcd35b894b14a93f9743cdc8b591f82da1a38dd43a010a7b0c9de5fd7
+  platform: linux/amd64
+
+# Logs rotate: three files of 10 MB a container, compressed (Docker's local driver). Docker's
+# default, json-file, keeps a container's log for as long as the container lives, unbounded, with
+# what it holds: Keycloak's sign-in failures name the user and their address (manual-e2e.md, P4-E5)
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  postgres:
+    logging: *logging
+    # Keys, budgets and spend logs. Pinned as tag@digest; to upgrade:
+    # docker buildx imagetools inspect postgres:<version>-trixie
+    image: postgres:16.15-trixie@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./init-env.sh first}
+      POSTGRES_DB: litellm
+      POSTGRES_INITDB_ARGS: --data-checksums --auth-host=scram-sha-256
+      TZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm -h 127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+
+  litellm:
+    logging: *logging
+    <<: *litellm-image
+    restart: unless-stopped
+    command: ["--config", "/etc/gen9/config.yaml", "--port", "4000", "--num_workers", "1"]
+    env_file:
+      - path: .env  # provider keys (OPENAI_API_KEY, …) that config.yaml names as os.environ/…
+    environment:
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      # Hardening (README, Security): no admin UI sign-in and no API docs, models only from
+      # config.yaml, prices from the map inside this pinned image instead of GitHub's main branch
+      DISABLE_ADMIN_UI: "True"
+      NO_DOCS: "True"
+      NO_REDOC: "True"
+      STORE_MODEL_IN_DB: "False"
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      LITELLM_LOG: WARNING
+    volumes:
+      - ./config.yaml:/etc/gen9/config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${GEN9_MODELS_PORT:-19000}:4000"
+    networks:
+      default: {}
+      gen9-models:
+        aliases: [gen9-models]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=3)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
+      start_interval: 2s
+
+  searxng:
+    logging: *logging
+    # The router's self-hosted web search (config.yaml, search_tools: web). AGPL-3.0, run as its own
+    # service. Pinned as tag@digest; to upgrade: docker buildx imagetools inspect searxng/searxng:<tag>
+    image: searxng/searxng:2026.9.23-3cd69d30e@sha256:bcfaed4091d59f7ce85670bd701a2d0295872196dc19908a3965a8353b149f83
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${GEN9_SEARXNG_SECRET:?run make setup STACKS=models}
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    # The image's VOLUMEs, covered so they make no anonymous volumes that every recreate leaves
+    # behind: its settings are the file above, and its cache can start empty
+    tmpfs: ["/etc/searxng:size=1m", "/var/cache/searxng:size=64m"]
+    # No host port and only this stack's network: the router is its one caller
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 2s
+
+  ollama:
+    logging: *logging
+    # Self-hosted models, only with the `local` profile (COMPOSE_PROFILES=local in .env; README,
+    # "Self-hosted models"). Native on Apple silicon and x86. Pinned as tag@digest.
+    image: ollama/ollama:0.34.4@sha256:8262851b2846b87c649eddf3e76beb270c52f4d1bc94559f47efde16b0841551
+    profiles: [local]
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    # No host port and only this stack's network: the router is its one caller
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+      start_interval: 2s
+
+  reranker:
+    logging: *logging
+    # The `rerank` alias, only with the `local` profile: llama.cpp's server with Jina's turbo
+    # reranker (38M, English), about 175 MiB serving. Chosen by a probe on a laptop, where larger
+    # rerankers ran out of memory (gen9-agent/explore/search/NOTES.md). Pinned as tag@digest, the
+    # model by its repository's commit.
+    image: ghcr.io/ggml-org/llama.cpp:server-b11151@sha256:fffcc1af1105bafc713a47b6680fb7cf5856ed43ea2e9e8bca5a62bbd6365edf
+    profiles: [local]
+    restart: unless-stopped
+    command:
+      # Downloaded once into the volume. Without a model path the server starts in "router mode"
+      # with no model, loading models on demand, which it warns against for untrusted callers
+      - --model
+      - /models/jina-reranker-v1-turbo-en-F16.gguf
+      - --model-url
+      - https://huggingface.co/ggml-org/jina-reranker-v1-turbo-en-GGUF/resolve/607d8664c787e517e5d6e339d21f680f9002c931/Jina-Bert-Implementation-38M-F16.gguf
+      - --alias
+      - jina-reranker-v1-turbo-en  # the name config.yaml's `rerank` asks for
+      - --reranking
+      - --no-webui
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+    environment:
+      LLAMA_CACHE: /models
+    volumes:
+      - reranker_models:/models
+    mem_limit: 1g
+    # No host port and only this stack's network: the router is its one caller
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+      start_interval: 2s
+
+  ollama-pull:
+    logging: *logging
+    # Pulls the local models (GEN9_LOCAL_MODELS); quick once they are in the volume
+    image: ollama/ollama:0.34.4@sha256:8262851b2846b87c649eddf3e76beb270c52f4d1bc94559f47efde16b0841551
+    profiles: [local]
+    entrypoint: ["/bin/sh", "-c", "for model in $$GEN9_LOCAL_MODELS; do ollama pull $$model || exit 1; done"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      GEN9_LOCAL_MODELS: ${GEN9_LOCAL_MODELS:-qwen3:0.6b embeddinggemma}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  keys:
+    logging: *logging
+    # gen9-agent's virtual keys (created once; the API's scope set on every start) and every user's
+    # default budget (kept in line with .env on every start): scripts/ensure-keys.py
+    <<: *litellm-image
+    entrypoint: ["python", "/scripts/ensure-keys.py"]
+    environment:
+      LITELLM_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?run ./init-env.sh first}
+      GEN9_AGENT_MODELS_KEY: ${GEN9_AGENT_MODELS_KEY:?run ./init-env.sh first}
+      GEN9_AGENT_API_MODELS_KEY: ${GEN9_AGENT_API_MODELS_KEY:?run make setup STACKS=models}
+      # The evals' judge's key, and its daily budget (empty key: not made yet; make setup adds it)
+      GEN9_EVALS_MODELS_KEY: ${GEN9_EVALS_MODELS_KEY:-}
+      GEN9_AGENT_BUDGET_USD: ${GEN9_AGENT_BUDGET_USD-5}
+      GEN9_EVALS_BUDGET_USD: ${GEN9_EVALS_BUDGET_USD-5}
+      GEN9_USER_BUDGET_USD: ${GEN9_USER_BUDGET_USD:-}
+      GEN9_USER_BUDGET_PERIOD: ${GEN9_USER_BUDGET_PERIOD:-}
+      GEN9_USER_RPM: ${GEN9_USER_RPM:-}
+      # As the tables' owner, to keep the admin API's role (gen9_admin) in line
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      GEN9_ADMIN_DB_PASSWORD: ${GEN9_ADMIN_DB_PASSWORD:?run make setup STACKS=models}
+    volumes:
+      - ./scripts:/scripts:ro
+    depends_on:
+      litellm:
+        condition: service_healthy
+    restart: "no"
+
+  admin:
+    logging: *logging
+    # Gen9's admin API for the router: erasing a user (admin/app.py). On LiteLLM's image for its
+    # Python; no LiteLLM process. Only gen9-agent's key is accepted.
+    <<: *litellm-image
+    restart: unless-stopped
+    entrypoint: ["python", "-m", "uvicorn", "app:app", "--app-dir", "/srv/admin", "--host", "0.0.0.0", "--port", "4001", "--no-server-header"]
+    environment:
+      GEN9_AGENT_MODELS_KEY: ${GEN9_AGENT_MODELS_KEY:?run ./init-env.sh first}
+      # gen9-agent's API's key: it may read a person's usage for their data export (admin/app.py)
+      GEN9_AGENT_API_MODELS_KEY: ${GEN9_AGENT_API_MODELS_KEY:-}
+      GEN9_ADMIN_DATABASE_URL: postgresql://gen9_admin:${GEN9_ADMIN_DB_PASSWORD}@postgres:5432/litellm
+    volumes:
+      - ./admin:/srv/admin:ro
+    depends_on:
+      keys:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${GEN9_MODELS_ADMIN_PORT:-19001}:4001"
+    networks:
+      default: {}
+      gen9-models:
+        aliases: [gen9-models-admin]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4001/health', timeout=3)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+      start_interval: 2s
+
+  ready:
+    logging: *logging
+    # Holds `docker compose up --wait` (and make up) until keys has succeeded: Compose doesn't wait
+    # for a one-shot job that nothing depends on (docker/compose#9273). Idles on the Postgres image.
+    image: postgres:16.15-trixie@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+    entrypoint: ["sleep", "infinity"]
+    init: true
+    # The image's VOLUME, covered so it makes no anonymous volume that every recreate leaves behind
+    tmpfs: [/var/lib/postgresql/data]
+    depends_on:
+      keys:
+        condition: service_completed_successfully
+      admin:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+      ollama-pull:
+        condition: service_completed_successfully
+        required: false  # only with the `local` profile
+      reranker:
+        condition: service_healthy
+        required: false  # only with the `local` profile
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  ollama_models:
+  reranker_models:
+
+networks:
+  # How gen9-agent's containers reach the router. External, so this stack doesn't own it:
+  # `make up` creates it, or once by hand: docker network create gen9-models
+  gen9-models:
+    name: gen9-models
+    external: true

@@ -1,0 +1,115 @@
+# Logs rotate: three files of 10 MB a container, compressed (Docker's local driver). Docker's
+# default, json-file, keeps a container's log for as long as the container lives, unbounded, with
+# what it holds: Keycloak's sign-in failures name the user and their address (manual-e2e.md, P4-E5)
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
+
+# gen9-postgres: Postgres 18 + pgvector + pg_textsearch (BM25), the application database for Gen9
+# services (gen9-agent).
+#   docker compose up -d --wait        -> 127.0.0.1:16000 from the host, gen9-postgres:5432 from
+#                                         containers on the gen9-postgres network
+# Keycloak and Langfuse keep their own databases in their own stacks; this one holds app data only.
+services:
+  postgres:
+    logging: *logging
+    # pgvector's official image (pinned by digest in the Dockerfile) plus pg_textsearch for BM25;
+    # `make up` builds it. To upgrade either: the Dockerfile.
+    build: .
+    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./init-env.sh first}
+      POSTGRES_INITDB_ARGS: --data-checksums --auth-host=scram-sha-256
+      # Read by initdb/10-app-databases.sh on first start only
+      GEN9_AGENT_DB_PASSWORD: ${GEN9_AGENT_DB_PASSWORD:?run ./init-env.sh first}
+      TZ: UTC
+    volumes:
+      # Postgres 18+ images keep PGDATA under /var/lib/postgresql/18/docker; mounting the parent
+      # (the image's VOLUME) keeps major upgrades possible with pg_upgrade --link
+      - postgres_data:/var/lib/postgresql
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:${GEN9_POSTGRES_PORT:-16000}:5432"
+    # pgvector: --shm-size must be at least maintenance_work_mem, or parallel HNSW index builds fail
+    shm_size: 1g
+    # pg_textsearch must be preloaded, or CREATE EXTENSION fails ("library not loaded")
+    command: ["postgres", "-c", "maintenance_work_mem=512MB", "-c", "log_min_duration_statement=500",
+              "-c", "shared_preload_libraries=pg_textsearch"]
+    networks:
+      default: {}
+      gen9-postgres:
+        aliases: [gen9-postgres]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gen9_agent -h 127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+
+  extensions:
+    logging: *logging
+    # Every start: the extensions only the superuser may create, in each app database
+    # (scripts/ensure-extensions.sh), so a database made before one joined the image gets it too
+    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    entrypoint: ["/bin/sh", "/scripts/ensure-extensions.sh"]
+    tmpfs: [/var/lib/postgresql]  # the image's VOLUME: no anonymous volume per run
+    environment:
+      PGHOST: postgres
+      POSTGRES_USER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:?run ./init-env.sh first}
+    volumes:
+      - ./scripts:/scripts:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  roles:
+    logging: *logging
+    # Every start: the role gen9-agent's services connect as, and its password
+    # (scripts/ensure-roles.sh). It owns nothing; gen9-agent's migrations grant it the tables
+    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    entrypoint: ["/bin/sh", "/scripts/ensure-roles.sh"]
+    tmpfs: [/var/lib/postgresql]  # the image's VOLUME: no anonymous volume per run
+    environment:
+      PGHOST: postgres
+      POSTGRES_USER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:?run ./init-env.sh first}
+      GEN9_AGENT_APP_DB_PASSWORD: ${GEN9_AGENT_APP_DB_PASSWORD:?run make setup, which adds it}
+    volumes:
+      - ./scripts:/scripts:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  ready:
+    logging: *logging
+    # Holds `docker compose up --wait` (and make up) until extensions and roles have succeeded:
+    # Compose doesn't wait for a one-shot job that nothing depends on (docker/compose#9273)
+    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    entrypoint: ["sleep", "infinity"]
+    init: true
+    # The image's VOLUME, covered so it makes no anonymous volume that every recreate leaves behind
+    tmpfs: [/var/lib/postgresql]
+    depends_on:
+      extensions:
+        condition: service_completed_successfully
+      roles:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  # How other stacks' containers reach this one (gen9-agent joins it too). External, so this stack
+  # doesn't own it: `make up` creates it, or once by hand: docker network create gen9-postgres
+  gen9-postgres:
+    name: gen9-postgres
+    external: true

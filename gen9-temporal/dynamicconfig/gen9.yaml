@@ -1,0 +1,39 @@
+# Temporal Server dynamic configuration for Gen9 (read at start and every 60 s).
+# Keys: github.com/temporalio/temporal common/dynamicconfig/constants.go (v1.32.0).
+
+# Runs of different people share the agent task queue fairly: each run carries its user's `sub` as
+# its fairness key (docs/temporal.md, rule 11). Priority needs nothing: it is on by default.
+matching.enableFairness:
+  - value: true
+
+# Temporal's own Compose setup for SQL keeps IDs within what its indexes handle well
+limit.maxIDLength:
+  - value: 255
+
+# A retrying activity keeps its last failure in the workflow's state, up to 4 KB by default; a larger
+# one shows only as "Failure exceeds size limit." with its encrypted message and stack trace dropped.
+# One network error from gen9-agent is about 5 KB, so a deletion waiting on Langfuse showed no
+# reason (M9, F22). 64 KB keeps any Gen9 failure seen so far, against 8 MB for the whole state.
+limit.mutableStateActivityFailureSize.error:
+  - value: 65536
+limit.mutableStateActivityFailureSize.warn:
+  - value: 32768
+
+# Membership (ringpop, ports 6933-6939) uses the internode certificate too, like every port but the
+# frontend's (compose.yaml, TEMPORAL_TLS_REQUIRE_CLIENT_AUTH). Read once at start: restart to change.
+system.enableRingpopTLS:
+  - value: true
+
+# Fairness and priority hold within one task queue partition, and a queue has 4 by default, each
+# task on a random one: with a few runs queued, one person's run could still wait behind all of
+# another's (e2e/fairness.mjs). One host's agent turns fit in one partition. To go back
+# to more, raise both counts; to lower them, lower the write count first, wait for the removed
+# partitions' backlog to drain, then the read count (Temporal's task queue docs).
+matching.numTaskqueueWritePartitions:
+  - value: 1
+    constraints:
+      taskQueueName: gen9-agent
+matching.numTaskqueueReadPartitions:
+  - value: 1
+    constraints:
+      taskQueueName: gen9-agent

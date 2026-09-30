@@ -1,0 +1,19 @@
+# A throwaway OpenSandbox server for probe.py, apart from the stacks (its own project and port).
+#   docker compose up -d; uv run --no-project --with opensandbox==1.1.0 --with httpx python probe.py
+#   docker compose down
+# Without launch.py (remove entrypoint/command), sandboxes' ports are published on every interface.
+name: osb-probe
+services:
+  server:
+    image: opensandbox/server:release-1.1.0
+    entrypoint: ["/app/.venv/bin/python", "/launch.py"]
+    command: []
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports: ["127.0.0.1:20999:8090"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config.toml:/etc/opensandbox/config.toml:ro
+      - ./launch.py:/launch.py:ro
+    environment:
+      SANDBOX_CONFIG_PATH: /etc/opensandbox/config.toml
+      OPENSANDBOX_SERVER_API_KEY: probe-key-not-secret

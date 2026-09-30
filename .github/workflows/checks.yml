@@ -1,0 +1,230 @@
+# Checks on every pull request and on main: types, lint, unit tests, dependency advisories,
+# design-token copies, and the make workflow end users run (setup, doctor, config, one stack start
+# to finish) on Linux with real Docker. The full live checks (every stack up, verify.sh, make e2e)
+# run locally. Actions and images are pinned to digests (tag in the comment).
+name: Checks
+
+# Paused while the account has no Actions budget: it runs only when started by hand
+# (Actions > Checks > Run workflow). To run it on every pull request and on main again, replace
+# the `on:` line below with this one:
+#   on: { pull_request: {}, push: { branches: [main] }, workflow_dispatch: {} }
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gen9-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: gen9-ui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: gen9-ui/package-lock.json
+      - run: npm ci
+      - run: npx next typegen # route types and next-env.d.ts (not committed)
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm test
+      # Only the build refuses a server-only module imported into a client component
+      - run: npm run build
+      - run: npm audit --audit-level=high
+
+  keycloak-theme:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: gen9-keycloak/theme
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: gen9-keycloak/theme/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm audit --audit-level=high
+
+  design-copies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: make design-check
+
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [gen9-agent, gen9-cli]
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: ${{ matrix.project }}/uv.lock
+      - run: uv sync --locked
+      - run: uv run ruff check
+      - run: uv run ruff format --check
+      - name: ruff on gen9-models' and gen9-sandbox's Python (they run on LiteLLM's and OpenSandbox's images; each its own ruff.toml)
+        if: matrix.project == 'gen9-agent'
+        run: uv run ruff check ../gen9-models ../gen9-sandbox && uv run ruff format --check ../gen9-models ../gen9-sandbox
+      - run: uv run pytest -q
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: matrix.project == 'gen9-agent'
+        with:
+          node-version: 24.21.0
+      - name: the plugin loader passes the Agent Plugins conformance kit (133 fixtures)
+        if: matrix.project == 'gen9-agent'
+        working-directory: e2e
+        run: npm ci && node plugins-conformance.mjs
+      - name: pip-audit (locked dependencies)
+        run: |
+          uv export --frozen --no-hashes --no-emit-project --color never > "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit -r "$RUNNER_TEMP/requirements.txt" --disable-pip --no-deps --progress-spinner off
+
+  learn-page:
+    # gen9-learn/index.html renders at phone, laptop and desktop widths, light and dark, with no
+    # script errors, no sideways scrolling and no serious axe violations. Its story needs the stacks
+    # and runs locally (gen9-learn/README.md).
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: gen9-learn/verify
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: gen9-learn/verify/package-lock.json
+      - run: npm ci
+      - run: CHROME_PATH="$(command -v google-chrome)" node page.mjs
+
+  make-workflow:
+    # Linux runs the recipes with dash as /bin/sh and GNU Make 4 (macOS: bash and Make 3.81), and
+    # its Docker engine is where cross-stack networking must hold (Docker Desktop is more lenient)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck
+        run: >-
+          docker run --rm -v "$PWD:/mnt:ro" -w /mnt
+          koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d
+          scripts/*.sh gen9-*/init-env.sh gen9-temporal/init-tls.sh gen9-keycloak/verify.sh gen9-keycloak/config/configure.sh gen9-design/sync.sh
+          gen9-learn/tools/*.sh gen9-temporal/scripts/*.sh gen9-temporal/initdb/*.sh gen9-postgres/scripts/*.sh
+      - run: make help && make stacks
+      - name: an unknown stack is refused
+        run: "! make ps STACKS=nope"
+      - name: make setup, without a terminal
+        env:
+          LANGFUSE_EMAIL: ci@gen9.test
+          LANGFUSE_NAME: Gen9 CI
+        run: make setup < /dev/null
+      - run: make doctor
+      - name: make config (with the shared-network name check)
+        run: make config
+      - name: stacks call each other over their networks
+        run: |
+          make up STACKS="postgres keycloak temporal models agent"
+          curl -fsS http://127.0.0.1:17000/readyz   # gen9-agent -> gen9-postgres:5432
+          # gen9-postgres' own image: pg_textsearch preloaded, and both superuser extensions in the app database
+          docker exec gen9-postgres-postgres-1 psql -U postgres -d gen9_agent -tAc "select count(*) from pg_extension where extname in ('vector', 'pg_textsearch')" | grep -qx 2
+          docker exec gen9-agent-api-1 python -c "import os, urllib.request as u; u.urlopen(os.environ['KEYCLOAK_INTERNAL_URL'] + '/realms/gen9/.well-known/openid-configuration', timeout=5)"
+          gen9-keycloak/verify.sh                   # includes a container on gen9-keycloak
+          make ps
+      - name: gen9-sandbox starts, and its API refuses anyone without its key
+        run: |
+          make up STACKS=sandbox
+          curl -fsS http://127.0.0.1:20000/health
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:20000/v1/sandboxes)" = 401
+          # gen9-agent's worker holds the key and joins the network; its API does neither
+          docker exec gen9-agent-worker-1 python -c "import urllib.request as u; u.urlopen('http://gen9-sandbox:8090/health', timeout=5)"
+          test -z "$(docker exec gen9-agent-api-1 printenv SANDBOX_API_KEY)"
+      - name: gen9-temporal has its namespace, and gen9-agent's worker polls it over its network
+        working-directory: gen9-temporal
+        run: |
+          # The stack's own CLI: the internal frontend, with the internode certificate
+          docker compose run --rm cli sh -c 'temporal operator namespace describe -n gen9 >/dev/null && temporal operator search-attribute list -n gen9 | grep -c "^ *Gen9" | grep -qx 4'
+          docker compose run --rm cli sh -c 'temporal task-queue describe -n gen9 --task-queue gen9-agent | grep -q "gen9-agent-worker@"'
+          curl -fsS -o /dev/null http://127.0.0.1:18000/   # the web UI (sign-in: e2e/temporal.mjs)
+      - name: gen9-models serves the aliases to gen9-agent's worker, and its API only embed and rerank
+        # `if cmd; then exit 1; fi` where a command must fail: bash -e ignores a `! cmd` (SC2251)
+        run: |
+          key=$(sed -n 's/^GEN9_MODELS_KEY=//p' gen9-agent/models.local.env)
+          curl -fsS -H "Authorization: Bearer $key" http://127.0.0.1:19000/v1/models | grep -q '"id":"chat"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer sk-wrong' http://127.0.0.1:19000/v1/models)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:19000/docs)" = 404
+          docker run --rm --network gen9-models busybox:1.37 nc -z -w 3 gen9-models 4000
+          if docker run --rm --network gen9-keycloak busybox:1.37 nc -z -w 3 gen9-models 4000; then exit 1; fi
+          # gen9-agent's worker calls models; its API only embeds and reranks search queries, with a key
+          # of its own that the router allows `embed` and `rerank`, and it doesn't hold the worker's key
+          docker exec gen9-agent-worker-1 python -c "import urllib.request as u; u.urlopen('http://gen9-models:4000/health/liveliness', timeout=5)"
+          docker exec gen9-agent-api-1 python -c "import urllib.request as u; u.urlopen('http://gen9-models:4000/health/liveliness', timeout=5)"
+          api=$(sed -n 's/^GEN9_MODELS_KEY=//p' gen9-agent/models-api.local.env)
+          test -n "$api" && test "$api" != "$key"
+          test "$(docker exec gen9-agent-api-1 printenv GEN9_MODELS_KEY)" = "$api"
+          test "$(curl -fsS -H "Authorization: Bearer $api" http://127.0.0.1:19000/v1/models | grep -o '"id":"[a-z-]*"' | sort | tr '\n' ' ')" = '"id":"embed" "id":"rerank" '
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $api" -H 'Content-Type: application/json' http://127.0.0.1:19000/v1/chat/completions -d '{"model": "chat", "messages": [{"role": "user", "content": "hi"}]}')" = 403
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $api" -H 'Content-Type: application/json' http://127.0.0.1:19000/v1/search/web -d '{"query": "hi"}')" = 403
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $api" http://127.0.0.1:19001/users/nobody/erase)" = 401
+          if docker exec gen9-agent-worker-1 printenv OPENAI_API_KEY >/dev/null; then exit 1; fi
+          # Gen9's admin API: only gen9-agent's key, and only over gen9-models
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:19001/users/nobody/erase)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Authorization: Bearer sk-wrong' http://127.0.0.1:19001/users/nobody/erase)" = 401
+          curl -fsS -X POST -H "Authorization: Bearer $key" http://127.0.0.1:19001/users/ci-nobody/erase | grep -q '"LiteLLM_SpendLogs":0'
+          if docker run --rm --network gen9-keycloak busybox:1.37 nc -z -w 3 gen9-models-admin 4001; then exit 1; fi
+          # SearXNG, the router's search backend: the router reaches it, the shared network doesn't
+          docker exec gen9-models-litellm-1 python -c "import urllib.request as u; u.urlopen('http://searxng:8080/healthz', timeout=5)"
+          if docker run --rm --network gen9-models busybox:1.37 nc -z -w 3 searxng 8080; then exit 1; fi
+      - name: other stacks get Temporal's frontend only, and only with a token
+        run: |
+          tools=temporalio/admin-tools:1.32.0@sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca
+          out=$(docker run --rm --network gen9-temporal --entrypoint temporal $tools workflow list -n gen9 --address gen9-temporal:7233 2>&1 || true)
+          echo "$out" | grep -q "Request unauthorized"
+          for port in 7234 7235 7236 7239; do   # history, matching, internal frontend, worker
+            out=$(docker run --rm --network gen9-temporal --entrypoint temporal $tools operator cluster health --address gen9-temporal:$port 2>&1 || true)
+            echo "$out" | grep -q "requires TLS"
+          done
+          # The frontend's HTTP API answers; the internal frontend's (plaintext, admin rights) is off
+          docker run --rm --network gen9-keycloak busybox:1.37 sh -c \
+            'nc -z -w 3 gen9-temporal-temporal-1 7243 && ! nc -z -w 3 gen9-temporal-temporal-1 7246'
+      - name: start over
+        run: |
+          make logs STACKS=postgres TAIL=5
+          make down
+          if make wipe STACKS=postgres < /dev/null; then echo "wipe deleted without asking"; exit 1; fi
+          make distclean YES=1
+          make distclean < /dev/null | grep -q 'already clean'
+          test -z "$(docker network ls -q --filter label=gen9.network=shared)"

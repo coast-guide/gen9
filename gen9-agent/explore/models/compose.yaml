@@ -1,0 +1,51 @@
+# Probe: LiteLLM Proxy as Gen9's model router (docs/plans/harness.md, "Model router").
+#   ./env.sh && docker compose up -d --wait && uv run python probe.py
+# Throwaway: its own project, Postgres and volume; `docker compose down -v` removes all of it.
+name: gen9-models-probe
+services:
+  postgres:
+    image: postgres:16.15-trixie@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./env.sh}
+      POSTGRES_DB: litellm
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm -h 127.0.0.1"]
+      interval: 5s
+      retries: 10
+      start_interval: 1s
+      start_period: 20s
+
+  litellm:
+    # v1.102.1, cosign-verified against the key at BerriAI/litellm@0112e53 (NOTES.md). amd64 only.
+    image: ghcr.io/berriai/litellm:v1.102.1@sha256:87f34979b9f8cb274fac90ca8a4fdda07d8480de22755562a26adeb95ce20d02
+    platform: linux/amd64
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?run ./env.sh}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?run ./env.sh}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_OTEL_HOST: http://gen9-langfuse:3000
+      DISABLE_ADMIN_UI: "True"
+      STORE_MODEL_IN_DB: "False"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      - "127.0.0.1:19000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [default, gen9-langfuse]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=3)\""]
+      interval: 5s
+      retries: 60
+      start_period: 120s
+      start_interval: 2s
+
+networks:
+  gen9-langfuse:
+    name: gen9-langfuse
+    external: true

@@ -1,0 +1,44 @@
+# OpenSandbox's server, as gen9-sandbox runs it (reference: server/configuration.md at release-1.1.0).
+# No secrets here: the API key comes from OPENSANDBOX_SERVER_API_KEY (.env).
+[server]
+host = "0.0.0.0"
+port = 8090
+# A chat's environment lives at most a day, whatever Gen9 asks (its workflow renews and ends it)
+max_sandbox_timeout_seconds = 86400
+
+[proxy]
+# gen9-agent reaches sandboxes only through the server; the server reaches them at their
+# host-published ports through host.docker.internal (launch.py keeps those off the network)
+resolve_internal = false
+
+[log]
+level = "INFO"
+
+[runtime]
+type = "docker"
+execd_image = "opensandbox/execd:v1.1.0@sha256:6cf7dba2f21f0b536e100563d841ac58a9f31c2b0a081b7ac76796a24d6f47e2"
+
+[egress]
+# A network policy per sandbox (default deny) and the credential vault need the sidecar in dns+nft.
+# The sidecar is OpenSandbox's, pinned, with Gen9's deny.always baseline (egress/, built by compose)
+image = "gen9-sandbox-egress:1.1.7"
+mode = "dns+nft"
+readiness_timeout_seconds = 30.0
+
+[docker]
+# A network policy needs Docker's default bridge (OpenSandbox refuses a user-defined network)
+network_mode = "bridge"
+host_ip = "host.docker.internal"
+# Each sandbox takes 3 ports with its egress sidecar: room for about 330
+port_range_min = 40000
+port_range_max = 40999
+drop_capabilities = ["AUDIT_WRITE", "MKNOD", "NET_ADMIN", "NET_RAW", "SYS_ADMIN", "SYS_MODULE", "SYS_PTRACE", "SYS_TIME", "SYS_TTY_CONFIG"]
+no_new_privileges = true
+pids_limit = 4096
+
+[ingress]
+mode = "direct"
+
+[store]
+type = "sqlite"
+path = "/var/lib/opensandbox/opensandbox.db"

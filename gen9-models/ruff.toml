@@ -1,0 +1,7 @@
+# The Python this stack runs on LiteLLM's image (admin/, scripts/). Same rules as gen9-agent:
+# defaults + import sorting, pyupgrade, bugbear and flake8-async (AGENTS.md, "Python is async from
+# the ground up"). CI: uvx ruff check gen9-models && uvx ruff format --check gen9-models
+target-version = "py313"
+
+[lint]
+extend-select = ["I", "UP", "B", "ASYNC"]

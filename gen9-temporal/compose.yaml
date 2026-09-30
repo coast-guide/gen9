@@ -1,0 +1,213 @@
+# gen9-temporal: Temporal, the durable execution service behind Gen9's runs, approvals, schedules
+# and deletions (docs/temporal.md).
+#   docker compose up -d --wait   -> web UI http://localhost:18000, frontend (gRPC) 127.0.0.1:18001
+# Other stacks' containers reach the frontend at gen9-temporal:7233 over the gen9-temporal network,
+# with a Keycloak token. The stack's own tools: docker compose run --rm cli temporal workflow list
+# Adapted from Temporal's own Compose setup for Postgres
+# (github.com/temporalio/samples-server/tree/main/compose): a schema job, the server, a namespace job
+# and the web UI, on a Postgres that belongs to this stack alone.
+x-temporal-db: &temporal-db
+  DB: postgres12
+  DB_PORT: "5432"
+  POSTGRES_SEEDS: postgres
+  POSTGRES_USER: temporal
+  POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:?run ./init-env.sh first}
+
+# Logs rotate: three files of 10 MB a container, compressed (Docker's local driver). Docker's
+# default, json-file, keeps a container's log for as long as the container lives, unbounded, with
+# what it holds: Keycloak's sign-in failures name the user and their address (manual-e2e.md, P4-E5)
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  postgres:
+    logging: *logging
+    # Temporal supports Postgres 12 and later; its own Compose setup runs 16. Pinned as tag@digest.
+    # To upgrade: docker buildx imagetools inspect postgres:<version>-trixie
+    image: postgres:16.15-trixie@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./init-env.sh first}
+      POSTGRES_INITDB_ARGS: --data-checksums --auth-host=scram-sha-256
+      # Read by initdb/10-temporal-databases.sh on first start only
+      TEMPORAL_DB_PASSWORD: ${TEMPORAL_DB_PASSWORD:?run ./init-env.sh first}
+      TZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d temporal -h 127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+
+  schema:
+    logging: *logging
+    # Creates or upgrades both schemas; safe on every start (scripts/setup-schema.sh)
+    image: temporalio/admin-tools:1.32.0@sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca
+    environment:
+      <<: *temporal-db
+      SQL_PASSWORD: ${TEMPORAL_DB_PASSWORD:?run ./init-env.sh first}
+    entrypoint: ["/bin/sh", "/scripts/setup-schema.sh"]
+    volumes:
+      - ./scripts:/scripts:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  temporal:
+    logging: *logging
+    # Server and admin-tools share a version; upgrade one minor version at a time (README, Upgrade)
+    image: temporalio/server:1.32.0@sha256:c3e752127759616bb1615e0f9ba0e21635aeb5fdeb922de4f371c350955f46ae
+    env_file:
+      - path: tls.local.env  # the internode CA, certificate and key (./init-tls.sh)
+    environment:
+      <<: *temporal-db
+      BIND_ON_IP: 0.0.0.0
+      # Fixed when the databases are first set up, never changed after: Temporal recommends 512 for
+      # small production clusters (docs/temporal.md, Conventions)
+      NUM_HISTORY_SHARDS: "512"
+      DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/config/dynamicconfig/gen9.yaml
+      LOG_LEVEL: warn
+      # Callers need a Keycloak JWT whose `permissions` claim grants a role on the namespace
+      # (gen9:write for gen9-agent, gen9:admin for admins); keys come from Keycloak's JWKS
+      TEMPORAL_AUTH_AUTHORIZER: default
+      TEMPORAL_AUTH_CLAIM_MAPPER: default
+      TEMPORAL_JWT_KEY_SOURCE1: http://gen9-keycloak:8080/realms/gen9/protocol/openid-connect/certs
+      TEMPORAL_JWT_PERMISSIONS_CLAIM: permissions
+      # The server's own system workers (Schedules, batch jobs) call the internal frontend (7236),
+      # which takes no token and treats every caller as an admin (InternalClaimMapper)
+      USE_INTERNAL_FRONTEND: "true"
+      # temporal-server starts frontend, history, matching and worker unless told otherwise
+      # (cmd/server/main.go, temporal/server.go DefaultServices)
+      TEMPORAL_SERVICES: frontend,internal-frontend,history,matching,worker
+      # So every port but the frontend's requires the internode certificate (mTLS): the internal
+      # frontend, history, matching, the internal worker and membership (with
+      # system.enableRingpopTLS in dynamicconfig/gen9.yaml). This container is on networks other
+      # stacks share; they get the frontend, which checks their token.
+      TEMPORAL_TLS_REQUIRE_CLIENT_AUTH: "true"
+      # The internal frontend's HTTP API (7246) would take its TLS settings from the frontend's, not
+      # internode, so it would serve admin rights in plaintext. It exists for Nexus callbacks, which
+      # Gen9 doesn't use; port 0 turns it off (service/frontend/fx.go, httpEnabled).
+      INTERNAL_FRONTEND_HTTP_PORT: "0"
+      # Log a warning 30 days, an error 7 days, before the certificate expires (make doctor too)
+      TEMPORAL_TLS_EXPIRATION_CHECKS_WARNING_WINDOW: 720h
+      TEMPORAL_TLS_EXPIRATION_CHECKS_ERROR_WINDOW: 168h
+      TEMPORAL_TLS_EXPIRATION_CHECKS_CHECK_INTERVAL: 24h
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+    depends_on:
+      schema:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    ports:
+      # For workers and the temporal CLI on this machine; containers use gen9-temporal:7233
+      - "127.0.0.1:${GEN9_TEMPORAL_PORT:-18001}:7233"
+    networks:
+      default: {}
+      gen9-temporal:
+        aliases: [gen9-temporal]
+      gen9-keycloak: {}  # its JWKS
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "7233"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+      start_interval: 1s
+
+  namespace:
+    logging: *logging
+    # Namespace `gen9` with its retention and search attributes; safe on every start
+    image: temporalio/admin-tools:1.32.0@sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca
+    env_file:
+      - path: tls.local.env
+    environment:
+      # The internal frontend, with the internode certificate (scripts/internode.sh)
+      TEMPORAL_ADDRESS: temporal:7236
+      GEN9_NAMESPACE: gen9
+      # How long closed workflows stay visible; deleting a chat or an account deletes its own at once
+      GEN9_RETENTION: 72h
+    entrypoint: ["/bin/sh", "/scripts/internode.sh", "/bin/sh", "/scripts/setup-namespace.sh"]
+    volumes:
+      - ./scripts:/scripts:ro
+    depends_on:
+      temporal:
+        condition: service_healthy
+    restart: "no"
+
+  cli:
+    logging: *logging
+    # The temporal CLI as an operator of this stack: docker compose run --rm cli temporal <command>.
+    # Only on demand (profile tools); same access as the namespace job.
+    image: temporalio/admin-tools:1.32.0@sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca
+    profiles: [tools]
+    env_file:
+      - path: tls.local.env
+    environment:
+      TEMPORAL_ADDRESS: temporal:7236
+      TEMPORAL_NAMESPACE: gen9
+    entrypoint: ["/bin/sh", "/scripts/internode.sh"]
+    command: ["temporal", "operator", "cluster", "health"]
+    volumes:
+      - ./scripts:/scripts:ro
+
+  ui:
+    logging: *logging
+    image: temporalio/ui:2.54.1@sha256:ff0943fe532b8e33c46cd28b29e81e0ce0b6f55b9ee50a38ef1b437cc4de3fa5
+    labels:  # where to open it; the root Makefile lists these after make up
+      gen9.name: Temporal (workflows)
+      gen9.url: http://localhost:${GEN9_TEMPORAL_UI_PORT:-18000}/namespaces/gen9/workflows
+    env_file:
+      - path: keycloak.local.env  # TEMPORAL_AUTH_ISSUER_URL, _CLIENT_ID, _CLIENT_SECRET (make setup)
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_DEFAULT_NAMESPACE: gen9
+      # The UI otherwise fetches Temporal's news feed from the internet
+      TEMPORAL_DISABLE_NEWS_FETCH: "true"
+      # Sign-in through Keycloak (client temporal-ui). The UI server discovers Keycloak over
+      # gen9-keycloak; tokens name the browser-facing issuer (TEMPORAL_AUTH_ISSUER_URL). The user's
+      # access token goes with every call, and only Gen9 admins hold a role on the namespace.
+      TEMPORAL_AUTH_ENABLED: "true"
+      TEMPORAL_AUTH_PROVIDER_URL: http://gen9-keycloak:8080/realms/gen9
+      TEMPORAL_AUTH_CALLBACK_URL: http://localhost:${GEN9_TEMPORAL_UI_PORT:-18000}/auth/sso/callback
+      TEMPORAL_AUTH_SCOPES: openid,profile,email
+      TEMPORAL_AUTH_LABEL: Gen9
+      # gen9-agent decrypts payloads for the UI, for admins only (the user's token goes along)
+      TEMPORAL_CODEC_ENDPOINT: ${GEN9_TEMPORAL_CODEC_URL:-http://localhost:17000/v1/temporal/codec}
+      TEMPORAL_CODEC_PASS_ACCESS_TOKEN: "true"
+    # Starts once the namespace exists, which also makes `up --wait` wait for the namespace job
+    depends_on:
+      namespace:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks: [default, gen9-keycloak]
+    ports:
+      - "127.0.0.1:${GEN9_TEMPORAL_UI_PORT:-18000}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+      start_interval: 1s
+
+volumes:
+  postgres_data:
+
+networks:
+  # How other stacks' containers reach this one (gen9-agent joins it). External, so this stack
+  # doesn't own it: `make up` creates it, or once by hand: docker network create gen9-temporal
+  gen9-temporal:
+    name: gen9-temporal
+    external: true
+  gen9-keycloak:
+    name: gen9-keycloak
+    external: true

@@ -1,0 +1,8 @@
+# The Python this stack runs: launch.py on OpenSandbox's server image (Python 3.10), and
+# egress/sni-binding.py when the egress image is built (Python 3.11). Same rules as gen9-agent:
+# defaults + import sorting, pyupgrade, bugbear and flake8-async (AGENTS.md, "Python is async from
+# the ground up"). CI, from gen9-agent: uv run ruff check ../gen9-sandbox && uv run ruff format --check ../gen9-sandbox
+target-version = "py310"
+
+[lint]
+extend-select = ["I", "UP", "B", "ASYNC"]

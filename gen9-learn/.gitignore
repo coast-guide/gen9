@@ -1,0 +1,3 @@
+verify/node_modules/
+# What a verify run observed (sanitized, but it names test users and ids): regenerated every run
+verify/out/

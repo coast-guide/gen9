@@ -1,0 +1,80 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+/* Gen9 design tokens: a copy of gen9-design/theme.css, kept in sync by `make design-sync` */
+@import "./gen9-theme.css";
+
+/* A short viewport (400% zoom makes a 1024-high screen 256 CSS px; a phone held sideways): what's
+   pinned over the page stops being pinned, or the phones' top bar, a chat's title and its
+   composer would cover its conversation (WCAG 2.2, 1.4.10 Reflow; manual-e2e.md, P3-D11) */
+@custom-variant short (@media (max-height: 36rem));
+
+/* Focus scrolls clear of what's pinned over the page, the phones' top bar, a chat's title and its
+   composer, whose heights lib/sticky-inset.ts keeps (WCAG 2.2, 2.4.11; W3C technique C43) */
+@layer base {
+  html {
+    scroll-padding-top: calc(var(--sticky-top, 0px) + 0.5rem);
+    scroll-padding-bottom: calc(var(--sticky-bottom, 0px) + 0.5rem);
+  }
+}
+
+/* Agent answers (Markdown): comfortable reading measure, visible links, quiet structure */
+@layer components {
+  .prose-gen9 {
+    @apply max-w-[68ch] text-[0.975rem] leading-7 break-words;
+  }
+  .prose-gen9 > * + * {
+    @apply mt-4;
+  }
+  .prose-gen9 h1,
+  .prose-gen9 h2,
+  .prose-gen9 h3 {
+    @apply mt-7 font-semibold tracking-tight;
+  }
+  .prose-gen9 h1 {
+    @apply text-xl;
+  }
+  .prose-gen9 h2 {
+    @apply text-lg;
+  }
+  .prose-gen9 a {
+    @apply font-medium text-link underline decoration-link/35 underline-offset-[3px] hover:decoration-link;
+  }
+  .prose-gen9 ul {
+    @apply list-disc pl-5;
+  }
+  .prose-gen9 ol {
+    @apply list-decimal pl-5;
+  }
+  .prose-gen9 li + li {
+    @apply mt-1.5;
+  }
+  .prose-gen9 li::marker {
+    @apply text-muted-foreground;
+  }
+  .prose-gen9 strong {
+    @apply font-semibold;
+  }
+  .prose-gen9 blockquote {
+    @apply border-l-2 pl-4 text-muted-foreground;
+  }
+  .prose-gen9 code {
+    @apply rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.875em];
+  }
+  .prose-gen9 pre {
+    @apply overflow-x-auto rounded-xl border bg-muted p-4 text-sm leading-6;
+  }
+  .prose-gen9 pre code {
+    @apply bg-transparent p-0;
+  }
+  .prose-gen9 table {
+    @apply block w-full overflow-x-auto border-collapse text-sm;
+  }
+  .prose-gen9 th,
+  .prose-gen9 td {
+    @apply border-b px-3 py-2 text-left;
+  }
+  .prose-gen9 hr {
+    @apply my-6;
+  }
+}

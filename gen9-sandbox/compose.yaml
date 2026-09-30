@@ -1,0 +1,76 @@
+# Logs rotate: three files of 10 MB a container, compressed (Docker's local driver). Docker's
+# default, json-file, keeps a container's log for as long as the container lives, unbounded, with
+# what it holds: Keycloak's sign-in failures name the user and their address (manual-e2e.md, P4-E5)
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
+
+# gen9-sandbox: OpenSandbox's server, which runs each chat's environment as containers of its own.
+#   docker compose up -d --wait        -> 127.0.0.1:20000 from the host, gen9-sandbox:8090 from
+#                                         containers on the gen9-sandbox network (gen9-agent)
+# It starts sandboxes through the Docker socket, which is the host's root: fine on one machine you
+# own. A deployment runs OpenSandbox's Kubernetes runtime, or this stack on a host of its own, and
+# gVisor or Kata where it can ([secure_runtime] in config.toml).
+services:
+  opensandbox:
+    logging: *logging
+    build: .
+    image: gen9-sandbox:opensandbox-1.1.0
+    restart: unless-stopped
+    depends_on:
+      egress-image:
+        condition: service_completed_successfully
+    environment:
+      SANDBOX_CONFIG_PATH: /etc/opensandbox/config.toml
+      OPENSANDBOX_SERVER_API_KEY: ${SANDBOX_API_KEY:?run ./init-env.sh first}
+      # Where sandboxes' ports are published (launch.py): loopback on Docker Desktop; on Linux, the
+      # Docker bridge's gateway address (docker network inspect bridge)
+      SANDBOX_PUBLISH_HOST: ${SANDBOX_PUBLISH_HOST:-127.0.0.1}
+      # How much disk one sandbox may write, checked this often; one past it is stopped (launch.py)
+      SANDBOX_DISK_GB: ${SANDBOX_DISK_GB:-10}
+      SANDBOX_DISK_CHECK_S: ${SANDBOX_DISK_CHECK_S:-10}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config.toml:/etc/opensandbox/config.toml:ro
+      - store:/var/lib/opensandbox
+      # Each sandbox's renewed expiry (the server's file store, ~/.opensandbox/metadata): in the
+      # container alone, a recreated server (an upgrade, make down then up) forgot every renewal
+      # and removed each environment older than its first timeout, in use or not
+      # (docs/plans/manual-e2e.md, P4-E4)
+      - metadata:/root/.opensandbox
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${GEN9_SANDBOX_PORT:-20000}:8090"
+    networks:
+      default: {}
+      gen9-sandbox:
+        aliases: [gen9-sandbox]
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+      start_interval: 1s
+
+  # Not a service that runs: builds the egress sidecar the server gives every sandbox (config.toml's
+  # [egress] image), OpenSandbox's pinned image with Gen9's deny.always baseline (egress/)
+  egress-image:
+    logging: *logging
+    build: egress
+    image: gen9-sandbox-egress:1.1.7
+    entrypoint: ["true"]
+    restart: "no"
+
+volumes:
+  store:
+  metadata:
+
+networks:
+  # How gen9-agent reaches the server. External, so this stack doesn't own it: `make up` creates it
+  gen9-sandbox:
+    name: gen9-sandbox
+    external: true

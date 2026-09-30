@@ -1,0 +1,27 @@
+# Development image: `next dev` (Turbopack + Fast Refresh), fed by Compose Watch (see compose.yaml).
+# Based on Docker's Next.js guide, with two deliberate changes:
+#   - installs as the node user with COPY --chown, instead of a trailing `chown -R /app`
+#     that would duplicate node_modules into a second layer;
+#   - no WATCHPACK_POLLING / HOSTNAME: Compose Watch copies files into the container, so native
+#     file events work, and `next dev` listens on all interfaces by default.
+
+ARG NODE_IMAGE=node:24.21.0-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe
+
+FROM ${NODE_IMAGE} AS dev
+
+WORKDIR /app
+
+# node must own /app to create node_modules and .next, and so Compose Watch can sync into it
+RUN chown node:node /app
+USER node
+
+COPY --chown=node:node package.json package-lock.json ./
+
+RUN --mount=type=cache,target=/home/node/.npm,uid=1000,gid=1000 \
+    npm ci --no-audit --no-fund
+
+COPY --chown=node:node . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]

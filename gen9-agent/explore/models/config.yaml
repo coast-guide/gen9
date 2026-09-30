@@ -1,0 +1,29 @@
+# Aliases the agent uses, never vendor names. Probe config: cheap models where the kind allows.
+model_list:
+  - model_name: chat
+    litellm_params: {model: openai/gpt-5.4-nano, api_key: os.environ/OPENAI_API_KEY}
+  - model_name: chat-broken          # a deployment that always fails, to show the fallback
+    litellm_params: {model: openai/gpt-5.4-nano, api_key: sk-not-a-real-key}
+  - model_name: vision
+    litellm_params: {model: openai/gpt-5.4-nano, api_key: os.environ/OPENAI_API_KEY}
+  - model_name: embed
+    litellm_params: {model: openai/text-embedding-3-small, api_key: os.environ/OPENAI_API_KEY}
+    model_info: {mode: embedding}
+  - model_name: speak
+    litellm_params: {model: openai/gpt-4o-mini-tts, api_key: os.environ/OPENAI_API_KEY}
+    model_info: {mode: audio_speech}
+  - model_name: transcribe
+    litellm_params: {model: openai/gpt-transcribe, api_key: os.environ/OPENAI_API_KEY}
+    model_info: {mode: audio_transcription}
+
+router_settings:
+  num_retries: 1
+  fallbacks: [{"chat-broken": ["chat"]}]
+
+litellm_settings:
+  callbacks: ["langfuse_otel"]
+  drop_params: true
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL

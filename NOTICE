@@ -1,0 +1,29 @@
+Gen9
+Copyright 2026 SK Sahil
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This repository carries material from other projects, each under its own licence:
+
+- Instrument Sans, the typeface
+  (gen9-design/fonts/InstrumentSans-Variable.woff2 and its copies in gen9-ui/app/fonts and
+  gen9-keycloak/theme/src/assets).
+  Copyright 2022 The Instrument Sans Project Authors (https://github.com/Instrument/instrument-sans).
+  SIL Open Font License 1.1: gen9-design/fonts/OFL.txt.
+
+- Keycloakify's starter, which gen9-keycloak/theme began from.
+  Copyright (c) 2020 GitHub user u/garronej.
+  MIT: gen9-keycloak/theme/LICENSE.keycloakify-starter.
+
+- shadcn/ui components, copied into gen9-ui/components/ui and adjusted.
+  Copyright (c) 2023 shadcn. MIT: https://github.com/shadcn-ui/ui/blob/main/LICENSE.md.
+
+- The Agent Plugins specification's JSON schemas
+  (gen9-agent/src/gen9_agent/plugin_schemas).
+  Apache License 2.0: https://github.com/agentplugins/agent-plugins-spec/blob/main/LICENSE.md.
+
+- The change gen9-sandbox/egress/sni-binding.py applies to OpenSandbox's egress proxy is
+  OpenSandbox's own pull request #1759. Apache License 2.0.
+
+What Gen9 runs but does not carry (Keycloak, Temporal, Langfuse, LiteLLM, PostgreSQL and the
+other images and packages its stacks pull) stays under its own licence, named in each project.

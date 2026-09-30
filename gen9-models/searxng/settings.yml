@@ -1,0 +1,30 @@
+# SearXNG, the router's self-hosted web search (config.yaml, search_tools). Defaults plus what the
+# router needs: JSON answers. It is reachable only by the router, inside this stack, so no rate
+# limiter and no image proxy. The secret comes from .env (SEARXNG_SECRET).
+# Reference: https://docs.searxng.org/admin/settings/settings.html
+use_default_settings:
+  engines:
+    # Timed out on every query, adding only waiting
+    remove:
+      - wikidata
+server:
+  limiter: false
+  image_proxy: false
+search:
+  formats: [html, json]
+  # Strict: the engines' own filter of adult results (docs.searxng.org, settings_search). Off by
+  # default, and LiteLLM's SearXNG provider sends no safesearch of its own, so a question about an
+  # RFC once came back with adult sites among its results (gen9-agent also drops
+  # results that share no word with the query)
+  safe_search: 2
+# The engines that answered from here, when the defaults (DuckDuckGo, Brave, Google
+# CSE) left 15 searches in 15 empty; with these, none was (docs/plans/harness.md, Surprises).
+# Scraped engines block heavy use: for search that holds up under bursts, give `web` a hosted
+# provider in config.yaml.
+engines:
+  - name: google
+    disabled: false
+  - name: yahoo
+    disabled: false
+  - name: bing
+    disabled: false

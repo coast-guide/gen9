@@ -1,0 +1,9 @@
+.venv
+.env
+*.local.env
+.ruff_cache
+.pytest_cache
+**/__pycache__
+explore
+tests
+evals

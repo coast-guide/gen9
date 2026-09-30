@@ -1,0 +1,19 @@
+<!-- ClickHouse's own logs, bounded (README.md, "Disk"); Langfuse reads none of them.
+     - Its system log tables have no TTL and can dominate its disk: off, as Langfuse's scaling guide
+       advises ("Increasing Disk Usage", Option 1) and its Terraform AWS module does. query_log,
+       part_log and error_log stay: small, and useful for debugging.
+     - Its text log: the image writes it at trace level, in up to 10 files of 1000M; warnings
+       and errors now, in at most 3 files of 100M. -->
+<clickhouse>
+    <trace_log remove="1"/>
+    <text_log remove="1"/>
+    <opentelemetry_span_log remove="1"/>
+    <asynchronous_metric_log remove="1"/>
+    <metric_log remove="1"/>
+    <latency_log remove="1"/>
+    <logger>
+        <level>warning</level>
+        <size>100M</size>
+        <count>3</count>
+    </logger>
+</clickhouse>

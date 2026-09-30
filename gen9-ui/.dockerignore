@@ -1,0 +1,45 @@
+# Build context filter, from the official Next.js with-docker example and Docker's Next.js guide.
+# Compose Watch also skips these paths when syncing into the dev container.
+
+# Dependencies (installed inside the image, never copied from the host)
+node_modules/
+
+# Build output (generated inside the image)
+.next/
+out/
+build/
+.vercel/
+
+# Environment files: keep secrets out of the build context
+.env*
+
+# Tests and coverage
+coverage/
+playwright-report/
+test-results/
+
+# Logs and caches
+*.log
+.eslintcache
+*.tsbuildinfo
+
+# Git and Docker files
+.git/
+.gitignore
+Dockerfile*
+.dockerignore
+compose*.yaml
+compose*.yml
+
+# Docs and agent files
+*.md
+.claude/
+
+# Editor and OS files
+.vscode/
+.idea/
+*.pem
+.DS_Store
+
+# Generated settings with secrets (runtime env only, never in the image)
+*.local.env

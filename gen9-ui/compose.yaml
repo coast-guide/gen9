@@ -1,0 +1,187 @@
+# gen9-ui: production and development containers for the Next.js app, plus Valkey for sessions.
+#   prod: docker compose up -d --build --wait     -> http://localhost:14000
+#   dev:  docker compose watch dev                -> http://localhost:14001
+# Host ports: published on 127.0.0.1 only, in an uncommon block (14000-14003) next to gen9-langfuse (13000-13007).
+#
+# Auth: gen9-ui is a Backend-for-Frontend (RFC 10017). Keycloak tokens stay in Valkey; the browser
+# only holds a session cookie. Needs gen9-keycloak (and gen9-agent for chat), reached over their
+# networks (gen9-keycloak, gen9-agent). Keycloak reaches this app over gen9-ui for back-channel logout.
+x-app-env: &app-env
+  env_file:
+    - path: keycloak.local.env        # gen9-keycloak/init-env.sh --ui-env-file (issuer, client id/secret)
+  environment: &app-environment
+    SESSION_SECRET: ${SESSION_SECRET:?run ./init-env.sh first}
+    SESSION_STORE_URL: redis://:${VALKEY_PASSWORD:?run ./init-env.sh first}@valkey:6379/0
+    # keycloak.local.env holds host-side URLs (localhost:<published port>); containers reach the
+    # other stacks over their networks instead, at container ports
+    KEYCLOAK_INTERNAL_URL: http://gen9-keycloak:8080
+    GEN9_AGENT_URL: http://gen9-agent:8000
+    # The privacy page (/privacy): who runs this Gen9, and where to write (README, "Privacy")
+    PRIVACY_CONTROLLER: ${PRIVACY_CONTROLLER:-}
+    PRIVACY_CONTACT: ${PRIVACY_CONTACT:-}
+    PRIVACY_DPO: ${PRIVACY_DPO:-}
+    PRIVACY_AUTHORITY: ${PRIVACY_AUTHORITY:-}
+    PRIVACY_NOTICE_URL: ${PRIVACY_NOTICE_URL:-}
+
+# Logs rotate: three files of 10 MB a container, compressed (Docker's local driver). Docker's
+# default, json-file, keeps a container's log for as long as the container lives, unbounded, with
+# what it holds: Keycloak's sign-in failures name the user and their address (manual-e2e.md, P4-E5)
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  prod:
+    logging: *logging
+    <<: *app-env
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gen9-ui:prod
+    labels:  # where to open it; the root Makefile lists these after make up
+      gen9.name: Gen9
+      gen9.url: ${GEN9_UI_URL:-http://localhost:14000}
+    environment:
+      <<: *app-environment
+      APP_URL: ${GEN9_UI_URL:-http://localhost:14000}
+      # Where connectors' Views run (MCP Apps): a template, {id} naming each server; another site
+      # than the web app. A deployment points it at a wildcard domain of its own.
+      MCP_APPS_SANDBOX_URL: ${MCP_APPS_SANDBOX_URL:-http://{id}.apps.localhost:${GEN9_UI_SANDBOX_PORT:-14003}}
+    depends_on:
+      valkey:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${GEN9_UI_PORT:-14000}:3000"
+    networks:
+      default: {}
+      gen9-ui:
+        aliases: [gen9-ui]  # Keycloak's back-channel logout URL: http://gen9-ui:3000/auth/backchannel-logout
+      gen9-keycloak: {}
+      gen9-agent: {}
+    restart: unless-stopped
+    healthcheck:
+      # The slim image has no curl/wget; Node's built-in fetch does the job
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 1s
+
+  # The MCP Apps sandbox proxy (sandbox/server.ts): a connector's View runs on this origin, never
+  # the web app's. Each server gets its own host name under it (MCP_APPS_SANDBOX_URL).
+  sandbox:
+    logging: *logging
+    image: gen9-ui:prod
+    command: ["node", "sandbox/server.ts"]
+    environment:
+      PORT: "3001"
+      APP_URL: ${GEN9_UI_URL:-http://localhost:14000}
+    depends_on:
+      prod:
+        condition: service_started  # builds the image first
+    ports:
+      - "127.0.0.1:${GEN9_UI_SANDBOX_PORT:-14003}:3001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+      start_interval: 1s
+
+  dev:
+    logging: *logging
+    <<: *app-env
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: gen9-ui:dev
+    profiles: [dev]  # not started by a plain `docker compose up`; naming the service enables it
+    labels:
+      gen9.name: Gen9 (dev server)
+      gen9.url: ${GEN9_UI_DEV_URL:-http://localhost:14001}
+    environment:
+      <<: *app-environment
+      APP_URL: ${GEN9_UI_DEV_URL:-http://localhost:14001}
+    depends_on:
+      valkey:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${GEN9_UI_DEV_PORT:-14001}:3000"
+    networks:
+      default: {}
+      gen9-ui:
+        aliases: [gen9-ui-dev]
+      gen9-keycloak: {}
+      gen9-agent: {}
+    develop:
+      watch:
+        # Source edits: copied into the container, picked up by Fast Refresh
+        - action: sync
+          path: .
+          target: /app
+          ignore:
+            - node_modules/
+            - .next/
+            - package.json       # handled by the rebuild rules below
+            - package-lock.json
+        # Dependency changes: rebuild the image (re-runs npm ci) and recreate the container
+        - action: rebuild
+          path: package.json
+        - action: rebuild
+          path: package-lock.json
+
+  valkey:
+    logging: *logging
+    # Server-side sessions (encrypted records, TTL = refresh token lifetime). BSD-licensed Redis fork.
+    # Pinned as tag@digest. To upgrade: docker buildx imagetools inspect valkey/valkey:<version>-trixie
+    image: valkey/valkey:9.1.2-trixie@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+    # Memory is capped: anyone can start a sign-in, and each start stores a 10-minute record. At the
+    # cap, keys closest to expiring go first (volatile-ttl): sign-in records before sessions. Every
+    # key has a TTL. 256 MB holds about 60,000 signed-in sessions.
+    command:
+      - valkey-server
+      - --requirepass
+      - ${VALKEY_PASSWORD:?run ./init-env.sh first}
+      - --appendonly
+      - "yes"
+      - --save
+      - ""
+      - --maxmemory
+      - ${VALKEY_MAXMEMORY:-256mb}
+      - --maxmemory-policy
+      - volatile-ttl
+    restart: unless-stopped
+    volumes:
+      - valkey_data:/data
+    ports:
+      - "127.0.0.1:${GEN9_UI_VALKEY_PORT:-14002}:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$VALKEY_PASSWORD\" valkey-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+      start_interval: 1s
+    environment:
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD:?run ./init-env.sh first}
+
+volumes:
+  valkey_data:
+
+networks:
+  # One per stack, external (make up creates them, or: docker network create <name>): this stack's
+  # own, which gen9-keycloak joins for back-channel logout, and those of the stacks it calls
+  gen9-ui:
+    name: gen9-ui
+    external: true
+  gen9-keycloak:
+    name: gen9-keycloak
+    external: true
+  gen9-agent:
+    name: gen9-agent
+    external: true

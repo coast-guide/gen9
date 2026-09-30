@@ -1,0 +1,160 @@
+# gen9-agent: the Gen9 Agent API (FastAPI + Deep Agents), protected by Keycloak, and the Temporal
+# workers that execute its runs.
+#   docker compose up -d --build --wait     -> http://localhost:17000 (OpenAPI docs: /docs)
+# Needs gen9-postgres, gen9-keycloak, gen9-temporal, gen9-models and gen9-sandbox running
+# (gen9-langfuse optional); reaches each over that stack's network, gen9-<stack>, as
+# gen9-<stack>:<container port>.
+# Where containers reach the other stacks: the *.local.env files hold host-side addresses
+# (localhost:<published port>), and containers reach the stacks over their networks instead, at
+# container ports
+x-reach: &reach
+  DATABASE_HOST: gen9-postgres
+  DATABASE_PORT: "5432"
+  KEYCLOAK_INTERNAL_URL: http://gen9-keycloak:8080
+  LANGFUSE_BASE_URL: http://gen9-langfuse:3000
+  # Langfuse's media store, where the worker uploads a trace's images (langfuse_tracer.py)
+  LANGFUSE_MEDIA_INTERNAL_URL: http://gen9-langfuse-media:9000
+  TEMPORAL_ADDRESS: gen9-temporal:7233
+  GEN9_MODELS_URL: http://gen9-models:4000
+  GEN9_MODELS_ADMIN_URL: http://gen9-models-admin:4001
+  # Chats' environments (gen9-sandbox). Every service builds the same agent; only the worker has
+  # the key (sandbox.local.env) and reaches the server
+  SANDBOX_URL: http://gen9-sandbox:8090
+
+# Logs rotate: three files of 10 MB a container, compressed (Docker's local driver). Docker's
+# default, json-file, keeps a container's log for as long as the container lives, unbounded, with
+# what it holds: Keycloak's sign-in failures name the user and their address (manual-e2e.md, P4-E5)
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
+
+# Each service gets the secrets it uses and no others (docs/plans/harness.md, "Auth across the
+# harness"): a variable set to "" here empties what an env file gave it
+services:
+  migrate:
+    logging: *logging
+    build: .
+    image: gen9-agent:dev
+    command: ["gen9-agent-migrate"]
+    restart: "no"
+    # The database alone (settings.DatabaseSettings): this one-shot holds no other secret. It is
+    # the only container with the owner's password (gen9_agent): migrations change the schema
+    env_file:
+      - path: postgres.local.env      # gen9-postgres/init-env.sh --agent-env-file (the owner)
+    environment:
+      DATABASE_HOST: gen9-postgres
+      DATABASE_PORT: "5432"
+    networks: [default, gen9-postgres]
+
+  api:
+    logging: *logging
+    # The router key of the API (models-api.local.env) may only embed and rerank search queries;
+    # the worker's key, which runs the agent and erases usage, stays out of it
+    env_file:
+      - path: .env                    # TEMPORAL_PAYLOAD_KEYS, GEN9_SECRET_KEYS, … (see sample.env)
+      - path: postgres-app.local.env  # gen9-postgres/init-env.sh --agent-app-env-file (owns nothing)
+      - path: keycloak.local.env      # gen9-keycloak/init-env.sh --agent-env-file
+      - path: models-api.local.env    # gen9-models/init-env.sh --agent-api-env-file
+    environment:
+      <<: *reach
+      # Only the worker traces and erases runs (Langfuse) and sends notices (SMTP): their keys stay
+      # out of the API, which only says whether notices are on. Empty, not null: Compose fills a
+      # null from its interpolation environment, which includes this project's .env
+      LANGFUSE_PUBLIC_KEY: ""
+      LANGFUSE_SECRET_KEY: ""
+      LANGFUSE_BASE_URL: ""
+      SMTP_URL: ""
+      SMTP_FROM: ""
+      EMAIL_NOTICES: ${SMTP_URL:+true}
+    image: gen9-agent:dev
+    labels:  # where to open it; the root Makefile lists these after make up
+      gen9.name: Agent API docs
+      gen9.url: http://localhost:${GEN9_AGENT_PORT:-17000}/docs
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${GEN9_AGENT_PORT:-17000}:8000"
+    networks:
+      default: {}
+      gen9-agent:
+        aliases: [gen9-agent]
+      gen9-postgres: {}
+      gen9-keycloak: {}
+      gen9-temporal: {}
+      gen9-models: {}  # embedding and reranking search queries (api/search.py), with a key for nothing else
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 1s
+
+  worker:
+    logging: *logging
+    # Temporal worker: executes runs (gen9_agent/worker.py); scale with
+    # `docker compose up -d --scale worker=N`. It uses every key: it runs the agent, traces, sends
+    # notices and deletes accounts
+    env_file:
+      - path: .env                    # TEMPORAL_PAYLOAD_KEYS, GEN9_SECRET_KEYS, SMTP_*, … (see sample.env)
+      - path: postgres-app.local.env
+      - path: keycloak.local.env
+      - path: models.local.env        # gen9-models/init-env.sh --agent-env-file (its router key)
+      - path: sandbox.local.env       # gen9-sandbox/init-env.sh --agent-env-file (its API key)
+      - path: langfuse.local.env      # gen9-langfuse/init-env.sh --agent-env-file (make setup);
+        required: false               # when present, its LANGFUSE_* win over .env's
+    environment:
+      <<: *reach
+      # How long a batch of spans waits for Langfuse (its SDK's default is 5 s, which gave up
+      # after 3 s): the exporter retries up to about 31 s, and Langfuse's web restarts in about
+      # 26 s, so a restart no longer loses the traces of turns ending meanwhile (manual-e2e.md,
+      # P3-C10). A longer outage, such as make backup's, still does; chats never are affected
+      LANGFUSE_TIMEOUT: ${LANGFUSE_TIMEOUT:-35}
+    image: gen9-agent:dev
+    command: ["gen9-agent-worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    # On stop, a worker lets running turns finish for 20 s; Temporal retries the rest elsewhere
+    stop_grace_period: 30s
+    # Keycloak: deleting accounts and sweeping users deleted there (Admin API). gen9-models: the
+    # agent's calls and erasing a deleted user's usage, with the worker's key (models.local.env).
+    # gen9-sandbox: chats' environments
+    networks: [default, gen9-postgres, gen9-keycloak, gen9-langfuse, gen9-temporal, gen9-models, gen9-sandbox]
+    healthcheck:
+      # The worker touches this file every couple of seconds while both of its SDK workers run
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(time.time() - os.path.getmtime('/tmp/gen9-agent-worker-alive') > 30)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 1s
+
+networks:
+  # One per stack, external (make up creates them): this stack's own, and those of the stacks it calls
+  gen9-agent:
+    name: gen9-agent
+    external: true
+  gen9-postgres:
+    name: gen9-postgres
+    external: true
+  gen9-keycloak:
+    name: gen9-keycloak
+    external: true
+  gen9-langfuse:
+    name: gen9-langfuse
+    external: true
+  gen9-temporal:
+    name: gen9-temporal
+    external: true
+  gen9-models:
+    name: gen9-models
+    external: true
+  gen9-sandbox:
+    name: gen9-sandbox
+    external: true

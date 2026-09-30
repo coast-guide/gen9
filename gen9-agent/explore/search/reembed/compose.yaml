@@ -1,0 +1,14 @@
+# Throwaway: re-embedding probe. Own project name, port and volume-less; nothing shared with Gen9.
+name: exp-reembed
+services:
+  postgres:
+    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    command: ["postgres", "-c", "shared_preload_libraries=pg_textsearch"]
+    environment:
+      POSTGRES_PASSWORD: exp
+    ports: ["127.0.0.1:19093:5432"]
+    tmpfs: [/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 1s
+      retries: 30

@@ -1,0 +1,17 @@
+{
+  "name": "gen9-learn-verify",
+  "private": true,
+  "type": "module",
+  "description": "Re-runs every flow and command in gen9-learn/index.html against the running stacks",
+  "scripts": {
+    "verify": "node run.mjs",
+    "page": "node page.mjs"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "1.2.1",
+    "@modelcontextprotocol/client": "2.1.0",
+    "@modelcontextprotocol/ext-tasks": "0.1.0",
+    "axe-core": "4.13.0",
+    "puppeteer-core": "25.12.0"
+  }
+}

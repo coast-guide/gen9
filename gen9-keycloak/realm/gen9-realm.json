@@ -1,0 +1,225 @@
+{
+  "realm": "gen9",
+  "enabled": true,
+  "displayName": "Gen9",
+  "sslRequired": "external",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "editUsernameAllowed": false,
+  "verifyEmail": true,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "passwordPolicy": "length(15) and maxLength(128) and notUsername and notEmail and passwordBlacklist(ncsc-100k.txt)",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "quickLoginCheckMilliSeconds": 1000,
+  "minimumQuickLoginWaitSeconds": 60,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "ssoSessionIdleTimeoutRememberMe": 1209600,
+  "ssoSessionMaxLifespanRememberMe": 2592000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "eventsEnabled": true,
+  "eventsExpiration": 2592000,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "attributes": {
+    "adminEventsExpiration": "2592000"
+  },
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@gen9.test",
+    "fromDisplayName": "Gen9",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  },
+  "roles": {
+    "realm": [
+      {
+        "name": "gen9-user",
+        "description": "Can use Gen9"
+      },
+      {
+        "name": "gen9-admin",
+        "description": "Administers Gen9"
+      }
+    ]
+  },
+  "groups": [
+    {
+      "name": "users",
+      "path": "/users",
+      "realmRoles": [
+        "gen9-user"
+      ]
+    },
+    {
+      "name": "admins",
+      "path": "/admins",
+      "realmRoles": [
+        "gen9-admin"
+      ]
+    }
+  ],
+  "defaultGroups": [
+    "/users"
+  ],
+  "clients": [
+    {
+      "clientId": "gen9-ui",
+      "name": "Gen9",
+      "description": "gen9-ui web app (Backend-for-Frontend, confidential client)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${GEN9_UI_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": false,
+      "consentRequired": false,
+      "rootUrl": "${GEN9_UI_URL}",
+      "baseUrl": "${GEN9_UI_URL}/",
+      "redirectUris": [
+        "${GEN9_UI_URL}/auth/callback",
+        "${GEN9_UI_DEV_URL}/auth/callback"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${GEN9_UI_URL}/*##${GEN9_UI_DEV_URL}/*",
+        "backchannel.logout.url": "${GEN9_UI_BACKCHANNEL_LOGOUT_URL}",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience gen9-agent",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "gen9-agent",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "gen9-cli",
+      "name": "Gen9 CLI",
+      "description": "Terminal clients (OAuth 2.0 Device Authorization Grant)",
+      "enabled": true,
+      "consentRequired": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience gen9-agent",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "gen9-agent",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "gen9-agent",
+      "name": "Gen9 Agent API",
+      "description": "Resource server: the audience (aud) of access tokens for gen9-agent. Its service account manages users (Keycloak Admin API) for Gen9 admins.",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${GEN9_AGENT_CLIENT_SECRET}"
+    }
+  ],
+  "users": [
+    {
+      "username": "${GEN9_SEED_ADMIN_EMAIL}",
+      "email": "${GEN9_SEED_ADMIN_EMAIL}",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Ada",
+      "lastName": "Lovelace",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${GEN9_SEED_ADMIN_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/users",
+        "/admins"
+      ],
+      "realmRoles": [
+        "default-roles-gen9"
+      ]
+    },
+    {
+      "username": "${GEN9_SEED_USER_EMAIL}",
+      "email": "${GEN9_SEED_USER_EMAIL}",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Alan",
+      "lastName": "Turing",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${GEN9_SEED_USER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/users"
+      ],
+      "realmRoles": [
+        "default-roles-gen9"
+      ]
+    },
+    {
+      "username": "service-account-gen9-agent",
+      "enabled": true,
+      "serviceAccountClientId": "gen9-agent",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "manage-users",
+          "query-groups",
+          "view-events"
+        ]
+      }
+    }
+  ],
+  "loginTheme": "gen9",
+  "emailTheme": "gen9",
+  "webAuthnPolicyPasswordlessPasskeysEnabled": true,
+  "webAuthnPolicyPasswordlessRpEntityName": "Gen9",
+  "webAuthnPolicyRpEntityName": "Gen9"
+}

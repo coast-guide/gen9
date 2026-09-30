@@ -1,0 +1,112 @@
+@import "tailwindcss";
+/* Gen9 design tokens: a copy of gen9-design/theme.css, kept in sync by `make design-sync` */
+@import "./gen9-theme.css";
+
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("./assets/InstrumentSans-Variable.woff2") format("woff2");
+  font-weight: 400 700;
+  font-stretch: 75% 100%;
+  font-display: swap;
+}
+
+/* Icons for Keycloak's markup (Keycloak's own theme uses icon fonts; we draw with masks) */
+@layer components {
+  /* Keycloak sends this class for recovery codes; Keycloakify's class map has no key for it */
+  .gen9-icon,
+  .kcAuthenticatorRecoveryAuthnCodesClass {
+    @apply inline-block size-[18px] shrink-0 bg-current;
+    mask: var(--icon) center / contain no-repeat;
+  }
+  .gen9-icon-eye {
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+  }
+  .gen9-icon-eye-off {
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.6 5.1A9.8 9.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-2.2 3.2M6.6 6.6A16.8 16.8 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6'/%3E%3Cpath d='M9.9 9.9a3 3 0 0 0 4.2 4.2'/%3E%3Cpath d='m3 3 18 18'/%3E%3C/svg%3E");
+  }
+  .gen9-icon-error {
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5v5.5M12 16.5v.01'/%3E%3C/svg%3E");
+  }
+  .gen9-icon-warning {
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z'/%3E%3Cpath d='M12 9v4M12 17v.01'/%3E%3C/svg%3E");
+  }
+  .gen9-icon-success {
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m8.5 12 2.5 2.5 4.5-5'/%3E%3C/svg%3E");
+  }
+  .gen9-icon-info {
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5.5M12 7.5v.01'/%3E%3C/svg%3E");
+  }
+  .gen9-icon-key {
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7.5' cy='15.5' r='4.5'/%3E%3Cpath d='m10.7 12.3 8.8-8.8M16 7l3 3M18.5 4.5l2 2'/%3E%3C/svg%3E");
+  }
+  .gen9-icon-phone {
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Crect x='6' y='2.5' width='12' height='19' rx='2.5'/%3E%3Cpath d='M11 18h2'/%3E%3C/svg%3E");
+  }
+  .gen9-icon-codes,
+  .kcAuthenticatorRecoveryAuthnCodesClass {
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M10 6h10M10 12h10M10 18h10'/%3E%3Cpath d='M4.5 5 6 4v4M4 12.5a1.5 1.5 0 1 1 2.6 1L4 16h3M4 19.5a1.5 1.5 0 1 0 1.5-1.5 1.5 1.5 0 1 0-1.5-1.5' stroke-width='1.4'/%3E%3C/svg%3E");
+  }
+  .gen9-icon-chevron {
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E");
+  }
+}
+
+/* Keycloak markup details the class map can't reach (default pages keep Keycloak's structure) */
+@layer components {
+  .gen9-page a:not([class]) {
+    @apply font-medium text-link underline-offset-4 hover:underline;
+  }
+  .gen9-page input[type="checkbox"],
+  .gen9-page input[type="radio"] {
+    @apply size-4 shrink-0 accent-[var(--brand)];
+  }
+  .gen9-page .checkbox label,
+  .gen9-page label:has(> input[type="checkbox"]) {
+    @apply inline-flex cursor-pointer items-center gap-2.5 text-sm;
+  }
+  .gen9-page #kc-form-options {
+    @apply text-sm;
+  }
+  .gen9-page ol,
+  .gen9-page ul:not([class]) {
+    @apply grid gap-2 pl-5 text-sm text-muted-foreground;
+  }
+  .gen9-page ol {
+    @apply list-decimal;
+  }
+  .gen9-page ul:not([class]) {
+    @apply list-disc;
+  }
+  .gen9-page #kc-totp-secret-qr-code {
+    @apply mx-auto my-2 rounded-xl border bg-white p-2;
+  }
+  .gen9-page #kc-totp-secret-key {
+    @apply block rounded-xl bg-muted px-4 py-3 text-center font-mono text-sm tracking-wider text-foreground select-all;
+  }
+  .gen9-page p.instruction,
+  .gen9-page #kc-info-message p {
+    @apply text-[0.9375rem] leading-relaxed text-muted-foreground;
+  }
+  .gen9-page .required {
+    @apply text-destructive;
+  }
+  .gen9-page hr {
+    @apply my-2 border-border;
+  }
+  /* Default pages stack a second full-width button (often in its own form) right under the
+     first, e.g. "Try again" / "Cancel": space them like Gen9's own pages (grid/flex parents
+     already have a gap) */
+  .gen9-page :not(.grid, .flex) > .kcButtonClass + :is(.kcButtonClass, form:has(> .kcButtonClass)) {
+    @apply mt-3;
+  }
+}
+
+/* Keycloak puts secondary links (e.g. "Back to sign in") before the primary button: show the
+   primary action first, full width, and the way back under it. Unlayered on purpose, so it wins
+   over the utility classes (grid) the class map puts on the same element. */
+.gen9-page div:has(> #kc-form-options):has(> #kc-form-buttons) {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 1rem;
+  text-align: center;
+}

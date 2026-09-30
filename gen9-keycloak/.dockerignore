@@ -1,0 +1,6 @@
+.env
+.init-env.*
+theme/node_modules
+theme/dist
+theme/dist_keycloak
+theme/.keycloakify

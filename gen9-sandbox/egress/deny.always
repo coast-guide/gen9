@@ -1,0 +1,23 @@
+# Addresses no chat's environment may reach, whatever its policy says: OpenSandbox's egress sidecar
+# reads this file first and a sandbox's own allow rules can't lift it (OpenSandbox's
+# network-isolation guide, "Global Enforced Isolation"). The sidecar still reaches its DNS server.
+# An operator who needs an internal host adds it to allow.always, knowingly.
+# IPv4: private (RFC 1918), shared address space (RFC 6598), link-local (cloud metadata at
+# 169.254.169.254 among them), "this network". Not loopback: it is the sandbox's own namespace,
+# where the sidecar's DNS and credential proxies listen (denying it broke every https request)
+10.0.0.0/8
+172.16.0.0/12
+192.168.0.0/16
+100.64.0.0/10
+169.254.0.0/16
+0.0.0.0/8
+# IPv6: unique local, link-local
+fc00::/7
+fe80::/10
+# IPv6 forms that carry an IPv4 address: IPv4-mapped (a dual-stack socket sends it as IPv4, so the
+# IPv4 ranges above already hold; listed so no IPv6 rule can open it), and NAT64's prefixes (RFC
+# 6052, RFC 8215), which a NAT64 gateway turns into any IPv4 address, metadata included, on an
+# IPv6-enabled network (M9, S1; gen9-agent's connector_net.py checks the same for connectors)
+::ffff:0:0/96
+64:ff9b::/96
+64:ff9b:1::/48
