@@ -167,8 +167,10 @@ async def ensure_scoped_key(
             json={"key": key, "key_alias": alias, "metadata": metadata, **wanted},
         )
     if response.status_code != 200:
+        # The router's answer can quote the request, which holds the key: never print it
+        detail = response.text.replace(key, "<the key>")[:200]
         print(
-            f"could not set {alias}'s key: HTTP {response.status_code} {response.text[:200]}",
+            f"could not set {alias}'s key: HTTP {response.status_code} {detail}",
             file=sys.stderr,
         )
         return False
