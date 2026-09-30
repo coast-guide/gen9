@@ -8,8 +8,9 @@ this repository; they are not behavior of Gen9's own agent.
 
 1. `git status`, `git log --oneline -15` and `gh pr view` (if a PR is open): what changed last.
 2. Read the active plan in `docs/plans/` (today `docs/plans/release.md`, then
-   `docs/plans/gen9-learn.md`; `manual-e2e.md` is paused at P6-B6 by the owner, and its standing
-   instructions still apply; `harness.md` is complete): its `Progress` says what is done and what is next, `Surprises & Discoveries` what
+   `docs/plans/gen9-learn.md`, then `docs/plans/manual-e2e.md` from P6-B6, where the owner had
+   paused it, resumed by their instruction to finish the repository's remaining items; its
+   standing instructions apply; `harness.md` is complete): its `Progress` says what is done and what is next, `Surprises & Discoveries` what
    not to try again, `Decision Log` why.
 3. `make ps`: which stacks run. `make up` if they don't; `make doctor` if something is off.
 4. Pick the first unchecked item in the plan's `Progress`, and work on that one thing.
@@ -76,7 +77,9 @@ Only then implement. The same applies to design and UX work, and to any change o
 
   - restarting, redeploying or reconfiguring anything it exercises (containers, `.env` files, a
     router's budget);
-  - editing files it reads while it runs (gen9-learn's page during the `commands` batch);
+  - editing files it reads while it runs (gen9-learn's page during the `commands` batch), and
+    code in the working tree while it may rebuild images from it (gen9-learn's b2d and b7, `make
+    up`): uncommitted code ships into the stacks under test. Write such code in a worktree;
   - a second browser check that signs in as the same seeded users;
   - heavy load on the same machine while a browser check runs: large image pulls, model downloads,
     emulated containers starting. It slows the stacks under test into timeouts (it failed

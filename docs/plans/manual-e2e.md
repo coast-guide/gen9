@@ -46,10 +46,10 @@ Given by the owner, for this plan and for every session that resumes it:
 8. **A 5-minute keep-alive** (a session cron job, `*/5 * * * *`, re-created by any session that
    finds none: session jobs die with the session and expire after 7 days) re-reads this file
    and continues the first unchecked item. It changes nothing while work is under way.
-9. **CI is paused** (the owner: "keep the pipeline as it is just don't trigger it").
-   `.github/workflows/checks.yml` runs only when started by hand, and nobody starts it; the
-   owner turns it back on with the one line its comment gives. Run its checks locally before
-   each commit (AGENTS.md, "Checks"), and `actionlint` on workflow edits.
+9. **CI runs on every pull request and on `main`** since the repository went public (it was
+   paused before, by hand only). Changes reach `main` only through a pull request (AGENTS.md,
+   "Rules"). Run its checks locally before each commit anyway (AGENTS.md, "Checks"), and
+   `actionlint` on workflow edits.
 
 ## Purpose
 
@@ -2656,7 +2656,7 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
   - **A run stopped while its command runs:** P4 checked it (ec58f3e): the command is interrupted,
     and its environment stays for the chat.
 
-- [ ] B6 Repeated errors don't flood the logs (A10: show them "as statistics only"): a connector
+- [x] B6 Repeated errors don't flood the logs (A10: show them "as statistics only"): a connector
   down for 10 minutes, Langfuse stopped, the router refusing. Log lines per minute from each
   service, and whether they're bounded.
   (in progress; the owner paused the loop here) Langfuse stopped for 4 minutes, two
@@ -2670,6 +2670,34 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
     minutes) and a connector down.
   Langfuse was started again. The deletion finishes on its own, in Temporal, after its late
   erasure passes (1 and 10 minutes on).
+  (resumed 2026-10-01, after gen9-learn's M10, by the owner's standing instruction to finish the
+  repository's remaining items) Decided: a transient failure is one warning line an attempt,
+  without its traceback. Temporal's own way: an Activity error of category `BENIGN` is logged
+  by the SDK at DEBUG and left out of its failure metrics, "for Activity errors that occur
+  regularly as part of normal operations, such as … expected transient failures that will be
+  retried" (docs.temporal.io, "Benign exceptions", Python SDK; temporalio 1.33.0's
+  `worker/_activity.py`, which logs every other failed attempt as a warning with `exc_info`).
+  `gen9_agent/transient.py`: one Activity interceptor on both of the worker's task queues;
+  a failure known to be transient (httpx unreachable or timing out, a 5xx or 429, the router
+  unreachable, the database not taking the request, as `db_unavailable.py` tells it) becomes
+  one warning, "<activity>: <error>; attempt n, to be retried", and a `BENIGN` ApplicationError
+  of the same type, so retry policies and the run's Retry (`_fixable_from_outside`) see the same
+  failure. How often attempts come stays the retry policy's. Anything else keeps its traceback.
+  Tested (`test_transient.py`: what is transient and what isn't, the one line, the last attempt
+  saying no retry is left, anything else raised as it was). Live (2026-10-01), each on the
+  running stacks:
+  - Langfuse stopped for 4 minutes with a chat's deletion waiting on `erase_traces`: 10 lines in
+    the 4 minutes, all one-liners ("erase_traces: ConnectError: …; attempt 5, to be retried"),
+    no traceback, where the same outage wrote 85 to 91 lines a minute and 12 tracebacks in 3
+    minutes before. Started again, the step finished and the deletion went on to its late
+    erasures.
+  - The router stopped, a question asked: its three attempts were 6 lines (the run's and the
+    Activity's, the last "attempt 3 of 3, no retry left"), no traceback, and the run waited for
+    Retry as before ("The model provider didn't answer. Retry in a moment.").
+  - A connector whose server is gone (its row put in as the superuser: adding one checks the
+    server answers): one line a turn, "connector … left out: Gen9 couldn't find that server.",
+    and the answer came. Already so; nothing to change.
+  Search indexing's retries (15) go through the same interceptor; not measured on their own.
 
 ### P6-C. Logging and alerting (OWASP A09:2025; ASVS 5.0 V16.1-16.4)
 
@@ -2820,6 +2848,13 @@ claims about today's state, not rewritten.
 - [ ] Z2 Start phase 7 (standing instruction 7): /rigor first, then the next large list.
 
 ## Surprises & Discoveries
+
+- P6-B6's first live measurement was meant as the "before", and the worker already logged the
+  new one-liners: gen9-learn's full run, just before, had rebuilt gen9-agent from the working tree
+  in b7 (`make down STACKS=agent && make up STACKS=agent` builds), uncommitted `transient.py`
+  included. The run's b7 and b7d had checked a worker with it (they passed). AGENTS.md now says to
+  write code elsewhere (a worktree) while a check that rebuilds images runs. The "before" is the
+  record from the same outage in P6-B6's first pass.
 
 - P6-B1, a fuzzer reaching out: Schemathesis's stateful phase links operations by
   their data. It read the connector directory, then added its entries as the throwaway person's
