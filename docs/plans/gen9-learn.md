@@ -704,7 +704,7 @@ Picked up in this order. Each is its own verified unit, as M9's were.
 7. Housekeeping: `lib/audit-words.test.ts` and `lib/app-scopes.test.ts` read gen9-agent's and
    gen9-keycloak's files from gen9-ui's tests; keep them if CI stays a monorepo checkout.
 
-- [ ] M10 A second step for admins (from M9's F10). Every member of `admins` must have an
+- [x] M10 A second step for admins (from M9's F10). Every member of `admins` must have an
   authenticator app or a passkey: asked to set one up when made admin (a required action, from
   Gen9's admin API and `configure.sh` for existing admins), the seeded admin's set up by `make
   setup` with its secret kept for the checks, and every check that signs the admin in (e2e and
@@ -766,23 +766,45 @@ Picked up in this order. Each is its own verified unit, as M9's were.
     no second step (the audit event says so); the web app's dialog says it will, and the audit
     log's words too. Tested (`test_admin_second_step.py`: 5 of 6 fail on the old code;
     `audit-words.test.ts`); live in `e2e/audit.mjs`.
-  - [ ] c. The checks answer it: `e2e/second-step.mjs` (the code, or setting an app up), used by
+  - [x] c. The checks answer it: `e2e/second-step.mjs` (the code, or setting an app up), used by
     `signInTerminal` and every web sign-in of the seeded admin, in e2e and gen9-learn; the admins'
     second step checked end to end, in the checks that already make admins (`stacks.mjs`: the
     seeded admin asked for the code; `demotion.mjs`: a new admin sets an app up, then is asked
     for its code; `audit.mjs`: made admin with none, signed out everywhere, recorded); `make
     admin-code` for a person signing in as Ada (the same code as the checks', under bash 5 and
-    3.2). Live so far: `stacks`, `demotion`, `audit`, `passkeys`, `temporal`, `a11y`; the rest
-    in e.
+    3.2). Live: every e2e check (e).
   - [x] d. Docs and the guide in step: `docs/auth-architecture.md` (admins need a second step, its
     rationale moved from "offered, not required"), `docs/secrets.md`, `docs/operations.md`, the
     READMEs' sign-in lines, `e2e/README.md`, gen9-learn's page (Ada's code, the flow, Make admin,
     the security table, the make and settings tables) and verifier (b3, b4d and b7 check it;
     `page.mjs` and `reference.mjs` pass).
-  - [ ] e. Closing: `make e2e` as one command and gen9-learn's full run.
+  - [x] e. Closing: `make e2e` as one command and gen9-learn's full run. `make e2e` (2026-10-01)
+    passed its first 23 checks (313 assertions, one skip: rerank, off) and stopped in
+    `background.mjs`: after the person's Allow the task asked again (the model's next call needed
+    Allow too) and the check allowed only once. A check that assumed one request; it now allows
+    each, up to three, as a person would (its own pull request). `background.mjs` then passed
+    alone, and the other 23 checks, from `mcp-server` to `a11y`, passed in order (354
+    assertions). Spend: $0.22 over the three, by the per-key daily total. gen9-learn's full run:
+    the first stopped in b6 on a wait for the network to go quiet (Surprises), with b1 to b6d
+    passed, b3 and b4d's new checks included; with b6 waiting for what a person sees, the second
+    passed 255 checks and failed only this install's 2 stand-ins (b2d's similarity floor, b7's
+    lowered caps), b4d's dialog and b7's `gen9-browser` checks among the 255. `page.mjs` and
+    `reference.mjs` pass. $0.09 for the two.
 
 ## Surprises & Discoveries
 
+- M10's closing guide run failed b6 at its first question: the answer was on the page ("Hi
+  there!", the failure's screenshot), and Puppeteer waited 30 s for the page's network to go quiet,
+  as b4 once did in M9's closing run. A probe as the seeded member (few chats) found nothing open 1,
+  5, 15 and 35 s after an answer, and the chat page polls only while busy (every 3 s), so the
+  cause, something the run's person has (27 chats, background tasks, connectors), is still not
+  pinned down. b6 now waits for what a person sees, the chat at its own address and, deleted, the
+  page leaving it, as b4 does.
+- M10's closing `make e2e` stopped in `background.mjs`: a background task in "Ask before
+  acting" asked for Allow a second time after the person allowed it once (its worker log: waiting,
+  resumed, waiting again 4 s later), and the check waited 180 s for it to finish. Nothing about
+  M10: the model's next call needed Allow too. The check now allows each request, as a person
+  would.
 - M10's first start on the running stack failed in `configure.sh`: rebuilding `gen9-temporal-ui`
   (its shape changed for the first time since it was written) unbinds it from its client first,
   with `authenticationFlowBindingOverrides={}`, and Keycloak then refused to delete it ("Cannot

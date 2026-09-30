@@ -613,7 +613,7 @@ seeded user, with the seeded admin as another person.
 | Chrome | "In the background" lists the task with its state; the step's "Open its chat" opens it; the task's chat shows its work, links back and has no composer; axe clean on both |
 | A task that finishes while nobody asks | Its chat gets one notice, a turn of its own, which the open Chrome page shows and follows without a reload ("From a background task", then an answer with the task's phrase); the notice is marked as Gen9's; the task counts as told; axe clean |
 | A chat busy with its own run when a task ends | The notice's run starts after that run ends |
-| A task in "Ask before acting" that saves to memory | Its approval shows under it in the chat that started it, and the sidebar says "Needs you" (axe clean); another person's answer gets `404`; Allow there lets the task write the memory and finish, and its notice follows (the memory is put back) |
+| A task in "Ask before acting" that saves to memory | Its approval shows under it in the chat that started it, and the sidebar says "Needs you" (axe clean); another person's answer gets `404`; Allow there lets the task write the memory and finish, and its notice follows (the memory is put back). A task may ask more than once (the model's next call needing Allow too): the check allows each request, up to three, as a person would |
 | Cancel, then update | The second task's run ends `cancelled`; new instructions (another phrase) run in the same task chat, which answers them |
 | Four unfinished tasks | Start refuses ("At most 4"), and no chat is made |
 | Delete the chat | Its tasks' chats are deleted too |
