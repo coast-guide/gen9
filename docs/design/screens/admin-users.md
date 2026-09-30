@@ -24,5 +24,5 @@ someone confirms and needs a fresh sign-in), 6 (calm), 9 (private: an admin sees
 ## Next (planned)
 
 - **Search index:** re-embedding runs on a Schedule (gen9-agent's `reindex-search`). An admin
-  control to start it now, with its progress, belongs here if people need it.
-  `POST /v1/admin/search/reindex` exists.
+  control to start it now, with its progress, belongs here if people need it. Until then an admin
+  triggers the Schedule in Temporal's web UI ([docs/temporal.md, "Running a Schedule now"](../../temporal.md#running-a-schedule-now)).

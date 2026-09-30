@@ -190,12 +190,12 @@ try {
   chat = (await api(alan, "POST", "/v1/threads")).body.id;
   const tried = await api(other, "GET", `/v1/threads/${chat}`);
   const madeUp = await api(other, "GET", `/v1/threads/${randomUUID()}`);
-  const adminOnly = await api(other, "POST", "/v1/admin/search/reindex");
+  const adminOnly = await api(other, "GET", "/v1/admin/users");
   const b = subOf(EMAIL);
   const denied = events(`actor = '${b}' and outcome = 'denied'`).map((e) => `${e.split("|")[1]} ${e.split("|")[3]} ${e.split("|")[4]}`);
   check(tried.status === 404 && denied.includes(`thread.access ${chat} GET /v1/threads/{thread_id}`), "another person trying the seeded user's chat gets 404, recorded as denied", `${tried.status}; ${denied.join("; ")}`);
   check(madeUp.status === 404 && denied.length === 2, "a made-up id isn't recorded (it names nobody's chat)", `${denied.length} denied`);
-  check(adminOnly.status === 403 && denied.includes("access.refused  POST /v1/admin/search/reindex"), "an admin route refusing them with 403 is recorded as denied", `${adminOnly.status}`);
+  check(adminOnly.status === 403 && denied.includes("access.refused  GET /v1/admin/users"), "an admin route refusing them with 403 is recorded as denied", `${adminOnly.status}`);
 
   // 4. Append-only
   const tries = [

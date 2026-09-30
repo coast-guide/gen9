@@ -25,11 +25,9 @@ from .workflows.deletion import (
     DeleteAccountWorkflow,
     DeleteThreadInput,
     DeleteThreadWorkflow,
-    SweepDeletedUsersWorkflow,
 )
 from .workflows.names import (
     PRIORITY_CHAT,
-    PRIORITY_MAINTENANCE,
     SYSTEM_QUEUE,
     delete_account_workflow_id,
     delete_thread_workflow_id,
@@ -72,20 +70,6 @@ async def start_account_deletion(
         id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
         search_attributes=_attributes(sub, "delete-account"),
         priority=Priority(priority_key=PRIORITY_CHAT, fairness_key=sub),
-    )
-
-
-async def sweep_deleted_users(temporal: Client, timeout_s: float = 120) -> int:
-    """Runs the sweep now (the admin API); the Schedule runs it every 15 minutes."""
-    return await temporal.execute_workflow(
-        SweepDeletedUsersWorkflow.run,
-        id=f"sweep-deleted-users-now-{uuid.uuid4()}",
-        task_queue=SYSTEM_QUEUE,
-        search_attributes=TypedSearchAttributes(
-            [SearchAttributePair(GEN9_KIND, "sweep")]
-        ),
-        priority=Priority(priority_key=PRIORITY_MAINTENANCE),
-        execution_timeout=timedelta(seconds=timeout_s),
     )
 
 
