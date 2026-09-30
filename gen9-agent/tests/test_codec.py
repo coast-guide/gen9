@@ -29,11 +29,15 @@ def payload(value) -> Payload:
 
 async def test_round_trip_and_ciphertext_only():
     codec = EncryptionCodec(parse_keys(new_key("k1")))
-    plain = payload(RunInput(run_id="r1", user_sub="sub-1"))
+    # Markers long enough that random ciphertext can't hold them by chance (two bytes, "r1",
+    # turned up in one CI run: about one in a thousand)
+    run_id, sub = "run-5f0c2a9e41b74d6d8e3a", "sub-9b1e7c3f06a84d2b95c1"
+    plain = payload(RunInput(run_id=run_id, user_sub=sub))
     [encrypted] = await codec.encode([plain])
     assert encrypted.metadata["encoding"] == b"binary/encrypted"
     assert encrypted.metadata["encryption-key-id"] == b"k1"
-    assert b"sub-1" not in encrypted.data and b"r1" not in encrypted.data
+    assert sub.encode() not in encrypted.data and run_id.encode() not in encrypted.data
+    assert sub.encode() in plain.data and run_id.encode() in plain.data
     assert await codec.decode([encrypted]) == [plain]
 
 
