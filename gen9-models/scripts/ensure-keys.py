@@ -167,10 +167,11 @@ async def ensure_scoped_key(
             json={"key": key, "key_alias": alias, "metadata": metadata, **wanted},
         )
     if response.status_code != 200:
-        # The router's answer can quote the request, which holds the key: never print it
-        detail = response.text.replace(key, "<the key>")[:200]
+        # Not the router's answer: it can quote the request, which holds the key. The router's
+        # own log says why it refused
         print(
-            f"could not set {alias}'s key: HTTP {response.status_code} {detail}",
+            f"could not set {alias}'s key: HTTP {response.status_code}"
+            " (why: make logs STACKS=models)",
             file=sys.stderr,
         )
         return False

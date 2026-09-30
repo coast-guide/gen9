@@ -101,11 +101,12 @@ something to do". Then: "looks good logo and everything".
     #1: its 7 CI jobs, CodeQL and the Dependabot config check passed); then the ruleset requires
     the 7 jobs to pass, and CodeQL to find no new alert rated high or higher, before a merge.
   - [x] CodeQL's first scan, triaged: 15 alerts (Surprises, "CodeQL's first scan"). One is fixed
-    (`gen9-models/scripts/ensure-keys.py` no longer prints the router's error text with the key
-    in it); the 14 others are dismissed on GitHub, each with its reason. Verified: the script's
-    own `ensure_scoped_key` against a fake router whose error echoes the request printed the key
-    before the change and `<the key>` after it; on the running stacks the keys job still sets and
-    reads back every key.
+    (`gen9-models/scripts/ensure-keys.py` no longer prints the router's error text, which can
+    quote the key; it prints the status and points to the router's log); the 14 others are
+    dismissed on GitHub, each with its reason. Verified: the script's own `ensure_scoped_key`
+    against a fake router whose error echoes the request printed the key before the change and
+    only the status after it; on the running stacks the keys job still sets and reads back every
+    key.
 - [x] M8 The README and the docs, for people and for any AI agent (Decision Log, "The README").
   - [x] `README.md`: what Gen9 is and does, a quick start, how it is built, where to read more, and
     where agents start; everything else it held moved, word for word, to `docs/operations.md`
@@ -199,7 +200,9 @@ something to do". Then: "looks good logo and everything".
 - **CodeQL's first scan.** Default setup found 15 alerts, 2 of them critical. None is an
   exploitable hole, and one was worth changing:
   - `ensure-keys.py` printed the router's error text when a key couldn't be set, and that text
-    can quote the request, which holds the key. It now replaces the key before printing. Its
+    can quote the request, which holds the key. It now prints the status and points to the
+    router's own log (a first fix replaced the key in the text, and CodeQL, rightly strict, still
+    saw the key flow into the message: pull request #2's merge gate caught it). Its
     other four alerts print an alias, a status, a scope or a description: false positives.
   - "Full server-side request forgery" in `connector_auth.py`: a connector is fetched at the
     address a person gives, by design; `check_url` refuses private addresses and the connection
