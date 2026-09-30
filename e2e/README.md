@@ -436,6 +436,7 @@ made through Keycloak's Admin API are each signed in on a terminal of their own.
 | A password reset, from Users | "Password reset email sent.", "Update your Gen9 account" in Mailpit, an `admin.user.password_reset` audit row |
 | An admin deletes a person, from Users | The dialog asks for their email; "User deleted with all their data." (or "Deleting…" while a store is slow), then gone from Keycloak and Gen9, an `admin.user.delete` row |
 | A person's caps | The 11th scheduled task, the 101st environment secret and the 51st connector (on e2e's elicitation test server, which the check starts) are refused (409); the first 10, 100 and 50 kept, then deleted |
+| A person's files | A file over 25 MB is refused (413) and one of 25 MB kept; a chat past 250 MB refuses the next file (413) while another chat still takes one; past the person's limit across chats (`FILES_MAX_BYTES_PER_PERSON`, 10 GB) the next file is refused (413) with how to make room. The two totals come from a row seeded as the superuser (a size, one byte of content), not from uploading gigabytes; deleting the chats deletes their files |
 | Step-up, for a client that isn't the web app | A terminal sign-in over 5 minutes old gets 401 on `DELETE /v1/me` (`insufficient_user_authentication`, `max_age="300"`), the account kept; signed in again, the delete goes through |
 
 It waits for the first terminal sign-in to be 5 minutes old (about 7 minutes in all), deletes
