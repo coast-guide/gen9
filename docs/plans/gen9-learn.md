@@ -623,9 +623,29 @@ links to the step that traces it; `cd gen9-learn/verify && node run.mjs` passes,
         chats 503 "Gen9's database didn't answer. Try again in a moment." with Retry-After 30;
         started again, the API answers by itself and the worker deletes a chat to the end.
         Passed live (8 of 8), the role left with no setting and every container healthy.
-      - [ ] T9, re-deletion after a restore: automated nowhere yet. Run by hand in the release
-        plan's M5 (a restore deleted again the one chat deleted after its backup); gen9-learn's
-        b7 covers a restore with `DESTRUCTIVE=1`. Disruptive: it restores the stacks' data.
+      - [x] T9, re-deletion after a restore, automated nowhere: now in gen9-learn's b7 with
+        `DESTRUCTIVE=1` (a chat of the seeded user's deleted after a backup, then a restore), and
+        it found a bug. The restore printed "chat …: deleted again" and the chat stayed: a
+        chat's deletion workflow keeps running for ten minutes after the data is gone (its late
+        trace erasures), and the deletion again, under the same id with `USE_EXISTING`, joined
+        it and deleted nothing; accounts the same. In the release plan's M5 the restore came
+        later than that and worked. Fixed: `gen9-agent-erase` starts each as a deletion of its
+        own (`…-again-<random>`); the workflows are unchanged, so nothing needs a patch. Tested
+        (the id never joins; the old code has no such start), and live: the two chats the first
+        runs left behind deleted by the fixed command while their first deletions still ran.
+        The batch also keeps its backup under the home folder now: Docker Desktop on Linux
+        doesn't share `/tmp`. `DESTRUCTIVE=1 node run.mjs b7` then passed its new steps: the
+        chat deleted again (chats 4 → 3), the wipe and restore as before (4 → 0 → 4), and after
+        it, the warning's delete-again-by-id removes the chat; its one failure is "what it may
+        spend", from this install's lowered caps (release plan, Surprises).
+      - [ ] T9b, found with T9, not fixed yet: the same join through the API. After a restore
+        that couldn't read the audit record (gen9-postgres made again since), the chat is back
+        and the restore says to delete it again by id, which works (b7 checks it). A person who
+        deletes it in the app instead, within ten minutes of its first deletion, gets 204 while
+        the chat stays: `DELETE /v1/threads/{id}` joins the running deletion. Narrow (a restore
+        from before a wipe, then a deletion within minutes), but the answer is wrong. Fix to
+        design: after `finished_or_accepted`, if the row is still there, start a deletion again
+        (`again=True`); the same for accounts (`DELETE /v1/me`, an admin's delete).
       - [x] T10's rest: a plain forgot-password (no second step): `e2e/recovery.mjs` step 5, the
         link straight to a new password, then signed in, `UPDATE_PASSWORD` logged; passed live.
     - [x] Housekeeping (backlog 7), kept: `lib/audit-words.test.ts` and `lib/app-scopes.test.ts`

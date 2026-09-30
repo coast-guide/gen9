@@ -103,7 +103,9 @@ async def erase(
                 (await keycloak.get_user(sub))["createdTimestamp"] / 1000, UTC
             )
         await _deleted(
-            await start_account_deletion(temporal, sub, since or EPOCH, in_keycloak)
+            await start_account_deletion(
+                temporal, sub, since or EPOCH, in_keycloak, again=True
+            )
         )
         await _record(engine, "restore.account.delete", sub)
         print(f"account {sub}: deleted again", flush=True)
@@ -116,7 +118,9 @@ async def erase(
         if owner in users:
             continue  # its account's deletion took it
         await _deleted(
-            await start_thread_deletion(temporal, thread_id, created_at, owner)
+            await start_thread_deletion(
+                temporal, thread_id, created_at, owner, again=True
+            )
         )
         await _record(engine, "restore.thread.delete", str(thread_id))
         print(f"chat {thread_id}: deleted again", flush=True)

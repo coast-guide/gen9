@@ -42,11 +42,13 @@ async def test_what_came_back_is_deleted_again_through_the_workflows(
             (ALAN_CHAT, FIRST_VISIT, "alan"),
         ]
 
-    async def start_account(temporal, sub, since, keycloak):
+    async def start_account(temporal, sub, since, keycloak, *, again=False):
+        assert again  # its own deletion, never one still running (_again_id)
         steps.append(("account", sub, since, keycloak))
         return SimpleNamespace(kind="account", target=sub)
 
-    async def start_thread(temporal, thread_id, created_at, owner):
+    async def start_thread(temporal, thread_id, created_at, owner, *, again=False):
+        assert again
         assert created_at == (erase.EPOCH if thread_id == ROWLESS_CHAT else FIRST_VISIT)
         steps.append(("chat", thread_id, owner))
         return SimpleNamespace(kind="chat", target=thread_id)
@@ -141,3 +143,31 @@ async def test_the_accounts_and_chats_are_read_from_their_rows() -> None:
     created, chats = await erase._load(engine, ["back-with-data"], [ALAN_CHAT])  # ty: ignore[invalid-argument-type]
     assert created == {"back-with-data": FIRST_VISIT}
     assert chats == [(ALAN_CHAT, FIRST_VISIT, "alan")]
+
+
+async def test_a_deletion_again_runs_from_the_start_never_joining_one_still_running() -> (
+    None
+):
+    """A chat or account deleted minutes before a restore still has its deletion running (its late
+    trace erasures, for ten minutes). Under the usual id the deletion again joined it and deleted
+    nothing: the restored chat stayed (gen9-learn plan, M9 T9, found live)."""
+    from gen9_agent import deletions
+
+    started: list[dict] = []
+
+    class Temporal:
+        async def start_workflow(self, *args, **options):
+            started.append(options)
+            return SimpleNamespace(id=options["id"])
+
+    chat = uuid.uuid4()
+    await deletions.start_thread_deletion(Temporal(), chat, FIRST_VISIT, "alan")  # ty: ignore[invalid-argument-type]
+    for _ in range(2):
+        await deletions.start_thread_deletion(
+            Temporal(), chat, FIRST_VISIT, "alan", again=True
+        )  # ty: ignore[invalid-argument-type]
+    await deletions.start_account_deletion(Temporal(), "alan", FIRST_VISIT, again=True)  # ty: ignore[invalid-argument-type]
+    usual, again, twice, account = (o["id"] for o in started)
+    assert usual == f"delete-thread-{chat}"
+    assert again.startswith(f"delete-thread-{chat}-again-") and twice != again
+    assert account.startswith("delete-account-alan-again-")

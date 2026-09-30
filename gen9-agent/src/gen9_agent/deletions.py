@@ -43,14 +43,28 @@ def _attributes(user_sub: str, kind: str) -> TypedSearchAttributes:
     )
 
 
+def _again_id(workflow_id: str) -> str:
+    """A deletion that must run from the start. Under the usual id it would join a deletion
+    still running, whose data steps are done and which only waits to erase late traces (for
+    ten minutes): a restore in that window brought the data back, and joining left it there."""
+    return f"{workflow_id}-again-{uuid.uuid4().hex[:12]}"
+
+
 async def start_thread_deletion(
-    temporal: Client, thread_id: uuid.UUID, created_at: datetime, user_sub: str
+    temporal: Client,
+    thread_id: uuid.UUID,
+    created_at: datetime,
+    user_sub: str,
+    *,
+    again: bool = False,
 ) -> WorkflowHandle:
-    """Joins a deletion already running for this thread (a repeated request)."""
+    """Joins a deletion already running for this thread (a repeated request). `again`: a
+    deletion of its own (_again_id), for data a restore brought back."""
+    workflow_id = delete_thread_workflow_id(str(thread_id))
     return await temporal.start_workflow(
         DeleteThreadWorkflow.run,
         DeleteThreadInput(thread_id=str(thread_id), since=created_at.isoformat()),
-        id=delete_thread_workflow_id(str(thread_id)),
+        id=_again_id(workflow_id) if again else workflow_id,
         task_queue=SYSTEM_QUEUE,
         id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
         search_attributes=_attributes(user_sub, "delete-thread"),
@@ -59,13 +73,20 @@ async def start_thread_deletion(
 
 
 async def start_account_deletion(
-    temporal: Client, sub: str, since: datetime, keycloak: bool = True
+    temporal: Client,
+    sub: str,
+    since: datetime,
+    keycloak: bool = True,
+    *,
+    again: bool = False,
 ) -> WorkflowHandle:
-    """`keycloak`: whether the person is still in Keycloak, to be disabled and deleted there."""
+    """`keycloak`: whether the person is still in Keycloak, to be disabled and deleted there.
+    `again`: a deletion of its own (_again_id), for data a restore brought back."""
+    workflow_id = delete_account_workflow_id(sub)
     return await temporal.start_workflow(
         DeleteAccountWorkflow.run,
         DeleteAccountInput(sub=sub, since=since.isoformat(), keycloak=keycloak),
-        id=delete_account_workflow_id(sub),
+        id=_again_id(workflow_id) if again else workflow_id,
         task_queue=SYSTEM_QUEUE,
         id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
         search_attributes=_attributes(sub, "delete-account"),
