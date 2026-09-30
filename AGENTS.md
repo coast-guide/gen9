@@ -90,7 +90,9 @@ Only then implement. The same applies to design and UX work, and to any change o
 
 ## Rules
 
-- Commits: subject plus body only; no co-author, session or "generated with" lines.
+- Changes reach `main` only through a pull request, squash-merged: a ruleset blocks direct and
+  force pushes. Commit messages and pull request descriptions: subject plus body only; no
+  co-author, "assisted by", session or "generated with" lines.
 - Model spend (the owner's standing instruction): every model call costs the owner
   money. Keep Gen9's aliases on the cheapest current models that work (gen9-models/README.md),
   ask for short answers in checks, run costly scenarios once, measure the router's spend log
@@ -111,6 +113,7 @@ Only then implement. The same applies to design and UX work, and to any change o
 | What                                                               | Where                                                      |
 | ------------------------------------------------------------------ | ---------------------------------------------------------- |
 | Stacks, `make` commands, how stacks stay decoupled               | `README.md`, `Makefile`, each `gen9-*/README.md`     |
+| Reporting a vulnerability, and where each part of Gen9's security is described | `SECURITY.md` |
 | Active plans (goal, progress, decisions, surprises)                | `docs/plans/`, written as `docs/PLANS.md` says         |
 | Operating Gen9: back up and restore, stop every agent, upgrade    | `README.md` ("Back up and restore", "Stop every agent at once", "Upgrade") |
 | Architecture: identity and tokens                                  | `docs/auth-architecture.md`                              |
@@ -139,5 +142,6 @@ Only then implement. The same applies to design and UX work, and to any change o
   `reference.mjs` also after any change to gen9-agent, gen9-ui or gen9-cli code: the page points
   into it by line (`data-at`), and an edit above a pointer moves it.
 
-CI (`.github/workflows/checks.yml`) runs the non-interactive ones; it is paused (the owner: no Actions budget), so run them locally before each commit, and don't start CI. The
-workflow's first lines say how to turn it back on.
+CI (`.github/workflows/checks.yml`) runs the non-interactive ones on every pull request and on `main`. Run them
+locally before each commit anyway: CI is the second net. The live checks (`make e2e`, gen9-learn's `run.mjs`) run only
+locally, on the stacks.

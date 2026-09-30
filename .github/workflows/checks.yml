@@ -4,11 +4,13 @@
 # run locally. Actions and images are pinned to digests (tag in the comment).
 name: Checks
 
-# Paused while the account has no Actions budget: it runs only when started by hand
-# (Actions > Checks > Run workflow). To run it on every pull request and on main again, replace
-# the `on:` line below with this one:
-#   on: { pull_request: {}, push: { branches: [main] }, workflow_dispatch: {} }
-on: workflow_dispatch
+# Every pull request, every push to main (only through a pull request: a ruleset protects it), and
+# by hand (Actions > Checks > Run workflow). Free on a public repository's standard runners.
+on:
+  pull_request: {}
+  push:
+    branches: [main]
+  workflow_dispatch: {}
 
 permissions:
   contents: read

@@ -81,11 +81,24 @@ something to do". Then: "looks good logo and everything".
   - [x] `make backup` and `make restore` (Surprises, "A backup folder Docker can't mount"): 13
     volumes and 19 settings files, 128 MB, 126 s; restored in 107 s, the chat made after the backup
     gone and the chat deleted after it deleted again.
-  - [ ] `make wipe` then `make up`; `make distclean`; `make fresh`.
+  - [x] `make wipe` then `make up` (empty data, the seeded users again, the settings kept);
+    `make distclean` (every settings file gone, no tracked file changed); `make fresh` with the
+    provider key in its environment (162 s).
   - [ ] On the fresh install: `make e2e` as one command.
 - [x] M6 The licence and notices: `LICENSE` (Apache-2.0, the text as apache.org publishes it), `NOTICE`
   (what the repository carries from other projects, each with its licence and where its text is),
   and the README's first paragraph and "Licence" section.
+- [ ] M7 The public repository, protected and checked (Decision Log, "The public repository").
+  - [x] Settings, through `gh`, each read back: a ruleset on `main` (no deletion, no force push,
+    linear history, changes only through a pull request, squash merging) and one on `v*` tags
+    (no deletion, no move); Dependabot alerts and security updates; private vulnerability
+    reporting; CodeQL default setup (its first run passed); immutable releases; Actions pinned
+    to full commit SHAs, workflows from outside contributors only after approval, the token
+    read-only; no wiki or projects; squash merges, branches deleted after merge.
+  - [x] CI started by hand on `main` (the workflow as it was, `workflow_dispatch`): see the pull
+    request that turns it on for the result.
+  - [ ] `SECURITY.md`, `.github/dependabot.yml`, CI on every pull request and on `main`; then the
+    ruleset requires its jobs.
 
 ## Surprises & Discoveries
 
@@ -237,6 +250,34 @@ something to do". Then: "looks good logo and everything".
 - Decision: Apache-2.0. Rationale: permissive, with an express patent grant that MIT lacks; it is
   the licence of most of what Gen9 builds on (LangChain, Deep Agents, Keycloak, Temporal's SDKs).
   The owner can change it before publishing: it is one file.
+
+- Decision: the public repository's protection is what GitHub offers a public repository on a
+  personal account, and all of it: a ruleset on the default branch and on release tags (rulesets
+  are available "in public repositories with GitHub Free", GitHub's docs source,
+  `data/reusables/gated-features/repo-rules.md`), secret scanning with push protection,
+  Dependabot alerts and security updates, CodeQL default setup, private vulnerability reporting
+  ([quickstart for securing your repository](https://docs.github.com/en/code-security/getting-started/quickstart-for-securing-your-repository)),
+  immutable releases ([generally available](https://github.blog/changelog/2025-10-28-immutable-releases-are-now-generally-available/)).
+  Generic secret patterns and validity checks stay off: they need an organization with Secret
+  Protection (`secret-scanning-non-provider-patterns.md`, same source). Rationale: the owner's
+  direction ("first protect the main branch, then do the rest"); every change reaches `main`
+  through a pull request.
+- Decision: CI runs on every pull request and on `main` again. Rationale: GitHub-hosted standard
+  runners stay free for public repositories under the 2026 pricing
+  ([pricing changes for GitHub Actions](https://github.com/resources/insights/2026-pricing-changes-for-github-actions)),
+  which removes the reason it was paused. The workflow already follows GitHub's hardening:
+  actions pinned by SHA, a read-only token, no `pull_request_target`, `persist-credentials: false`;
+  zizmor 1.30.1 finds nothing in it.
+- Decision: Dependabot version updates cover the Actions only, grouped weekly, each release
+  proposed after 7 days (`cooldown`,
+  [Dependabot options reference](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference)).
+  Images stay with `make updates`, and vulnerable packages come as security updates. Rationale:
+  one mechanism per kind of dependency, and few pull requests for one maintainer.
+- Decision: `SECURITY.md` follows the OpenSSF template for GitHub's private reporting
+  (`ossf/oss-vulnerability-guide`, `templates/security_policies/github_security_policy.md`):
+  where to report, when to expect an answer, a 90-day disclosure. It links to the documents
+  that describe Gen9's security rather than repeating them. The owner can shorten or lengthen
+  the 7 days it promises for an acknowledgement.
 
 ## Outcomes & Retrospective
 
