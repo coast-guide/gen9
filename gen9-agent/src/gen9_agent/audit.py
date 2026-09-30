@@ -5,7 +5,7 @@ Keycloak logs sign-ins, and its admin events log what Gen9 asks of it. But it se
 service account, not the admin who clicked, so only Gen9 can say who acted. Recorded in
 `audit_events`, with when, where (the route), who (the person's `sub`), what and the outcome:
 - admin actions: users (roles, enabled, sessions, sign-in lock, password reset, deletion),
-  plugin sources and plugins, reindexing search, syncing the connector directory;
+  plugin sources and plugins;
 - people's security actions: deleting their account, adding and removing a connector, an
   environment secret or a task's trigger;
 - access refused: every 403, and one person's ids tried by another (answered 404, so the ids'
