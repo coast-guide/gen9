@@ -616,8 +616,16 @@ links to the step that traces it; `cd gen9-learn/verify && node run.mjs` passes,
         chats' files are up to 10 GB together. Delete a chat with files to make room."); deleting
         the chats deletes every file, seeded ones too. The totals come from a row seeded as the
         superuser (a size, one byte): uploading 10 GB to prove a limit is no check. Passed live.
-      - [ ] T6, the database unavailable (503 with Retry-After), and T9's re-deletion after a
-        restore, only manual so far; both disruptive, after the demo.
+      - [x] T6, the database unavailable, only manual so far (manual-e2e.md, P6-B3): now
+        `e2e/database.mjs`, in `make e2e` after `stop`. The services' role made read-only: a new
+        chat 503 "Gen9 can't save changes right now. Try again later." with Retry-After 30, the
+        chats still read (200), and a new chat once writable. gen9-postgres stopped: reading the
+        chats 503 "Gen9's database didn't answer. Try again in a moment." with Retry-After 30;
+        started again, the API answers by itself and the worker deletes a chat to the end.
+        Passed live (8 of 8), the role left with no setting and every container healthy.
+      - [ ] T9, re-deletion after a restore: automated nowhere yet. Run by hand in the release
+        plan's M5 (a restore deleted again the one chat deleted after its backup); gen9-learn's
+        b7 covers a restore with `DESTRUCTIVE=1`. Disruptive: it restores the stacks' data.
       - [x] T10's rest: a plain forgot-password (no second step): `e2e/recovery.mjs` step 5, the
         link straight to a new password, then signed in, `UPDATE_PASSWORD` logged; passed live.
     - [x] Housekeeping (backlog 7), kept: `lib/audit-words.test.ts` and `lib/app-scopes.test.ts`
