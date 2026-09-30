@@ -120,8 +120,13 @@ try {
     `Start a background task (agent type gen9) with exactly this description: "Wait a moment, then reply with only this code word and nothing else: ${PHRASE}". Then tell me you started it. Don't check it yet.`,
   );
   const [task] = tasksOf(chat.id);
-  const step = started.thread.messages.flatMap((m) => m.steps ?? []).find((s) => s.name === "start_async_task");
-  check(Boolean(task) && step?.task === task && !started.answer.includes(PHRASE), "the agent starts a task in the background: a chat of its own, linked from its step", `${task} ${step?.task}`);
+  const steps = started.thread.messages.flatMap((m) => m.steps ?? []);
+  const step = steps.find((s) => s.name === "start_async_task");
+  // It didn't wait for the task: no check_async_task in this turn. The answer may quote the task's
+  // description, code word and all ("I started a task: Wait a moment, then reply … kumquat-…"),
+  // which is no sign it did the task itself
+  const lookedAtIt = steps.some((s) => s.name === "check_async_task");
+  check(Boolean(task) && step?.task === task && !lookedAtIt && started.answer.trim() !== PHRASE, "the agent starts a task in the background: a chat of its own, linked from its step", `${task} ${step?.task}; checked it: ${lookedAtIt}; said: ${started.answer.slice(0, 80)}`);
   const listed = (await api(alan, "GET", "/v1/threads")).body.map((t) => t.id);
   check(listed.includes(chat.id) && !listed.includes(task), "the sidebar's list shows the chat, not the task's chat");
   check(psql(`select u.email from threads t join users u on u.id = t.user_id where t.id = '${task}'`) === env.GEN9_SEED_USER_EMAIL && psql(`select parent_id from threads where id = '${task}'`) === chat.id, "the task's chat is the person's, and keeps the chat that started it");
@@ -227,7 +232,8 @@ try {
   await until("the task to finish", () => latest(askingTask) === "success", 180);
   const remembered = (await api(alan, "GET", "/v1/me/memory")).body?.content ?? "";
   await until("its notice", () => psql(`select count(*) from runs where thread_id = '${asking.id}' and input ? 'notice_of'`) === "1", 180);
-  check(remembered.includes(BIRD), "Allow in the chat lets the task go on: it wrote the memory, and its notice follows");
+  const said = remembered.split("\n").find((line) => /kingfisher|bird/i.test(line)) ?? `no bird in its memory (${remembered.length} characters)`;
+  check(remembered.includes(BIRD), "Allow in the chat lets the task go on: it wrote the memory, and its notice follows", remembered.includes(BIRD) ? "" : `${BIRD}; the memory says: ${said.slice(0, 120)}`);
   await api(alan, "PUT", "/v1/me/memory", { content: memoryBefore });
 
   // 7. Cancel, the limit, deletion
