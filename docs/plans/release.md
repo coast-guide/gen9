@@ -64,7 +64,7 @@ something to do". Then: "looks good logo and everything".
   `gen9-learn/verify/lib.mjs` hold the one default per platform; 41 scripts lost their own copy.
   Verified on Linux with `CHROME_PATH` unset: `a11y.mjs` (every screen) and `token.mjs` (the
   terminal's sign-in, confirmed in headless Chrome) pass. `make e2e` as a whole: M5.
-- [ ] M5 The whole system verified on a fresh Linux machine (Validation).
+- [x] M5 The whole system verified on a fresh Linux machine (Validation).
   - [x] The 46 checks of `make e2e`, each by itself, `CHROME_PATH` unset: 43 passed, 3 failed for the
     checks' own reasons (Surprises), fixed, and pass.
   - [x] gen9-learn's `node run.mjs`, in full: 253 steps pass; 2 hold only on the shipped settings
@@ -84,7 +84,11 @@ something to do". Then: "looks good logo and everything".
   - [x] `make wipe` then `make up` (empty data, the seeded users again, the settings kept);
     `make distclean` (every settings file gone, no tracked file changed); `make fresh` with the
     provider key in its environment (162 s).
-  - [ ] On the fresh install: `make e2e` as one command.
+  - [x] On the fresh install: `make e2e` as one command, `CHROME_PATH` unset: exit 0, the 46
+    checks, 655 steps, one skip by design (rerank, off unless gen9-models' `local` profile runs),
+    in 45 minutes, about $0.18 of model calls. It took three fixes to the checks to get there, each
+    found by a run on the new install (Surprises: the HNSW index, the directory's first pass, the
+    background check's wording).
 - [x] M6 The licence and notices: `LICENSE` (Apache-2.0, the text as apache.org publishes it), `NOTICE`
   (what the repository carries from other projects, each with its licence and where its text is),
   and the README's first paragraph and "Licence" section.
@@ -346,6 +350,15 @@ something to do". Then: "looks good logo and everything".
 ## Outcomes & Retrospective
 
 (at each milestone)
+
+- M5: every command of Validation ran on a Linux/amd64 machine that had never run Gen9, and `make
+  e2e` passed as one command on an install `make fresh` had just made. Nothing in the product had
+  to change for it; what failed was the checks' own assumptions: a Mac's Chrome path, a letter-only
+  pattern for settings keys (Gen9's name holds a digit), a menu's first item, a toast scanned while
+  it faded in, and three things only a new install shows (no HNSW index before the first reindex,
+  a registry copy still filling, a model quoting a task back). The backup scripts gained a mount
+  check, and the router's key script stopped printing its error text. Lesson: run the checks on a
+  new install, on the platform people will use, before calling them done.
 
 ## Context
 
