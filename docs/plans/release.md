@@ -200,9 +200,12 @@ something to do". Then: "looks good logo and everything".
 - **CodeQL's first scan.** Default setup found 15 alerts, 2 of them critical. None is an
   exploitable hole, and one was worth changing:
   - `ensure-keys.py` printed the router's error text when a key couldn't be set, and that text
-    can quote the request, which holds the key. It now prints the status and points to the
-    router's own log (a first fix replaced the key in the text, and CodeQL, rightly strict, still
-    saw the key flow into the message: pull request #2's merge gate caught it). Its
+    can quote the request, which holds the key (a fake router that echoes the request showed the
+    key printed). It now prints the status and points to the router's own log. CodeQL's own
+    reason was elsewhere: its source is the constant `API_KEY_ALIAS = "gen9-agent-api"`, whose
+    name matches its pattern for passwords, flowing into the printed alias (read from the
+    analysis' SARIF), so it kept flagging the line after the fix, and the alert on pull request
+    #2 was dismissed as a false positive; the merge gate then passed. Its
     other four alerts print an alias, a status, a scope or a description: false positives.
   - "Full server-side request forgery" in `connector_auth.py`: a connector is fetched at the
     address a person gives, by design; `check_url` refuses private addresses and the connection
