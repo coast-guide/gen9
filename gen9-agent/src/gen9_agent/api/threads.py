@@ -718,4 +718,15 @@ async def delete_thread(
     # The record `make restore` reads to delete it again, should a backup bring it back (P4-E5)
     for deleted in [*(task_id for task_id, _ in tasks), thread_id]:
         await audit.record(request, principal.sub, "thread.delete", target=deleted)
-    return await finished_or_accepted(handle, THREAD_WAIT_S)
+    answer = await finished_or_accepted(handle, THREAD_WAIT_S)
+    if answer.status_code == status.HTTP_204_NO_CONTENT and await session.scalar(
+        select(Thread.id).where(Thread.id == thread_id)
+    ):
+        # Its data steps were done, yet the chat is here: a restore brought it back while that
+        # deletion still waited to erase late traces, and joining it deleted nothing. One of its
+        # own, as gen9-agent-erase starts (gen9-learn plan, M9 T9b)
+        handle = await start_thread_deletion(
+            request.app.state.temporal, thread_id, created_at, principal.sub, again=True
+        )
+        answer = await finished_or_accepted(handle, THREAD_WAIT_S)
+    return answer
