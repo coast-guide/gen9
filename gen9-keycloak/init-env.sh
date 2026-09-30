@@ -165,6 +165,8 @@ GEN9_TEMPORAL_UI_URL=$TEMPORAL_UI_URL
 GEN9_TEMPORAL_UI_CLIENT_SECRET=$TEMPORAL_UI_CLIENT_SECRET
 GEN9_SEED_ADMIN_EMAIL=$ADMIN_EMAIL
 GEN9_SEED_ADMIN_PASSWORD=$(user_password)
+# The seeded admin's authenticator app (config/configure.sh gives it to them): admins need a second step
+GEN9_SEED_ADMIN_OTP_SECRET=$(rand_hex 20)
 GEN9_SEED_USER_EMAIL=$USER_EMAIL
 GEN9_SEED_USER_PASSWORD=$(user_password)
 ENV

@@ -10,6 +10,7 @@
 // deleted through the Admin API instead.
 import { readFileSync } from "node:fs";
 import { chromeOnly, launch } from "./browser.mjs";
+import { secondStep } from "./second-step.mjs";
 
 if (chromeOnly("passkeys", "Chrome's virtual authenticator is a DevTools domain; Firefox has no DevTools protocol")) process.exit(0);
 
@@ -105,6 +106,7 @@ try {
   await page.type("#username", EMAIL);
   await page.type("#password", PASSWORD);
   await navigation(page.click("#kc-login"));
+  await secondStep(page); // admins need a second step: the seeded admin's code
   if (!check(inApp(), "password sign-in", page.url())) throw new Error("cannot continue");
 
   await page.goto(`${APP}/settings`, { waitUntil: "networkidle0" });

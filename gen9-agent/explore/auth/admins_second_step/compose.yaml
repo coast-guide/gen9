@@ -1,0 +1,60 @@
+# Throwaway Keycloak 26.7.4 for M10 (docs/plans/gen9-learn.md): its own project, port and database,
+# no volumes. Its .env holds throwaway values (NOTES.md); never the running stack's.
+name: exp-kc-2fa
+services:
+  postgres:
+    image: postgres:18.6-trixie
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD}
+    tmpfs: [/var/lib/postgresql]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak -h 127.0.0.1"], interval: 2s, retries: 30}
+  keycloak:
+    image: gen9-keycloak:26.7.4
+    cpus: 2
+    mem_limit: 1536m
+    depends_on: {postgres: {condition: service_healthy}}
+    environment:
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+      KC_HOSTNAME: http://localhost:25080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+      GEN9_UI_CLIENT_SECRET: ${GEN9_UI_CLIENT_SECRET}
+      GEN9_AGENT_CLIENT_SECRET: ${GEN9_AGENT_CLIENT_SECRET}
+      GEN9_UI_URL: http://localhost:25081
+      GEN9_UI_DEV_URL: http://localhost:25082
+      GEN9_UI_BACKCHANNEL_LOGOUT_URL: http://localhost:25081/auth/backchannel-logout
+      GEN9_SEED_ADMIN_EMAIL: ada@gen9.test
+      GEN9_SEED_ADMIN_PASSWORD: ${GEN9_SEED_ADMIN_PASSWORD}
+      GEN9_SEED_USER_EMAIL: alan@gen9.test
+      GEN9_SEED_USER_PASSWORD: ${GEN9_SEED_USER_PASSWORD}
+    volumes: ["../../../../gen9-keycloak/realm:/opt/keycloak/data/import:ro"]
+    ports: ["127.0.0.1:25080:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /realms/gen9/.well-known/openid-configuration HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200 '"]
+      interval: 3s
+      retries: 60
+      start_period: 120s
+  configure:
+    image: gen9-keycloak:26.7.4
+    depends_on: {keycloak: {condition: service_healthy}}
+    entrypoint: ["/opt/gen9/configure.sh"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+      GEN9_UI_BACKCHANNEL_LOGOUT_URL: http://localhost:25081/auth/backchannel-logout
+      GEN9_TEMPORAL_UI_URL: http://localhost:25083
+      GEN9_MCP_URL: http://localhost:25084/mcp
+      GEN9_A2A_URL: http://localhost:25084/a2a
+      GEN9_MCP_CLIENT_DOMAINS: localhost
+      GEN9_MCP_CLIENT_ALLOW_HTTP: "true"
+      GEN9_TEMPORAL_UI_CLIENT_SECRET: ${GEN9_TEMPORAL_UI_CLIENT_SECRET}
+      GEN9_SEED_ADMIN_EMAIL: ada@gen9.test
+      GEN9_SEED_ADMIN_OTP_SECRET: ${GEN9_SEED_ADMIN_OTP_SECRET}
+    volumes: ["../../../../gen9-keycloak/config:/opt/gen9:ro"]
+    restart: "no"

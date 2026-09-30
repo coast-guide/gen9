@@ -17,7 +17,7 @@ docker compose up -d --build --wait     # healthy = realm "gen9" answers (≈40 
 | --- | --- |
 | Issuer | `http://localhost:15000/realms/gen9` |
 | Admin console | http://localhost:15000/admin (user `admin`; password: `grep ^KC_BOOTSTRAP_ADMIN_PASSWORD= .env`) |
-| Local users | `ada@gen9.test` (admin), `alan@gen9.test` (user); passwords: `grep ^GEN9_SEED_ .env` |
+| Local users | `ada@gen9.test` (admin), `alan@gen9.test` (user); passwords: `grep ^GEN9_SEED_ .env`. Admins need a second step: Ada's authenticator code is `make admin-code` (from the repository's root) |
 | Self-service account | http://localhost:15000/realms/gen9/account |
 | Mail catcher (all Keycloak email) | http://localhost:15002 |
 

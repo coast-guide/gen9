@@ -87,7 +87,7 @@ list_urls = for s in $(SELECTED); do docker ps $(OWN) \
 WIPE_FLAGS := $(if $(filter 1,$(YES)),--yes)
 
 .DEFAULT_GOAL := help
-.PHONY: help stacks doctor up down ps logs config setup backup restore stop-agents resume-agents wipe distclean fresh design-sync design-check e2e evals evals-calibrate audit updates
+.PHONY: help stacks doctor up down ps logs config setup admin-code backup restore stop-agents resume-agents wipe distclean fresh design-sync design-check e2e evals evals-calibrate audit updates
 
 help:
 	@echo "Gen9: every command covers all stacks, or only STACKS=\"...\" (see make stacks)"
@@ -103,6 +103,7 @@ help:
 	@echo "  make ps              their containers"
 	@echo "  make logs            last $(TAIL) log lines (TAIL=n; FOLLOW=1 follows, with one stack)"
 	@echo "  make config          validate their Compose config"
+	@echo "  make admin-code      the seeded admin's authenticator code now (admins need a second step)"
 	@echo
 	@echo "Starting over (deletes for good; lists what, then asks you to type yes):"
 	@echo "  make backup DIR=d    copy their data and the keys to it into folder d (they stop meanwhile)"
@@ -133,6 +134,9 @@ stacks:
 
 doctor:
 	@scripts/doctor.sh $(SELECTED)
+
+admin-code:
+	@scripts/admin-code.sh
 
 up:
 	@scripts/doctor.sh --preflight $(SELECTED)

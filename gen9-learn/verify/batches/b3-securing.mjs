@@ -2,6 +2,7 @@
 // Settings), signing in with them, a lockout that an admin clears, forgot password with an
 // authenticator app, a passkey, and a password change.
 import { APP, admin, check, kcdb, kcEnv, mailTo, navigation, nextWindow, otpPolicy, settled, signInWithPassword, signOut, totp, valkey } from "../lib.mjs";
+import { secondStep } from "../../../e2e/second-step.mjs";
 
 const clickText = async (page, selector, pattern) => {
   const handles = await page.$$(selector);
@@ -129,6 +130,7 @@ export default async function securing(ctx) {
   const adminContext = await browser.createBrowserContext();
   const adminPage = await adminContext.newPage();
   await signInWithPassword(adminPage, kcEnv.GEN9_SEED_ADMIN_EMAIL, kcEnv.GEN9_SEED_ADMIN_PASSWORD);
+  await secondStep(adminPage); // admins need a second step: the seeded admin's code
   await adminPage.goto(`${APP}/admin/users`, { waitUntil: "networkidle0" });
   obs.lockedBadge = await adminPage.evaluate((email) => [...document.querySelectorAll("li, tr")].find((row) => row.textContent.includes(email))?.textContent.includes("Locked"), user.email);
   await adminPage.click(`button[aria-label="Actions for ${user.email}"]`);

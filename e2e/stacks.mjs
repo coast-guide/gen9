@@ -9,6 +9,7 @@
 // Needs every stack up (make up) and a provider key in gen9-models/.env.
 import { existsSync, readFileSync } from "node:fs";
 import { launch } from "./browser.mjs";
+import { secondStep } from "./second-step.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const readEnv = (file) =>
@@ -112,6 +113,9 @@ try {
   await page.type("#username", EMAIL);
   await page.type("#password", PASSWORD);
   await navigation(page.click("#kc-login"));
+  // The seeded user is an admin, and admins need a second step (gen9-keycloak/config/configure.sh)
+  const asked = await secondStep(page);
+  check(asked?.did === "code", "an admin is asked for their authenticator code, and passes with it", JSON.stringify(asked));
   if (!check(inApp(), "password sign-in (gen9-ui <-> gen9-keycloak)", page.url())) throw new Error("cannot continue");
 
   await page.goto(`${APP}/chat`, { waitUntil: "networkidle0" });

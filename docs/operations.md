@@ -22,7 +22,7 @@ make up
 
 `make setup` is safe to rerun: it keeps every `.env`, and if a settings file one stack wrote for another is gone (say `gen9-agent/keycloak.local.env`), it rebuilds it from that stack's `.env` (`init-env.sh --from-env`) without generating new secrets, so nothing is lost. `gen9-agent/langfuse.local.env` is the exception, since it overrides keys you may have put in `gen9-agent/.env`: rebuild it with `gen9-langfuse/init-env.sh --from-env --agent-env-file ../gen9-agent/langfuse.local.env`.
 
-Then open http://localhost:14000 and sign in as `ada@gen9.test` (admin) or `alan@gen9.test`, with passwords from `grep ^GEN9_SEED_ gen9-keycloak/.env`, or create an account (emails arrive in Mailpit at http://localhost:15002).
+Then open http://localhost:14000 and sign in as `ada@gen9.test` (admin) or `alan@gen9.test`, with passwords from `grep ^GEN9_SEED_ gen9-keycloak/.env` (admins need a second step: `make admin-code` prints Ada's authenticator code), or create an account (emails arrive in Mailpit at http://localhost:15002).
 
 ## Everyday commands
 

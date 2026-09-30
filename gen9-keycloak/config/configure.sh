@@ -7,23 +7,6 @@ kcadm() { /opt/keycloak/bin/kcadm.sh "$@" --config /tmp/kcadm.config; }
 kcadm config credentials --server http://keycloak:8080 --realm master \
   --user "$KC_BOOTSTRAP_ADMIN_USERNAME" --password "$KC_BOOTSTRAP_ADMIN_PASSWORD"
 
-# Set one step of a built-in flow to REQUIRED, ALTERNATIVE or DISABLED. The update must repeat the
-# step's priority: Keycloak copies it from the body, and a missing one (0) moves the step first.
-requirement() {
-  local flow=$1 provider=$2 wanted=$3 id requirement priority
-  IFS=, read -r id _ requirement priority < <(
-    kcadm get "authentication/flows/$flow/executions" -r gen9 --fields id,providerId,requirement,priority --format csv --noquotes |
-      grep ",$provider,"
-  )
-  if [[ $requirement == "$wanted" ]]; then
-    echo "$flow / $provider: $wanted"
-    return
-  fi
-  kcadm update "authentication/flows/$flow/executions" -r gen9 \
-    -b "{\"id\":\"$id\",\"requirement\":\"$wanted\",\"priority\":$priority}"
-  echo "$flow / $provider: set to $wanted"
-}
-
 # Admin events expire after 30 days, as login events do (eventsExpiration). Keycloak keeps their
 # expiry apart, in the realm attribute adminEventsExpiration; without it they stayed for good, each
 # create or update of an account with its email in it, the account's deletion long past
@@ -41,10 +24,6 @@ admin_events_expiration() {
   echo "admin events: set to expire after $ADMIN_EVENTS_EXPIRATION s"
 }
 admin_events_expiration
-
-# Recovery codes: offered at the second sign-in step next to the authenticator app, so a lost
-# phone doesn't lock the user out. Keycloak's browser flow ships this step disabled.
-requirement browser auth-recovery-authn-code-form ALTERNATIVE
 
 # Back-channel logout: Keycloak tells gen9-ui when a session ends, over the gen9-ui network. The
 # import sets the URL on first start only, so a realm imported earlier is brought in line here.
@@ -77,8 +56,8 @@ flow_shape() {
     while IFS=, read -r level provider name requirement; do printf '%s:%s:%s ' "$level" "${provider:-$name}" "$requirement"; done
 }
 
-# Set the requirement of $1's top-level step matching $2 (provider, or subflow alias); the update must
-# repeat the step's priority, as in requirement() above
+# Set the requirement of $1's top-level step matching $2 (provider, or subflow alias). The update must
+# repeat the step's priority: Keycloak copies it from the body, and a missing one (0) moves the step first
 set_requirement() {
   local id="" priority="" step provider name prio level
   while IFS=, read -r step provider name prio level; do # the image has no awk
@@ -201,6 +180,8 @@ UI_FLOW=gen9-temporal-ui
 UI_SHAPE="0:$UI_FLOW-sign-in:REQUIRED 1:auth-cookie:ALTERNATIVE 1:$UI_FLOW-forms:ALTERNATIVE "
 UI_SHAPE+="2:auth-username-password-form:REQUIRED 2:$UI_FLOW-second-step:CONDITIONAL 3:conditional-user-configured:REQUIRED "
 UI_SHAPE+="3:conditional-credential:REQUIRED 3:auth-otp-form:ALTERNATIVE 3:auth-recovery-authn-code-form:ALTERNATIVE "
+UI_SHAPE+="2:$UI_FLOW-forms-admins:CONDITIONAL 3:conditional-user-role:REQUIRED 3:conditional-credential:REQUIRED "
+UI_SHAPE+="3:conditional-sub-flow-executed:REQUIRED 3:auth-otp-form:REQUIRED "
 UI_SHAPE+="0:$UI_FLOW-not-admin:CONDITIONAL 1:conditional-user-role:REQUIRED 1:deny-access-authenticator:REQUIRED "
 # A message key: the Gen9 theme says it, and titles its page after it (theme/src/login/i18n.ts)
 UI_DENIED=gen9TemporalAdminsOnly
@@ -218,6 +199,24 @@ configure_step() { # $1=flow $2=provider $3=config JSON
   while IFS=, read -r step provider; do if [[ $provider == "$2" ]]; then id=$step; fi; done < <(
     kcadm get "authentication/flows/$1/executions" -r gen9 --fields id,providerId --format csv --noquotes)
   kcadm create "authentication/executions/$id/config" -r gen9 -b "$3" >/dev/null
+}
+
+# Admins need a second step (docs/auth-architecture.md): a sub-flow after the forms' own second
+# step, for someone with gen9-admin who signed in with a password and passed no second step, as
+# they have none. It asks for the authenticator app's code, and Keycloak has someone without an
+# app set one up before the sign-in ends ("Conditional 2FA sub-flow with OTP default", Keycloak
+# 26.7.4's server_admin/topics/authentication/conditions.adoc). A passkey is a second step already.
+# $1=the forms sub-flow, $2=its second step's sub-flow
+admins_second_step() {
+  add_subflow "$1" "$1-admins" CONDITIONAL "Admins need a second step: set one up if they have none"
+  add_step "$1-admins" conditional-user-role REQUIRED
+  configure_step "$1-admins" conditional-user-role "{\"alias\":\"$1-admins-role\",\"config\":{\"condUserRole\":\"gen9-admin\"}}"
+  add_step "$1-admins" conditional-credential REQUIRED
+  configure_step "$1-admins" conditional-credential "{\"alias\":\"$1-admins-credential\",\"config\":{\"credentials\":\"webauthn-passwordless\"}}"
+  add_step "$1-admins" conditional-sub-flow-executed REQUIRED
+  configure_step "$1-admins" conditional-sub-flow-executed \
+    "{\"alias\":\"$1-admins-second-step\",\"config\":{\"flow_to_check\":\"$2\",\"check_result\":\"not-executed\"}}"
+  add_step "$1-admins" auth-otp-form REQUIRED
 }
 
 # The shape leaves out steps' settings: an install from before the refusal's words became a message
@@ -245,8 +244,9 @@ temporal_ui_admins_only() {
     while IFS=, read -r id alias; do if [[ $alias == "$UI_FLOW" ]]; then flow=$id; fi; done < <(
       kcadm get authentication/flows -r gen9 --fields id,alias --format csv --noquotes)
     if [ -n "$flow" ]; then
-      # Out of date: rebuilt, unbound first as a bound flow can't be deleted
-      kcadm update "clients/$ui" -r gen9 -s 'authenticationFlowBindingOverrides={}'
+      # Out of date: rebuilt, unbound first as a bound flow can't be deleted. An override goes only
+      # when its key is sent empty: Keycloak skips an empty map (RepresentationToModel.updateClient)
+      kcadm update "clients/$ui" -r gen9 -s 'authenticationFlowBindingOverrides.browser='
       kcadm delete "authentication/flows/$flow" -r gen9
     fi
     kcadm create authentication/flows -r gen9 -s alias="$UI_FLOW" -s providerId=basic-flow -s topLevel=true -s builtIn=false \
@@ -262,6 +262,7 @@ temporal_ui_admins_only() {
     configure_step "$UI_FLOW-second-step" conditional-credential '{"alias":"gen9-temporal-ui-credential","config":{"credentials":"webauthn-passwordless"}}'
     add_step "$UI_FLOW-second-step" auth-otp-form ALTERNATIVE
     add_step "$UI_FLOW-second-step" auth-recovery-authn-code-form ALTERNATIVE
+    admins_second_step "$UI_FLOW-forms" "$UI_FLOW-second-step"
     add_subflow "$UI_FLOW" "$UI_FLOW-not-admin" CONDITIONAL "Anyone without gen9-admin is turned away"
     add_step "$UI_FLOW-not-admin" conditional-user-role REQUIRED
     configure_step "$UI_FLOW-not-admin" conditional-user-role '{"alias":"gen9-temporal-ui-role","config":{"condUserRole":"gen9-admin","negate":"true"}}'
@@ -283,6 +284,100 @@ temporal_ui_admins_only() {
   fi
 }
 temporal_ui_admins_only
+
+# The realm's browser flow, Gen9's own: Keycloak's built-in one takes no new step ("It is illegal to
+# add sub-flow to a built in flow"), and admins need one. Otherwise the built-in's steps (26.7.4),
+# without Kerberos and organizations, which Gen9 doesn't use:
+#   a Keycloak session | an identity provider's redirect | the forms: username and password (or a
+#   passkey) -> [if the user has one, not after a passkey: authenticator code | recovery code]
+#   -> [an admin with none: set up an authenticator app]
+# Recovery codes are offered next to the authenticator app, so a lost phone doesn't lock the user
+# out; the built-in flow ships them disabled
+BROWSER_FLOW=gen9-browser
+BROWSER_SHAPE="0:auth-cookie:ALTERNATIVE 0:identity-provider-redirector:ALTERNATIVE 0:$BROWSER_FLOW-forms:ALTERNATIVE "
+BROWSER_SHAPE+="1:auth-username-password-form:REQUIRED 1:$BROWSER_FLOW-second-step:CONDITIONAL 2:conditional-user-configured:REQUIRED "
+BROWSER_SHAPE+="2:conditional-credential:REQUIRED 2:auth-otp-form:ALTERNATIVE 2:auth-recovery-authn-code-form:ALTERNATIVE "
+BROWSER_SHAPE+="1:$BROWSER_FLOW-forms-admins:CONDITIONAL 2:conditional-user-role:REQUIRED 2:conditional-credential:REQUIRED "
+BROWSER_SHAPE+="2:conditional-sub-flow-executed:REQUIRED 2:auth-otp-form:REQUIRED "
+browser_flow() {
+  local flow="" id alias
+  if [[ $(shape_of "$BROWSER_FLOW" 2>/dev/null) == "$BROWSER_SHAPE" ]]; then
+    echo "sign-in: $BROWSER_FLOW in place"
+  else
+    while IFS=, read -r id alias; do if [[ $alias == "$BROWSER_FLOW" ]]; then flow=$id; fi; done < <(
+      kcadm get authentication/flows -r gen9 --fields id,alias --format csv --noquotes)
+    if [ -n "$flow" ]; then
+      # Out of date: rebuilt, unbound first as a bound flow can't be deleted
+      kcadm update realms/gen9 -s browserFlow=browser
+      kcadm delete "authentication/flows/$flow" -r gen9
+    fi
+    kcadm create authentication/flows -r gen9 -s alias="$BROWSER_FLOW" -s providerId=basic-flow -s topLevel=true -s builtIn=false \
+      -s description="Sign in: a Keycloak session, or the forms and their second step, which admins must have" -i >/dev/null
+    add_step "$BROWSER_FLOW" auth-cookie ALTERNATIVE
+    add_step "$BROWSER_FLOW" identity-provider-redirector ALTERNATIVE
+    add_subflow "$BROWSER_FLOW" "$BROWSER_FLOW-forms" ALTERNATIVE "Username and password or a passkey, then the second step"
+    add_step "$BROWSER_FLOW-forms" auth-username-password-form REQUIRED
+    add_subflow "$BROWSER_FLOW-forms" "$BROWSER_FLOW-second-step" CONDITIONAL "Authenticator or recovery code, if the user has one"
+    add_step "$BROWSER_FLOW-second-step" conditional-user-configured REQUIRED
+    add_step "$BROWSER_FLOW-second-step" conditional-credential REQUIRED
+    # No second step after a passkey, as in the built-in flow
+    configure_step "$BROWSER_FLOW-second-step" conditional-credential '{"alias":"gen9-browser-credential","config":{"credentials":"webauthn-passwordless"}}'
+    add_step "$BROWSER_FLOW-second-step" auth-otp-form ALTERNATIVE
+    add_step "$BROWSER_FLOW-second-step" auth-recovery-authn-code-form ALTERNATIVE
+    admins_second_step "$BROWSER_FLOW-forms" "$BROWSER_FLOW-second-step"
+    [[ $(shape_of "$BROWSER_FLOW") == "$BROWSER_SHAPE" ]] || { echo "sign-in: $BROWSER_FLOW came out as: $(shape_of "$BROWSER_FLOW")" >&2; exit 1; }
+    echo "sign-in: $BROWSER_FLOW built"
+  fi
+  if [[ $(kcadm get realms/gen9 --fields browserFlow --format csv --noquotes) == "$BROWSER_FLOW" ]]; then
+    echo "sign-in: bound to $BROWSER_FLOW"
+  else
+    kcadm update realms/gen9 -s browserFlow="$BROWSER_FLOW"
+    echo "sign-in: now uses $BROWSER_FLOW"
+  fi
+}
+browser_flow
+
+# The seeded admin's authenticator app, so the checks can answer the second step admins need. Its
+# secret is GEN9_SEED_ADMIN_OTP_SECRET in .env (make setup adds it to an older one), given when they
+# have no app: one set up by hand is kept, and the checks then can't sign them in
+seeded_admin_authenticator() {
+  local id types
+  id=$(kcadm get users -r gen9 -q exact=true -q "username=$GEN9_SEED_ADMIN_EMAIL" --fields id --format csv --noquotes)
+  if [ -z "$id" ]; then
+    echo "seeded admin: not in the realm"
+  elif types=$(kcadm get "users/$id/credentials" -r gen9 --fields type --format csv --noquotes) && grep -qx otp <<<"$types"; then
+    echo "seeded admin: has an authenticator app"
+  else
+    kcadm update "users/$id" -r gen9 -f - >/dev/null <<JSON
+{"credentials": [{"type": "otp", "userLabel": "Gen9's checks", "secretData": "{\"value\":\"$GEN9_SEED_ADMIN_OTP_SECRET\"}",
+  "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"}]}
+JSON
+    echo "seeded admin: authenticator app added"
+  fi
+}
+seeded_admin_authenticator
+
+# An admin with no second step (an authenticator app, recovery codes or a passkey) is signed out:
+# a Keycloak session from before asked for none, and their next sign-in sets one up. Gen9's admin
+# API does the same when it makes someone admin (api/admin.py, SECOND_STEPS)
+admins_signed_out_without_second_step() {
+  local group ids id types out=0
+  group=$(kcadm get groups -r gen9 -q exact=true -q search=admins --fields id --format csv --noquotes)
+  # Admins through the group, or given the role directly (in Keycloak's console)
+  ids=$({
+    kcadm get "groups/$group/members" -r gen9 -q max=10000 --fields id --format csv --noquotes
+    kcadm get roles/gen9-admin/users -r gen9 -q max=10000 --fields id --format csv --noquotes
+  } | sort -u)
+  for id in $ids; do
+    types=$(kcadm get "users/$id/credentials" -r gen9 --fields type --format csv --noquotes)
+    if ! grep -qx 'otp\|recovery-authn-codes\|webauthn-passwordless' <<<"$types"; then
+      kcadm create "users/$id/logout" -r gen9
+      out=$((out + 1))
+    fi
+  done
+  echo "admins: $out with no second step, signed out (they set one up at their next sign-in)"
+}
+admins_signed_out_without_second_step
 
 # Gen9 as an MCP server (gen9-agent's mcp_server.py): its tokens carry the server's URL as their
 # audience, which MCP requires. Keycloak ignores RFC 8707's `resource` parameter, so the audience

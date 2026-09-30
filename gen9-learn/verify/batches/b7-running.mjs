@@ -15,10 +15,11 @@ export default async function running() {
   const restart = sh("make down STACKS=keycloak && make up STACKS=keycloak", { timeout: 300_000 });
   obs.keycloakRestart = restart.out.split("\n").filter((l) => /^==|Open:|configure|ready|Keycloak admin/.test(l)).slice(0, 12);
   obs.importLine = sh(`docker logs --since ${from} gen9-keycloak-keycloak-1 2>&1 | grep -iE 'import' | tail -2`).out;
-  obs.configureLog = sh("docker logs gen9-keycloak-configure-1 2>&1 | tail -5").out.split("\n");
+  obs.configureLog = sh("docker logs gen9-keycloak-configure-1 2>&1 | grep '^sign-in:'").out.split("\n");
   obs.sessionsAfter = { before: sessionsBefore, after: kcdb(`select count(*) from offline_user_session where offline_flag = '0' and realm_id = (select id from realm where name = 'gen9')`) };
   check(restart.code === 0 && /already exists|skipp/i.test(obs.importLine), "restart: realm import skipped (the realm exists), configure re-applied", obs.importLine.split("\n")[0].slice(-80));
   check(obs.sessionsAfter.after === obs.sessionsAfter.before, "login sessions survived the restart (Keycloak 26 persists them)", JSON.stringify(obs.sessionsAfter));
+  check(obs.configureLog.includes("sign-in: bound to gen9-browser"), "configure keeps the realm on Gen9's browser flow, the one where admins need a second step", obs.configureLog.join(" | "));
 
   // 7.2 The agent's one-shot migrate job runs before the API starts
   const agent = sh("make down STACKS=agent && make up STACKS=agent", { timeout: 300_000 });

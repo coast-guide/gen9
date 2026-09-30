@@ -42,14 +42,16 @@ for _ in $(seq 60); do
   sleep 1
 done
 check "configure step finished" "exited 0" "$CONFIGURE"
-check "second step: authenticator app, then recovery codes" "auth-otp-form:ALTERNATIVE auth-recovery-authn-code-form:ALTERNATIVE" \
-  "$(api "$KC/admin/realms/gen9/authentication/flows/browser/executions" | py 'print(" ".join(e["providerId"] + ":" + e["requirement"] for e in sorted(d, key=lambda e: e["priority"]) if e.get("providerId") in ("auth-otp-form", "auth-recovery-authn-code-form")))')"
+check "sign-in uses Gen9's flow" "gen9-browser" "$(printf '%s' "$REALM" | py 'print(d["browserFlow"])')"
+check "sign-in: second step (authenticator app, then recovery codes), and admins need one" \
+  "0:auth-cookie:ALTERNATIVE 0:identity-provider-redirector:ALTERNATIVE 0:gen9-browser-forms:ALTERNATIVE 1:auth-username-password-form:REQUIRED 1:gen9-browser-second-step:CONDITIONAL 2:conditional-user-configured:REQUIRED 2:conditional-credential:REQUIRED 2:auth-otp-form:ALTERNATIVE 2:auth-recovery-authn-code-form:ALTERNATIVE 1:gen9-browser-forms-admins:CONDITIONAL 2:conditional-user-role:REQUIRED 2:conditional-credential:REQUIRED 2:conditional-sub-flow-executed:REQUIRED 2:auth-otp-form:REQUIRED" \
+  "$(api "$KC/admin/realms/gen9/authentication/flows/gen9-browser/executions" | py 'print(" ".join("%s:%s:%s" % (e["level"], e.get("providerId") or e["displayName"], e["requirement"]) for e in d))')"
 check "forgot password uses Gen9's flow" "gen9-reset-credentials" "$(printf '%s' "$REALM" | py 'print(d["resetCredentialsFlow"])')"
 check "forgot password asks for the second step before a new password" \
   "0:reset-credentials-choose-user:REQUIRED 0:reset-credential-email:REQUIRED 0:gen9-reset-second-step:CONDITIONAL 1:conditional-user-configured:REQUIRED 1:auth-otp-form:ALTERNATIVE 1:auth-recovery-authn-code-form:ALTERNATIVE 0:reset-password:REQUIRED" \
   "$(api "$KC/admin/realms/gen9/authentication/flows/gen9-reset-credentials/executions" | py 'print(" ".join("%s:%s:%s" % (e["level"], e.get("providerId") or e["displayName"], e["requirement"]) for e in d))')"
-check "Temporal's web UI: sign in, then admins only (gen9-temporal-ui)" \
-  "0:gen9-temporal-ui-sign-in:REQUIRED 1:auth-cookie:ALTERNATIVE 1:gen9-temporal-ui-forms:ALTERNATIVE 2:auth-username-password-form:REQUIRED 2:gen9-temporal-ui-second-step:CONDITIONAL 3:conditional-user-configured:REQUIRED 3:conditional-credential:REQUIRED 3:auth-otp-form:ALTERNATIVE 3:auth-recovery-authn-code-form:ALTERNATIVE 0:gen9-temporal-ui-not-admin:CONDITIONAL 1:conditional-user-role:REQUIRED 1:deny-access-authenticator:REQUIRED" \
+check "Temporal's web UI: sign in (admins with their second step), then admins only (gen9-temporal-ui)" \
+  "0:gen9-temporal-ui-sign-in:REQUIRED 1:auth-cookie:ALTERNATIVE 1:gen9-temporal-ui-forms:ALTERNATIVE 2:auth-username-password-form:REQUIRED 2:gen9-temporal-ui-second-step:CONDITIONAL 3:conditional-user-configured:REQUIRED 3:conditional-credential:REQUIRED 3:auth-otp-form:ALTERNATIVE 3:auth-recovery-authn-code-form:ALTERNATIVE 2:gen9-temporal-ui-forms-admins:CONDITIONAL 3:conditional-user-role:REQUIRED 3:conditional-credential:REQUIRED 3:conditional-sub-flow-executed:REQUIRED 3:auth-otp-form:REQUIRED 0:gen9-temporal-ui-not-admin:CONDITIONAL 1:conditional-user-role:REQUIRED 1:deny-access-authenticator:REQUIRED" \
   "$(api "$KC/admin/realms/gen9/authentication/flows/gen9-temporal-ui/executions" | py 'print(" ".join("%s:%s:%s" % (e["level"], e.get("providerId") or e["displayName"], e["requirement"]) for e in d))')"
 UI_FLOW_ID=$(api "$KC/admin/realms/gen9/authentication/flows" | py 'print(next((f["id"] for f in d if f["alias"] == "gen9-temporal-ui"), "none"))')
 check "temporal-ui signs in with gen9-temporal-ui" "$UI_FLOW_ID" \
@@ -62,6 +64,9 @@ for pair in "$GEN9_SEED_ADMIN_EMAIL:gen9-admin,gen9-user" "$GEN9_SEED_USER_EMAIL
   email=${pair%%:*}
   id=$(api "$KC/admin/realms/gen9/users?email=$email&exact=true" | py 'print(d[0]["id"])')
   check "roles of $email" "${pair#*:}" "$(api "$KC/admin/realms/gen9/users/$id/role-mappings/realm/composite" | py 'print(",".join(sorted(r["name"] for r in d if r["name"].startswith("gen9-"))))')"
+  [ "$email" != "$GEN9_SEED_ADMIN_EMAIL" ] ||
+    check "$email has an authenticator app (the checks answer admins' second step)" "otp" \
+      "$(api "$KC/admin/realms/gen9/users/$id/credentials" | py 'print(",".join(sorted(c["type"] for c in d if c["type"] == "otp")))')"
   # Like self-registered users: see and end their own sessions (Keycloak's account API)
   check "$email manages own account" "manage-account view-profile" \
     "$(api "$KC/admin/realms/gen9/users/$id/role-mappings/clients/$ACCOUNT/composite" | py 'print(" ".join(sorted(r["name"] for r in d if r["name"] in ("manage-account", "view-profile"))))')"

@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { bypassCSP, chromeOnly, colourScheme, injectAxe, launch } from "./browser.mjs";
+import { secondStep } from "./second-step.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const env = Object.fromEntries(
@@ -75,6 +76,7 @@ try {
   await page.type("#username", env.GEN9_SEED_ADMIN_EMAIL);
   await page.type("#password", env.GEN9_SEED_ADMIN_PASSWORD);
   await Promise.all([page.waitForNavigation({ waitUntil: "networkidle0" }), page.click("#kc-login")]);
+  await secondStep(page); // admins need a second step: the seeded admin's code
   // Reduced motion (gen9-theme.css): the spinner's and the skeleton's own classes stop, and run
   // otherwise, which shows the check can see them move (manual-e2e.md, P3-D11)
   const moves = async (reduce) => {

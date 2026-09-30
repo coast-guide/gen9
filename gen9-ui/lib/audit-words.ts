@@ -38,7 +38,9 @@ export function whatHappened(event: AuditEvent): string {
         d.enabled === true && `Enabled ${them}`,
         d.enabled === false && `Disabled ${them}`,
       ].filter(Boolean);
-      return changes.length ? changes.join(", and ") : `Changed ${them}`;
+      const said = changes.length ? changes.join(", and ") : `Changed ${them}`;
+      // Admins need a second step: someone made admin without one is signed out (gen9-agent's admin.py)
+      return d.signed_out === true ? `${said}, and signed them out: admins need a second step, and they had none` : said;
     }
     case "admin.user.unlock":
       return `Unlocked sign-in for ${them}`;
