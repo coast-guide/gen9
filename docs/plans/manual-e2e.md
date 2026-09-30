@@ -2509,11 +2509,19 @@ start a model run are kept out of any fuzzing.
   - Live on 26.7.5: `verify.sh` 34/34; e2e `stacks` (12), `passkeys` (16), `recovery` (15),
     `keyboard` (14), `temporal` (12), `demotion` (6), `audit` (20) and `lockout` (4) all
     passed; gen9-learn's `page.mjs` and `reference.mjs` pass. The theme needed no change.
-- [ ] A2 (from P5-A2) `TEMPORAL_PAYLOAD_KEYS`' old key `k3` out, once its histories pass
+- [x] A2 (from P5-A2) `TEMPORAL_PAYLOAD_KEYS`' old key `k3` out, once its histories pass
   their 72-hour retention, Schedules rewritten first.
+  Moot (2026-10-01): the install it applied to is gone. This one was made new for the release
+  (release plan, M5: `make fresh`), and its `gen9-agent/.env` holds one key, `k20260930` (its id,
+  read without the key); `k3` and its histories went with the old volumes.
 - [ ] A3 (from P5-A3, not before its day has passed) The raw event file holding P4-E3's deleted
   question (`events/otel/gen9-agent/<date>/688bb3be-….json`) is gone from Langfuse's
   MinIO, and no file of that day is left.
+  (2026-10-01) That file went with the old install's volumes: MinIO holds only
+  `events/otel/gen9-agent/2026/09/30/`, and no `688bb3be…` anywhere. What A3 checks, the one-day
+  expiry, is still to see on this install: `minio-lifecycle` exited 0 and MinIO lists
+  `gen9-expire-raw-events` (enabled, prefix `events/`, 1 day). Next: after 2026-10-02 00:00
+  UTC (S3 rounds an expiry to the next midnight), no file of 2026/09/30 left.
 - [x] A4 (from P5-A4) LiteLLM v1.103.0 is on PyPI (uploaded 2026-09-27) and on GHCR
   (`ghcr.io/berriai/litellm:v1.103.0`), but has no GitHub release and no notes: the docs list
   only "v1.103.0rc1", with none. Once its notes are out, read them (breaking
@@ -2543,7 +2551,19 @@ start a model run are kept out of any fuzzing.
   #1366 (all open, no new comments). On any new server or egress release, rerun
   P4-E4's sidecar checks and E4b's steering check. An execd release after v1.1.0 with 9c35ca436:
   then bump `execd_image` in `config.toml`.
+  (2026-10-01) #1759: two comments since, a reviewer's point that SNI-less HTTPS could still reach
+  credential injection with a spoofed `Host` when `OPENSANDBOX_EGRESS_MITMPROXY_SSL_INSECURE` is
+  on, answered by a commit that fails such flows closed (dc8f345e); still open, blocked on
+  review. Gen9 isn't exposed: the setting is read from a sandbox's create request (OpenSandbox's
+  `server/configuration.md`), and gen9-agent creates sandboxes with no environment
+  (`environments.py`, `Sandbox.create`), so it stays at mitmproxy's default, off. #1594 and #1366 unchanged. Releases:
+  `release-1.1.1-rc.1` (2026-09-28), a release candidate for the broken 1.1.0 server wheel and
+  what merged since (upstream-proxy chaining for egress among it); rc images, not a release, so
+  nothing to rerun yet. No execd after v1.1.0. The project's links now read
+  `opensandbox-group/OpenSandbox`.
 - [ ] A6 (from P5-A6) Watches, each session: deepagents #6122 and guidepup #143 (both open).
+  (2026-10-01) Both still open: #6122's last activity 2026-09-23 (5 comments), #143's 2026-09-25
+  (none).
 
 ### P6-B. Exceptional conditions (OWASP A10:2025; ASVS 5.0 V16.5)
 
