@@ -42,10 +42,12 @@ Only then implement. The same applies to design and UX work, and to any change o
   the end. A check that passes without exercising the path proves nothing.
 - **Decoupled stacks.** Each `gen9-*` folder is its own Compose project, with its own `.env`,
   volumes and network; stacks reach each other only over `gen9-<stack>` networks and only the ones
-  they call (README, "How stacks stay decoupled"). Don't merge stacks or share databases.
+  they call ([docs/development.md, "How stacks stay decoupled"](docs/development.md#how-stacks-stay-decoupled)).
+  Don't merge stacks or share databases.
 - **Keep the top level in sync.** A change to how something is run, started or checked updates the
-  `Makefile`, the root `README.md`, the stack's README, `e2e/README.md` and `gen9-learn` (its page
-  and verifier) in the same commit.
+  `Makefile`, `docs/operations.md` or `docs/development.md` (and the root `README.md` if its quick
+  start or summary changes), the stack's README, `e2e/README.md` and `gen9-learn` (its page and
+  verifier) in the same commit. Each fact lives in one place; everywhere else links to it.
 - **Python is async from the ground up.** This covers every Python service, worker, CLI, script and
   test.
 
@@ -90,7 +92,9 @@ Only then implement. The same applies to design and UX work, and to any change o
 
 ## Rules
 
-- Commits: subject plus body only; no co-author, session or "generated with" lines.
+- Changes reach `main` only through a pull request, squash-merged: a ruleset blocks direct and
+  force pushes. Commit messages and pull request descriptions: subject plus body only; no
+  co-author, "assisted by", session or "generated with" lines.
 - Model spend (the owner's standing instruction): every model call costs the owner
   money. Keep Gen9's aliases on the cheapest current models that work (gen9-models/README.md),
   ask for short answers in checks, run costly scenarios once, measure the router's spend log
@@ -110,9 +114,13 @@ Only then implement. The same applies to design and UX work, and to any change o
 
 | What                                                               | Where                                                      |
 | ------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Stacks, `make` commands, how stacks stay decoupled               | `README.md`, `Makefile`, each `gen9-*/README.md`     |
+| What Gen9 is, its stacks, the quick start                         | `README.md`, each `gen9-*/README.md`                   |
+| `make` commands, requirements, setup                              | `docs/operations.md`, `Makefile` (`make` lists them)   |
+| How the repository is developed and checked, how stacks stay decoupled, adding a stack | `docs/development.md` |
+| Proposing a change; the code of conduct                            | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/` (issue and pull request templates) |
+| Reporting a vulnerability, and where each part of Gen9's security is described | `SECURITY.md` |
 | Active plans (goal, progress, decisions, surprises)                | `docs/plans/`, written as `docs/PLANS.md` says         |
-| Operating Gen9: back up and restore, stop every agent, upgrade    | `README.md` ("Back up and restore", "Stop every agent at once", "Upgrade") |
+| Operating Gen9: upgrade, back up and restore, stop every agent, start over, disk | `docs/operations.md` |
 | Architecture: identity and tokens                                  | `docs/auth-architecture.md`                              |
 | Secrets: each one, where it lives, how to replace it              | `docs/secrets.md`                                        |
 | UI/UX: principles, design system, screens                          | `docs/design/` and `gen9-design/` (tokens, font, logo) |
@@ -139,5 +147,6 @@ Only then implement. The same applies to design and UX work, and to any change o
   `reference.mjs` also after any change to gen9-agent, gen9-ui or gen9-cli code: the page points
   into it by line (`data-at`), and an edit above a pointer moves it.
 
-CI (`.github/workflows/checks.yml`) runs the non-interactive ones; it is paused (the owner: no Actions budget), so run them locally before each commit, and don't start CI. The
-workflow's first lines say how to turn it back on.
+CI (`.github/workflows/checks.yml`) runs the non-interactive ones on every pull request and on `main`. Run them
+locally before each commit anyway: CI is the second net. The live checks (`make e2e`, gen9-learn's `run.mjs`) run only
+locally, on the stacks.

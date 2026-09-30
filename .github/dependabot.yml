@@ -1,0 +1,17 @@
+# Dependabot version updates for the Actions the workflows use (pinned by commit SHA; the tag is in
+# the comment). Grouped into one pull request a week, and a release is only proposed once it is 7
+# days old, so a compromised release has time to be caught first.
+# Not here, on purpose: the stacks' images are checked by `make updates`
+# (docs/development.md, "Checks"), and vulnerable npm and Python packages get pull requests from
+# Dependabot security updates, which are on in the repository's settings.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

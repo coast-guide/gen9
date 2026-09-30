@@ -5,7 +5,7 @@ data (docs/plans/harness.md, "Auth across the harness"). `make setup` generates 
 never prints them: read key names, never values (root AGENTS.md). After a change, `make up
 STACKS="…"` restarts what reads it.
 
-`make backup` copies every settings file with the data (README, "Back up and restore"): the data is
+`make backup` copies every settings file with the data ([docs/operations.md, "Back up and restore"](operations.md#back-up-and-restore)): the data is
 encrypted with these keys, so a backup is as secret as the files themselves, and `make restore` puts
 them back with it.
 

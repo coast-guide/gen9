@@ -13,7 +13,7 @@ Decisions for user management and authentication across the Gen9 stacks, with th
                                                               gen9-agent ──▶ gen9-postgres (pgvector)
 ```
 
-Every box is its own Docker Compose stack (own project, `.env`, volumes, network), as the root README requires. The host reaches stacks at published `127.0.0.1` ports (`localhost:<port>`); containers reach another stack over that stack's network, `gen9-<stack>:<container port>`, joining only the networks of the stacks they call (root README, "How stacks stay decoupled").
+Every box is its own Docker Compose stack (own project, `.env`, volumes, network), as [docs/development.md, "How stacks stay decoupled"](development.md#how-stacks-stay-decoupled) requires. The host reaches stacks at published `127.0.0.1` ports (`localhost:<port>`); containers reach another stack over that stack's network, `gen9-<stack>:<container port>`, joining only the networks of the stacks they call ([docs/development.md, "How stacks stay decoupled"](development.md#how-stacks-stay-decoupled)).
 
 | Stack           | Host ports (`127.0.0.1`)                                      |
 | --------------- | ------------------------------------------------------------- |
@@ -54,7 +54,7 @@ Users, passwords, 2FA, sessions, email verification and password reset all live 
   5. The Keycloak user is deleted.
   6. Traces and the router's records are erased again after 1 and 10 minutes, for any still being written (Langfuse takes seconds; the router writes daily totals in batches).
 
-  The deletion is in Gen9's audit record (`account.delete`), which a restore reads to delete it again (root README, "Back up and restore").
+  The deletion is in Gen9's audit record (`account.delete`), which a restore reads to delete it again ([docs/operations.md, "Back up and restore"](operations.md#back-up-and-restore)).
 
   A step that fails, such as Langfuse being unreachable, is retried by the workflow until it succeeds, so nobody has to retry by hand. The API answers `204` once the data is gone, or `202` if that takes longer than 15 s; the web app then says the account is being deleted, not that it was (`/signed-out?reason=deleting`; for an admin, a toast saying the user shows as disabled until it's done). Admins can delete other users the same way from *Users* (same recent sign-in rule). The only admin can't delete themselves.
 
@@ -174,7 +174,7 @@ Every secret, and how to replace it: [secrets.md](secrets.md).
 
 ### 12. What each shared network reaches
 
-Stacks meet only on `gen9-<stack>` networks (root README, "How stacks stay decoupled"). Checked with `docker network inspect` and a probe from a container on each:
+Stacks meet only on `gen9-<stack>` networks ([docs/development.md, "How stacks stay decoupled"](development.md#how-stacks-stay-decoupled)). Checked with `docker network inspect` and a probe from a container on each:
 
 | Network | Members | What a member reaches, and how it's guarded |
 | --- | --- | --- |

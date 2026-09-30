@@ -1,0 +1,46 @@
+name: Bug report
+description: Something in Gen9 doesn't work as its docs say.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A vulnerability? Don't file it here: report it privately (SECURITY.md).
+        Never paste secrets: no `.env` values, tokens, cookies or keys.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what you expected
+      description: The screen or command, what it showed, and what the docs say it should do.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. make up
+        2. Sign in as alan@gen9.test
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: The relevant lines of `make logs STACKS=<stack>`, a failing check's output, or the browser console.
+      render: text
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: "`git rev-parse --short HEAD`"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system and CPU, `docker version --format '{{.Server.Version}}'`, `docker compose version`, and which stacks run (`make ps`).
+    validations:
+      required: true

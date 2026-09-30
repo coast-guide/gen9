@@ -2045,7 +2045,7 @@ forgot password: bound to gen9-reset-credentials</div>
     <li class="step" id="b7-2" data-watch="agent appdb" data-focus="appdb">
       <h3>The agent's migrations <label><input type="checkbox" data-done> Done</label></h3>
       <div class="cmd"><pre><code data-check="run">docker logs gen9-agent-migrate-1 2>&amp;1 | tail -2</code></pre></div>
-      <p>A one-shot container: Alembic for the app's tables, then LangGraph's own setup. The API waits for it (<code>depends_on: service_completed_successfully</code>), and <code>/readyz</code> says "not migrated" if the schema isn't there, or "from a newer Gen9" if a newer version migrated it (<code>gen9-agent/src/gen9_agent/api/health.py</code>; README, "Upgrade").</p>
+      <p>A one-shot container: Alembic for the app's tables, then LangGraph's own setup. The API waits for it (<code>depends_on: service_completed_successfully</code>), and <code>/readyz</code> says "not migrated" if the schema isn't there, or "from a newer Gen9" if a newer version migrated it (<code>gen9-agent/src/gen9_agent/api/health.py</code>; <code>docs/operations.md</code>, "Upgrade").</p>
     </li>
 
     <li class="step" id="b7-3" data-watch="ui agent kc appdb langfuse temporal models" data-focus="agent">
@@ -2156,9 +2156,9 @@ Delete them again, by id: (cd gen9-agent &amp;&amp; docker compose exec worker g
 {"status":"<mark>ready</mark>"}      (chats: as many as before the wipe)</div>
       <p>Every chat is back as it was at the backup, and the agent carries on with no restart: the schema is this version's.</p>
       <p>The warning is about deletions. A backup still holds the people and chats deleted after it was made, and restoring puts them back into use. So <code>make restore</code> deletes them again: it reads which ones from gen9-agent's audit record, where every deletion is written, before the wipe. Here the database it read was the one you just made, empty, so it couldn't tell, and it says so rather than guess. After an ordinary restore, it prints "Deleting again what was deleted after the backup was made" and each id.</p>
-      <p>Restore into the version of Gen9 that made the backup, because a volume is Postgres's own files. <code>make backup</code> without <code>STACKS</code> takes every stack; what it leaves out, and upgrading, are in the root README ("Back up and restore", "Upgrade").</p>
-      <p>On a schedule, from the host's own timer, <code>make backup INTO=~/gen9-backups KEEP=7</code> puts each backup in a new time-stamped folder under <code>INTO</code> and keeps only the newest 7 (the root README, "Back up and restore"). A deleted person then leaves the backups once 7 newer ones are made, as the UK regulator asks: backup data "beyond use" until it is replaced.</p>
-      <p>When the agents themselves must stop, not the stacks: <code>make stop-agents</code> cancels every run not yet over, pauses every scheduled task and stops the worker, while people can still read their chats; <code>make resume-agents</code> undoes it. For one person, disabling their account ends their runs at once (the root README, "Stop every agent at once").</p>
+      <p>Restore into the version of Gen9 that made the backup, because a volume is Postgres's own files. <code>make backup</code> without <code>STACKS</code> takes every stack; what it leaves out, and upgrading, are in <code>docs/operations.md</code> ("Back up and restore", "Upgrade").</p>
+      <p>On a schedule, from the host's own timer, <code>make backup INTO=~/gen9-backups KEEP=7</code> puts each backup in a new time-stamped folder under <code>INTO</code> and keeps only the newest 7 (<code>docs/operations.md</code>, "Back up and restore"). A deleted person then leaves the backups once 7 newer ones are made, as the UK regulator asks: backup data "beyond use" until it is replaced.</p>
+      <p>When the agents themselves must stop, not the stacks: <code>make stop-agents</code> cancels every run not yet over, pauses every scheduled task and stops the worker, while people can still read their chats; <code>make resume-agents</code> undoes it. For one person, disabling their account ends their runs at once (<code>docs/operations.md</code>, "Stop every agent at once").</p>
       <div class="where code">In the code</div>
       <ul><li><code>scripts/backup.sh</code>: stops the stacks, archives each volume with its Compose labels and the settings files into a folder only you can read, starts them again (with <code>--into</code>, a time-stamped folder, then removes all but the newest <code>--keep</code>); <code>scripts/restore.sh</code>: reads the deletions made since the backup from the audit record, wipes the stacks, puts back the settings files, recreates each volume with its labels so Compose takes it as its own, starts them, and deletes those again with <code>gen9-agent-erase</code> (<code>gen9-agent/src/gen9_agent/erase.py</code>).</li></ul>
     </li>
@@ -2974,8 +2974,8 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td>LiteLLM's record (backdoored PyPI releases in March 2026, key-check bugs): only its signed image runs, pinned, with features off</td><td><code>gen9-models/README.md</code>, "Security"</td></tr>
       <tr><td>What the agent sends a model reaches that provider; what it fetches can carry instructions</td><td>This page, <a href="#goals">Goals and limits</a>; the sandbox's closed network</td></tr>
       <tr><td>Web search scrapes public engines, which block heavy use</td><td><code>gen9-models/searxng/settings.yml</code></td></tr>
-      <tr><td>Traces stay until their chat or account is deleted (Langfuse's time-based retention is its Enterprise Edition's), and the router's spend log grows with every call</td><td>The root README, "Disk"</td></tr>
-      <tr><td>A backup holds people deleted after it until it's rotated out</td><td>The root README, "Back up and restore"</td></tr>
+      <tr><td>Traces stay until their chat or account is deleted (Langfuse's time-based retention is its Enterprise Edition's), and the router's spend log grows with every call</td><td><code>docs/operations.md</code>, "Disk"</td></tr>
+      <tr><td>A backup holds people deleted after it until it's rotated out</td><td><code>docs/operations.md</code>, "Back up and restore"</td></tr>
       <tr><td>The evals' judge isn't trusted yet (true-negative rate 0.80)</td><td><a href="#b7-3d">How good are its answers?</a></td></tr>
     </tbody>
   </table></div>
