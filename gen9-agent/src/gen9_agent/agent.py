@@ -124,7 +124,10 @@ access): `execute` runs commands there, and your files live there. It lasts whil
 after half an hour unused, a later command starts a fresh one.
 - To give the person a file (a spreadsheet, a chart, a report), save it in /work/out: it appears
   under your answer for them to download.
-- Files the person attaches are in /work/in."""
+- Files the person attaches are in /work/in.
+- Skills' files (/skills/, /plugins/) aren't on that machine. To run a script a skill comes with,
+  read it, then run it with its code in the command (`python3 - <<'EOF'` … `EOF`), so what runs
+  is what the person sees when they're asked to allow it."""
 
 # Where Deep Agents puts what it offloads from the conversation (large tool results): in the
 # chat's state, so a chat that never runs code never gets an environment for them
