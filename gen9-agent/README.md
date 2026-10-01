@@ -1059,7 +1059,7 @@ Nothing of a person's acts once they can't use Gen9, and an operator can stop ev
 
 ## Deletion
 
-Deleting a chat or an account is a Temporal workflow (`workflows/deletion.py`, Activities in `deletion.py`). A step that fails, such as Langfuse being unreachable, is retried until it succeeds, backing off to every 5 minutes, however long that takes: a deletion that gave up partway would leave data behind a request already answered. `make doctor` warns of any deletion running for over a day, and Temporal's UI shows its failing step and error: fix what it names (start Langfuse, say) and the deletion goes on by itself at its next try. A repeated request joins the deletion already running (workflow ids `delete-thread-<id>`, `delete-account-<sub>`).
+Deleting a chat or an account is a Temporal workflow (`workflows/deletion.py`, Activities in `deletion.py`). A step that fails, such as Langfuse being unreachable, is retried until it succeeds, backing off to every 5 minutes, however long that takes: a deletion that gave up partway would leave data behind a request already answered. `make doctor` warns of any deletion running for over a day, and Temporal's UI shows its failing step and error: fix what it names (start Langfuse, say) and the deletion goes on by itself at its next try. Meanwhile the worker logs each try as one line, not a traceback (`transient.py`: any Activity's failure to reach a service, the router or the database, as "<activity>: <error>; attempt n, to be retried"). A repeated request joins the deletion already running (workflow ids `delete-thread-<id>`, `delete-account-<sub>`).
 
 - **A chat** (`DeleteThreadWorkflow`):
   1. It disappears for its owner at once (`threads.deleted_at`).

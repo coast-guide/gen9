@@ -51,6 +51,7 @@ from ..model_router import budget_exceeded, budget_of, on_behalf_of, over_rate_l
 from ..models import Thread
 from ..runtime import Runtime
 from ..standing import PersonInactive
+from ..transient import is_transient
 from . import log, store
 from .events import (
     MAX_TOOL_ARGS,
@@ -404,7 +405,18 @@ async def execute(runtime: Runtime, run_id: uuid.UUID, attempt: int) -> dict[str
             raise ApplicationError(
                 f"{type(e).__name__}: {e}", type=type(e).__name__, non_retryable=True
             ) from e
-        logger.exception("run %s: attempt %d failed", run.id, attempt)
+        if is_transient(e):
+            # A service that doesn't answer (the router down): one line, not a traceback each
+            # attempt (manual-e2e.md, P6-B6); the worker's interceptor adds the attempt's own
+            logger.warning(
+                "run %s: attempt %d failed: %s: %s",
+                run.id,
+                attempt,
+                type(e).__name__,
+                e,
+            )
+        else:
+            logger.exception("run %s: attempt %d failed", run.id, attempt)
         raise
     if waiting_for:
         logger.info("run %s: waiting for the person (%d)", run.id, len(waiting_for))

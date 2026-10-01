@@ -40,6 +40,7 @@ from .search_activities import SearchActivities
 from .settings import get_settings
 from .task_activities import TaskActivities
 from .temporal import WORKFLOW_RUNNER, connect, keep_token_fresh
+from .transient import QuietTransientFailures
 from .workflows.names import AGENT_QUEUE, SYSTEM_QUEUE
 from .workflows.registry import ALL_WORKFLOWS
 
@@ -92,6 +93,7 @@ async def _main() -> None:
                 # at most every 0.8 x the 3 s timeout (2.4 s): a fast answer finished whole after
                 # Stop (manual-e2e.md, P3-C7). Every half second instead, a heartbeat call each
                 max_heartbeat_throttle_interval=timedelta(seconds=HEARTBEAT_S),
+                interceptors=[QuietTransientFailures()],
             ),
             Worker(
                 client,
@@ -111,6 +113,8 @@ async def _main() -> None:
                     *tasks_told.all(),
                 ],
                 graceful_shutdown_timeout=timedelta(seconds=GRACE_S),
+                # A service that doesn't answer: one line an attempt, not a traceback (transient.py)
+                interceptors=[QuietTransientFailures()],
             ),
         ]
         # Users deleted in Keycloak directly: the Schedule that sweeps them (needs the admin client)
