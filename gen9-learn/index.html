@@ -2281,7 +2281,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
         <div class="where logs">Logs and disk</div>
         <div class="cmd"><pre><code data-check="run">docker inspect gen9-agent-api-1 --format '{{.HostConfig.LogConfig.Type}} {{json .HostConfig.LogConfig.Config}}'; docker system df</code></pre></div>
         <div class="out"><span class="cap">verified</span><mark>local {"max-file":"3","max-size":"10m"}</mark>     (every container: three files of 10 MB, compressed)</div>
-        <p>The rest of the toolbox: <code>make audit</code> (known vulnerabilities in the npm and Python dependencies), <code>make updates</code> (pinned images rebuilt under their tag since, and newer releases: Renovate's dry run, which takes minutes), <code>make logs</code>, <code>make backup</code> and <code>make restore</code> (above); the <a href="#ref-commands">Commands</a> reference lists them all.</p>
+        <p>The rest of the toolbox: <code>make audit</code> (known vulnerabilities in the npm and Python dependencies), <code>make sbom</code> and <code>make scan</code> (an SBOM of every image, and the known vulnerabilities in what the images hold besides: their OS packages, their bases' Python and Node; Syft and Grype, pinned and verified, with no Docker socket), <code>make updates</code> (pinned images rebuilt under their tag since, and newer releases: Renovate's dry run, which takes minutes), <code>make logs</code>, <code>make backup</code> and <code>make restore</code> (above); the <a href="#ref-commands">Commands</a> reference lists them all.</p>
         <div class="where code">In the code</div>
         <ul><li><code>scripts/doctor.sh</code>; <code>gen9-agent/src/gen9_agent/reseal.py</code>, <code>stop.py</code>; <code>scripts/updates.sh</code>.</li></ul>
       </div>
@@ -2905,6 +2905,8 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>make evals</code></td><td>How dependably Gen9 does real tasks, kept in Langfuse (spends model calls)</td><td><a href="#b7-3d">How good are its answers?</a></td></tr>
       <tr><td><code>make evals-calibrate</code></td><td>People score a sample of the judge's verdicts in Langfuse; <code>REPORT=1</code> compares</td><td><a href="#b7-3d">How good are its answers?</a></td></tr>
       <tr><td><code>make audit</code></td><td>Known vulnerabilities in the npm and Python dependencies</td><td></td></tr>
+      <tr><td><code>make sbom</code></td><td>A CycloneDX SBOM of every image the stacks build or run, in <code>scripts/sbom/out/</code></td><td><a href="#b7-toolbox">The operator's toolbox</a></td></tr>
+      <tr><td><code>make scan</code></td><td>Known vulnerabilities in those images; fails on a fixable high or critical one not accepted, with its reason, in <code>scripts/sbom/grype.yaml</code></td><td><a href="#b7-toolbox">The operator's toolbox</a></td></tr>
       <tr><td><code>make updates</code></td><td>Pinned images rebuilt under their tag since, and newer releases (Renovate's dry run)</td><td></td></tr>
       <tr><td><code>make design-sync</code></td><td>Copies <code>gen9-design</code> (tokens, font, logo) into the apps</td><td></td></tr>
       <tr><td><code>make design-check</code></td><td>Fails if an app's copy differs from <code>gen9-design</code></td><td></td></tr>
@@ -2954,7 +2956,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td>Temporal: its frontend takes Keycloak tokens only, its web UI and codec admins only, internode TLS</td><td>Anyone on its network starting or reading workflows</td><td><a href="#b7-temporal">Temporal, inside</a></td></tr>
       <tr><td>A Content-Security-Policy with a nonce on every page; Mailpit behind a password</td><td>Injected scripts; a service reading reset links</td><td><a href="#b1-2">Submit the form</a></td></tr>
       <tr><td>Requests with NUL bytes or oversized bodies refused; a database that can't write answers 503</td><td>Crashes and half-written state</td><td><a href="#b7-failures">When things fail</a></td></tr>
-      <tr><td>Images pinned by digest; <code>make audit</code>, <code>make updates</code></td><td>A tag silently changing under you</td><td><a href="#b7-toolbox">The operator's toolbox</a></td></tr>
+      <tr><td>Images pinned by digest; <code>make audit</code>, <code>make scan</code>, <code>make updates</code></td><td>A tag silently changing under you</td><td><a href="#b7-toolbox">The operator's toolbox</a></td></tr>
     </tbody>
   </table></div>
 </section>

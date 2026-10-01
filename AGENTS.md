@@ -141,6 +141,8 @@ Only then implement. The same applies to design and UX work, and to any change o
 ## Checks
 
 - Everywhere: `make e2e` (every stack up), `make audit`, `make design-check`.
+- After changing an image or its pin: `make sbom && make scan` (what still fails, and why, is in
+  `docs/plans/manual-e2e.md`, P6-D1).
 - gen9-agent and gen9-cli: `uv run pytest && uv run ruff check && uv run ruff format --check && uv run ty check src`.
   From gen9-agent, the other stacks' Python too, each by its own `ruff.toml`: `uv run ruff check
   ../gen9-models ../gen9-sandbox && uv run ruff format --check ../gen9-models ../gen9-sandbox`.

@@ -56,6 +56,33 @@ Each stack's own setup (its `init-env.sh` options, such as other ports) is in it
 3. `make setup`: it adds what the new version needs (new settings, a database role, a budget) and keeps every secret you have.
 4. `make up`: it builds the new images, applies the database's migrations before the agent starts, then replaces the containers. A turn that is running when its worker is replaced goes on in the new one, from its last checkpoint; the web app and the terminal say it restarted.
 
+## Images: SBOMs and known vulnerabilities
+
+`make audit` reads the apps' locked dependencies. What the images hold besides, their OS packages,
+the Python or Node their bases install, and what the services Gen9 runs as published bring, is
+read by these two (`scripts/sbom.sh`; docs/plans/manual-e2e.md, P6-D1):
+
+```bash
+make sbom     # a CycloneDX SBOM of every image the stacks build or run, in scripts/sbom/out/
+make scan     # known vulnerabilities in them: those with a fix, failing on a high or critical one
+```
+
+- **What they read:** every image of every stack, the profiles' too when they're on this
+  machine, and the two OpenSandbox starts for each chat (its execd and the environment's image).
+  `STACKS` narrows `make sbom` to some.
+- **The tools:** Syft makes the SBOMs and Grype scans them. Both come from their release
+  tarballs, fetched by the checksums Anchore's signed checksum files give
+  (`scripts/sbom/Dockerfile`, which says how to update them), and run in a container of their own,
+  `gen9-sbom`. That container never gets Docker's socket: each image reaches it as `docker
+  save`'s archive. Nor does it have a network while it reads one; only Grype's database update
+  does.
+- **What fails:** a High or Critical vulnerability with a fix that `scripts/sbom/grype.yaml`
+  doesn't accept. An acceptance names the version and the reason (gosu's Go, which govulncheck
+  shows its code never calls, is one), so the next version ends it. Those without a fix aren't
+  listed: only the image's publisher can fix them; `make updates` shows when one has.
+- **Grype's database** is fetched again before each scan into the volume `gen9-sbom-grype-db`:
+  about 3 GB. It is built once a day, so an advisory of the last day may not be in it yet.
+
 ## Back up and restore
 
 | Command | Does |
@@ -110,7 +137,8 @@ What grows with use, and what keeps it bounded (measured after a day: every volu
 | gen9-temporal (workflow histories) | Every run and task | Closed workflows are kept 72 hours (the namespace's retention) |
 | gen9-keycloak's Mailpit (test emails) | Emails sent | 5,000 messages (`MP_MAX_MESSAGES`) |
 | gen9-models (spend log) | Every model call | Nothing on its own; an account's erasure deletes its rows |
-| Every container's log | Requests, and Keycloak's sign-in failures (the user and their address) | Three files of 10 MB a container, compressed, the oldest lines going first (Docker's `local` driver, `x-logging` in each Compose file, and gen9-sandbox's `launch.py` for the chats' environments; Docker's default keeps a log unbounded) |
+| Every container's log | Requests, the audit record's lines, and Keycloak's sign-ins and sign-in failures (the user and their address) | Three files of 10 MB a container, compressed, the oldest lines going first (Docker's `local` driver, `x-logging` in each Compose file, and gen9-sandbox's `launch.py` for the chats' environments; Docker's default keeps a log unbounded) |
+| `make scan`'s vulnerability database (the volume `gen9-sbom-grype-db`) | Nothing: replaced at each scan | About 3 GB; `docker volume rm gen9-sbom-grype-db` frees it until the next scan |
 | A chat's environment (its container's writable layer) | What its commands write | `SANDBOX_DISK_GB` (10) each: one past it is deleted (gen9-sandbox's `launch.py`), and each ends 30 minutes after its last use |
 
 `docker system df -v` lists each volume's size.
