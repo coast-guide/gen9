@@ -112,12 +112,12 @@ links to the step that traces it; `cd gen9-learn/verify && node run.mjs` passes,
     Dark switch the theme; screenshots of deeper steps at 1440 and 390 px, light and dark, read
     cleanly after two fixes (long command tags under Copy; wide tables squeezing names).
 
-- [ ] M9 Independent audit (the owner: "Do independent verification from chrome as
+- [x] M9 Independent audit (the owner: "Do independent verification from chrome as
   real user and see if there are any gaps and fix those, need best quality with zero miss, so
   audit the full codebase as well. Do these as independent agents … consecutively"). In order,
   one at a time; every finding checked against the live system before it's fixed, each fix its
   own verified unit:
-  - [ ] 1. Me, in real Chrome (Claude in Chrome), as a reader: the page from the top, its
+  - [x] 1. Me, in real Chrome (Claude in Chrome), as a reader: the page from the top, its
     commands pasted as a reader would, the app's pages a person reaches. Claude in Chrome can't
     open file:// pages, and mustn't type passwords: the page is served on 127.0.0.1:17990 from a
     folder holding only gen9-learn and gen9-design, and the app is driven through a real Chrome
@@ -351,7 +351,7 @@ links to the step that traces it; `cd gen9-learn/verify && node run.mjs` passes,
     - D19 to D21: three design docs call the account menu's admin item "Users"; the menu said
       "Manage users", the sidebar and the page "Users". Fixed in the menu (it was the first
       label, from before Plugins and Audit log came as plain nouns), which makes the docs right.
-  - [ ] 4. gen9-agent's code: correctness, security, async rules, error handling. In three
+  - [x] 4. gen9-agent's code: correctness, security, async rules, error handling. In three
     agents, one after the other (4a the edges people and programs reach, 4b what the agent can do,
     4c runs, workflows and deletion). 4a (Sonnet): auth, every API module, MCP, A2A, AG-UI,
     connectors' sign-in and network guard, the middleware, audit, export; ownership checks
@@ -434,7 +434,7 @@ links to the step that traces it; `cd gen9-learn/verify && node run.mjs` passes,
     idempotency, determinism and the async rule found sound. Its findings, checked, and not
     fixed: the owner stopped the audit here to close M9. They are the first of the
     backlog below.
-  - [ ] 5, 6, 7: not run yet. The owner stopped the audits after item 4 ("can we
+  - [x] 5, 6, 7: not run yet. The owner stopped the audits after item 4 ("can we
     stop the audits, fix the findings so far then finish the closing point"), then resumed them
     the same day ("lets complete the full thing, the thing i stopped you for backlog, bring those
     back and keep working on the full thing"). The backlog below is M9's remaining work, in its
@@ -562,7 +562,7 @@ links to the step that traces it; `cd gen9-learn/verify && node run.mjs` passes,
       - S3, low, rejected: e2e's test servers listen on 0.0.0.0. gen9-agent reaches them from its
         containers at host.docker.internal, which on Linux arrives from the Docker bridge, not
         loopback; they run only during a check and hold no real secret.
-    - [ ] 7. Tests against the features (a Sonnet agent, alone, read-only).
+    - [x] 7. Tests against the features (a Sonnet agent, alone, read-only).
       It mapped features to checks and reported ten gaps from e2e/; checked against every check,
       four were covered by gen9-learn's verifier, which it hadn't credited: backup, wipe and
       restore (b7), NUL 422 and oversized 413 on the live API (b7d), sign-up end to end (b1),
@@ -659,9 +659,13 @@ links to the step that traces it; `cd gen9-learn/verify && node run.mjs` passes,
       repository (`actions/checkout`, no sparse checkout) and runs them from `gen9-ui`, so they
       hold there; the image doesn't run tests. Revisit only if the stacks move to repositories of
       their own.
-    - [ ] Closing: gen9-learn's full run, `page.mjs` and `reference.mjs` pass; the plan and PR #2
-      in step. (The closing run started before the owner resumed the audits, checks
-      what was committed by then.)
+    - [x] Closing: gen9-learn's full run, `page.mjs` and `reference.mjs` pass; the plan in step.
+      The full run, on every M9 fix (the stack up to `api-redeletes`, 2026-10-01): 253 checks
+      passed and 2 failed, both this install's stand-ins (release plan, Surprises): b2d's "a
+      question no chat is about finds none" (OpenAI's embedding model, no similarity floor for it)
+      and b7's "what it may spend" (the lowered caps). `page.mjs`: all checks passed;
+      `reference.mjs`: the page names everything, 33 pointers each at what it names. F10, the
+      one finding left, is M10's.
 
 ## M9 backlog (logged when M9 stopped; resumed the same day)
 
@@ -731,6 +735,14 @@ Picked up in this order. Each is its own verified unit, as M9's were.
     signs in.
 
 ## Surprises & Discoveries
+
+- Measuring a run's model spend by the router's `LiteLLM_SpendLogs` undercounts any run that
+  deletes its person: the account's deletion erases their spend logs and daily totals by design
+  (`deletion.py`, GDPR). M9's closing run seemed to have made 4 calls for $0.00 from 1,564 to 1,568
+  rows, while b2 had seen its answer come from `openai/gpt-6-luna`; the run's person, deleted in
+  b6, took their rows along. A turn asked afterwards on the terminal was logged at once, under
+  its person, with its cost. The whole spend is the per-key total, `LiteLLM_DailyUserSpend`
+  (`sum(spend)` for the day), which no deletion touches: measure before and after with that.
 
 - The same closing run failed b5xd: `search_chats` for "lighthouses" in keyword mode returned
   its default 5 hits without the first chat, which the check expected among them. By then the run
