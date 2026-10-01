@@ -1,0 +1,30 @@
+# Sending every container's log to a separate system (docs/logging.md, "Sending the logs
+# elsewhere"; ASVS 5.0 16.4.3): Grafana Alloy reads them through Docker's API and sends them over
+# TLS to a throwaway Loki standing in for the operator's system. Its own project, port and
+# volumes; it changes nothing in Gen9's stacks:
+#   ./certs.sh && docker compose up -d     ...     docker compose down -v
+name: gen9-probe-logship
+services:
+  loki:
+    image: grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+    command: -config.file=/etc/loki/loki.yaml
+    volumes:
+      - ./loki.yaml:/etc/loki/loki.yaml:ro
+      - ./certs:/certs:ro
+    ports:
+      - "127.0.0.1:19310:3100"
+  alloy:
+    image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
+    command: run --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+    environment:
+      LOGS_URL: https://loki:3100/loki/api/v1/push
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - ./certs/ca.pem:/etc/alloy/ca.pem:ro
+      # Docker's API: as much as root on this host, as for any collector of container logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Where it has read up to in each container's log, so a restart neither loses nor repeats
+      - alloy-data:/var/lib/alloy/data
+    depends_on: [loki]
+volumes:
+  alloy-data: {}

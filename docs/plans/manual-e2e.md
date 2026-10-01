@@ -2902,14 +2902,51 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
   - Live: `e2e/recovery.mjs` now checks a person gets "An authenticator app was added to your Gen9
     account on 1 October 2026, 01:26 UTC, from the address …" and "A password was set for …",
     with the instructions; a wrong password for the seeded user sent nothing. gen9-learn's b3
-    checks the authenticator's email, and the page shows it (next full run).
+    checks the authenticator's email, and the page shows it: it passed in the full run after
+    C1 to C7 (257 of 259 checks; the other two are known, b2d's search and b7's spend line).
   - The other alerts, decided in `docs/logging.md`, "Alerts": run notices as chosen; nothing for
     a lockout, a new admin (one without a second step sets one up, which emails them), the shared
     key near its budget (the router refuses past it; its alerting is the operator's) or an
     environment removed for its disk (logged; a new one at the next command).
-- [ ] C6 Logs protected (ASVS 16.4.2, 16.4.3): who can read and change each (the audit table is
+- [x] C6 Logs protected (ASVS 16.4.2, 16.4.3): who can read and change each (the audit table is
   append-only, N2; container logs are readable through Docker's socket), and sending them to a
   separate system, left to the operator: say how.
+  Done (2026-10-01): `docs/logging.md`, "Who can change or erase them" and "Sending the logs
+  elsewhere"; the decision below. Sources: ASVS 5.0 16.4.2 and 16.4.3 ("if the application is
+  breached, the logs are not compromised"); Keycloak 26.7.5's `RealmAdminResource` and
+  `JBossLoggingEventListenerProvider(Factory)`; Docker's logging docs; Grafana Alloy v1.20.1's
+  `loki.source.docker`, `discovery.docker` and `loki.write`; Vector v0.58.0's `docker_logs`; the
+  OpenTelemetry Collector contrib's receivers (v0.162.0).
+  - Found: Keycloak's *Clear events* and *Clear admin events* delete every stored sign-in record
+    and admin change and record nothing (the source: no admin event). gen9-agent's service account
+    can't: its roles, read live, are `manage-users`, `query-groups`, `query-users`, `view-events`
+    and `view-users`. Postgres's superuser can lift the audit table's trigger too, where
+    gen9-agent's README and the guide said only its owner could (corrected).
+  - Found: the stream an operator would send didn't carry the evidence. The audit record was only
+    in gen9-postgres, and Keycloak's `jboss-logging` listener writes successes at DEBUG, so only
+    failed sign-ins were in its log (the inventory, P6-C1, read as if all were). Now each audit
+    record is also a line of the API's log, `audit {…}` in JSON, written just before the row
+    (`audit.py`, `line`: one line and valid JSON whatever a name holds, tested), and Keycloak
+    writes every sign-in and Admin API change at INFO
+    (`KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL`), the master realm's admin's own
+    sign-ins included. A heavy test day's events (about 3,000) are about a megabyte.
+  - How, tested on the running stacks (`gen9-agent/explore/logging/`): Alloy reading Docker's API,
+    sending over TLS to a throwaway Loki. Every container that logs arrived (25 of 28; the other
+    three log nothing); the audit lines 11 and 11, Keycloak's event lines 39 and 39; a numbered
+    writer's 249 lines each once and in order across a 30 s stop of Alloy, a 60 s outage of Loki
+    and a recreate; a container that lived 1 s only with a `status` filter (Docker lists running
+    containers otherwise); an Alloy trusting another authority sent nothing (Loki: `tls: bad
+    certificate`) and its log said nothing of it, so the docs name the metric to watch.
+  - Live: `e2e/audit.mjs` passes, with three new checks (each record is a line of JSON in the
+    API's log with the same who, what, outcome, target and route, 10 of 10; no secret's value in
+    that log; Keycloak's log has the throwaway person's sign-in and the admin changes at INFO).
+    gen9-learn's b6 checks the deletion's line and the page shows it (b6-4); b7's restart check
+    reads Keycloak's import lines without the event lines. gen9-agent: 597 unit tests pass.
+  - gen9-learn's full run: 258 of 261 checks. The two known (b2d's search, b7's spend line), and
+    b6's count of `DELETE /v1/me` lines, which the audit line now matched too (Surprises): its
+    greps match the access line now, tried on the live log (one line, the audit line left out).
+    b6's new check passed (`audit {"actor":"<sub>","action":"account.delete",…}`), b7's import
+    check too. `page.mjs` and `reference.mjs` pass. Spend: $0.045.
 
 ### P6-D. The supply chain (OWASP A03:2025)
 
@@ -3035,6 +3072,13 @@ claims about today's state, not rewritten.
   included. The run's b7 and b7d had checked a worker with it (they passed). AGENTS.md now says to
   write code elsewhere (a worktree) while a check that rebuilds images runs. The "before" is the
   record from the same outage in P6-B6's first pass.
+
+- P6-C6, a new log line meets an old grep: once each audit record was a line of the API's
+  log, gen9-learn's b6 found two `"DELETE /v1/me` lines for one deletion, the access line and
+  the audit line's `"where":"DELETE /v1/me"`, and failed. Its greps (and the page's command) now
+  match the access line's `… HTTP/`. **A line that names routes in a log shared with the access
+  lines matches every grep written for those: grep the access line's own shape.** Only the
+  routes with an audit record were exposed (`DELETE /v1/me`, `DELETE /v1/threads/…`).
 
 - P6-B1, a fuzzer reaching out: Schemathesis's stateful phase links operations by
   their data. It read the connector directory, then added its entries as the throwaway person's
@@ -3635,6 +3679,25 @@ claims about today's state, not rewritten.
   Not included: accessibility (phases 1, 3 and 4 covered WCAG 2.2 AA; the screen reader run still
   waits on guidepup #143 or an owner's macOS setting); the MCP 2026-07-28 changes (followed since
   phase 3).
+- Decision (P6-C6): Gen9's logs reach a separate system through a collector the operator runs,
+  reading Docker's API; Gen9 runs none and changes no logging driver. Sources: ASVS 5.0 16.4.3;
+  Docker's docs (the `local` driver's files are "designed to be exclusively accessed by the
+  Docker daemon"; dual logging; the `syslog` driver over `tcp+tls`; delivery modes); Grafana
+  Alloy v1.20.1's `loki.source.docker` (a positions file); Vector v0.58.0's `docker_logs`
+  (delivery "best_effort", no checkpoint); the OpenTelemetry Collector contrib's receivers.
+  - **Chosen:** a collector on Docker's API. Nothing in Gen9 changes, `make logs` stays, each
+    chat's environment is included as it starts, and the system it sends to is the operator's
+    (Loki, a SIEM, syslog). Alloy is the tested example, for its positions file (no loss or
+    repeat across a restart or an outage, measured).
+  - **Not chosen:** Docker's logging drivers: every Compose file's `x-logging` and `launch.py`
+    would change, and a driver whose server is down blocks a container's output unless
+    non-blocking, which drops lines. Vector: no position kept. The OpenTelemetry Collector: no
+    receiver for Docker's logs. A collector inside Gen9's stacks: it would hold Docker's socket,
+    root on the host, in a stack people run.
+  - **So the stream carries the evidence:** each audit record is also a log line (JSON), and
+    Keycloak's listener writes successes at INFO. Keycloak's stored events can be cleared by its
+    admin without a trace, and the audit table's trigger lifted by the database's superuser; a
+    copy sent as it happens survives both.
 
 ## Outcomes & Retrospective
 

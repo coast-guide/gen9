@@ -1120,11 +1120,16 @@ Deleting a chat or an account is a Temporal workflow (`workflows/deletion.py`, A
 
   It never holds tokens, passwords, secret values or message text. A trigger makes the table
   append-only, refusing `UPDATE`, `DELETE` and `TRUNCATE` from anyone, the superuser included.
-  Only the table's owner could switch the trigger off, and the services aren't it: they connect
-  as `gen9_agent_app`, which may only `INSERT` into it and read it (`e2e/audit.mjs` tries it
-  from inside both containers). It names people by `sub` only, so
-  it outlives a deleted account. Admins read it at `GET /v1/admin/audit`, newest first,
+  Only the table's owner, or Postgres's superuser, could switch the trigger off, and the
+  services are neither: they connect as `gen9_agent_app`, which may only `INSERT` into it and
+  read it (`e2e/audit.mjs` tries it from inside both containers). It names people by `sub` only,
+  so it outlives a deleted account. Admins read it at `GET /v1/admin/audit`, newest first,
   filtered by `actor`, an `action` prefix and `outcome`, and paged with `before`.
+
+  Each record is also one line of the API's log, written just before the row: `audit {"actor":
+  …, "action": …, "outcome": …, "target": …, "where": …, "detail": …}`, valid JSON whatever a name
+  holds. That line is what an operator sends to a separate system, where it outlasts a break-in
+  here ([docs/logging.md, "Sending the logs elsewhere"](../docs/logging.md#sending-the-logs-elsewhere)).
 
 ## Evals
 

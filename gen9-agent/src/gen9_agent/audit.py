@@ -14,8 +14,13 @@ service account, not the admin who clicked, so only Gen9 can say who acted. Reco
 
 Never recorded: tokens, passwords, secret values, message text. The table is append-only (a
 trigger refuses changes), and admins read it at `GET /v1/admin/audit`.
+
+Each record is also one line of the API's log, `audit {…}` in JSON, written before the database
+is: what a collector sends to a separate system, where whoever breaks in here can't erase it
+(docs/logging.md, "Sending the logs elsewhere"; ASVS 5.0 16.4.3).
 """
 
+import json
 import logging
 import uuid
 from typing import Any
@@ -24,6 +29,7 @@ from fastapi import Request
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .log_safety import CONTROL
 from .models import AuditEvent
 
 log = logging.getLogger(__name__)
@@ -49,24 +55,44 @@ async def record(
     outcome: str = SUCCESS,
     detail: dict[str, Any] | None = None,
 ) -> None:
-    """Adds an event in its own transaction. A failure to record is logged, not raised: the
-    action it records has already happened."""
+    """Adds an event in its own transaction, after its line in the log. A failure to record is
+    logged, not raised: the action it records has already happened."""
+    event = AuditEvent(
+        actor=actor[:255],
+        action=action,
+        outcome=outcome,
+        target=str(target)[:255] if target is not None else None,
+        where=where(request),
+        detail=detail or {},
+    )
+    log.info("audit %s", line(event))
     try:
         async with request.app.state.sessionmaker() as session:
-            session.add(
-                AuditEvent(
-                    actor=actor[:255],
-                    action=action,
-                    outcome=outcome,
-                    target=str(target)[:255] if target is not None else None,
-                    where=where(request),
-                    detail=detail or {},
-                )
-            )
+            session.add(event)
             await session.commit()
     except Exception:
         # The action happened; the log says its record didn't
         log.exception("audit: couldn't record %s by %s", action, actor)
+
+
+def line(event: AuditEvent) -> str:
+    """The event as one line of JSON. JSON escapes C0 controls itself; the others log_safety.py
+    escapes in its own way (`\\x7f`), which a JSON reader refuses, so they are escaped as JSON's
+    `\\u007f` here and the line stays both one line and valid."""
+    text = json.dumps(
+        {
+            "actor": event.actor,
+            "action": event.action,
+            "outcome": event.outcome,
+            "target": event.target,
+            "where": event.where,
+            "detail": event.detail,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=str,
+    )
+    return CONTROL.sub(lambda m: f"\\u{ord(m.group()):04x}", text)
 
 
 async def theirs(

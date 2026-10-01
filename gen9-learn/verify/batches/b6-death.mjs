@@ -73,7 +73,7 @@ export default async function death(ctx) {
   obs.deleteChat = {
     before,
     after: { thread: appdb(`select count(*) from threads where id = '${doomed}'`), runs: appdb(`select count(*) from runs where thread_id = '${doomed}'`), checkpoints: appdb(`select count(*) from langgraph.checkpoints where thread_id = '${doomed}'`), traces: traces() },
-    agentLog: sh(`docker logs --since 1m gen9-agent-api-1 2>&1 | grep -E '"DELETE /v1/threads' | tail -1`).out.replace(doomed, "<thread id>"),
+    agentLog: sh(`docker logs --since 1m gen9-agent-api-1 2>&1 | grep -E '"DELETE /v1/threads[^"]* HTTP/' | tail -1`).out.replace(doomed, "<thread id>"),
   };
   check(
     Number(before.traces) > 0 && Object.values(obs.deleteChat.after).every((v) => v === "0"),
@@ -93,7 +93,8 @@ export default async function death(ctx) {
   rec.mark("6.2 delete account");
   const since = Date.now();
   const from = new Date(since - 1000).toISOString();
-  const agentDeletes = () => sh(`docker logs --since ${from} gen9-agent-api-1 2>&1 | grep -E '"DELETE /v1/me'`).out;
+  // The access lines only: the audit line names the route too ("where":"DELETE /v1/me")
+  const agentDeletes = () => sh(`docker logs --since ${from} gen9-agent-api-1 2>&1 | grep -E '"DELETE /v1/me HTTP/'`).out;
   const clickButton = async (selector, label) => {
     for (const b of await page.$$(selector)) if ((await b.evaluate((el) => el.textContent.trim())) === label) return b.click();
     throw new Error(`no "${label}" button`);
@@ -160,7 +161,7 @@ export default async function death(ctx) {
     "the audit record outlives the account: its actions by sub, no email, and a DELETE (even the superuser's) is refused",
     `${obs.auditAfter}; email in rows: ${obs.auditEmail}; ${obs.auditRefuses.split("\n")[0]}; rows: ${obs.auditRows}`,
   );
-  // Only the table's owner could switch the trigger off, and the services aren't it: they connect
+  // Only the table's owner (or the superuser) could switch the trigger off, and the services are neither: they connect
   // as gen9_agent_app, which owns nothing. The page's command, from the API's container
   obs.auditOwner = appdb("select tableowner from pg_tables where tablename = 'audit_events'");
   obs.servicesDbUser = ["api", "worker"].map((c) => sh(`docker exec gen9-agent-${c}-1 printenv DATABASE_USER`).out).join(" ");
@@ -170,6 +171,17 @@ export default async function death(ctx) {
     "the owner is gen9_agent, the API and worker connect as gen9_agent_app, and the API's role can't switch the trigger off",
     `${obs.auditOwner}; ${obs.servicesDbUser}; ${obs.apiDisables}`,
   );
+  // The superuser could lift it, so each row is also a line of the API's log, what an operator
+  // sends to a separate system (docs/logging.md). The page's command
+  obs.auditLine = sh(`docker logs gen9-agent-api-1 2>&1 | grep -F '"action":"account.delete"' | tail -1`).out;
+  const line = /^\S+Z INFO: +audit (\{.*\})$/.exec(obs.auditLine);
+  const event = line ? JSON.parse(line[1]) : {};
+  check(
+    event.actor === user.sub && event.outcome === "success" && event.where === "DELETE /v1/me" && !obs.auditLine.includes(user.email),
+    "the deletion is also a line of JSON in the API's log, by sub alone",
+    obs.auditLine.replaceAll(user.sub, "<sub>").slice(0, 200),
+  );
+  obs.auditLine = obs.auditLine.replaceAll(user.sub, "<sub>");
   obs.console = rec.consoleMessages.filter((m) => m.step.startsWith("6."));
   return obs;
 }

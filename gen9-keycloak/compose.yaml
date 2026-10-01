@@ -44,6 +44,11 @@ services:
       # Each line says when with its zone (Z, UTC), as an event's time must (ASVS 5.0 16.2.2;
       # docs/logging.md): Keycloak's default has no zone
       KC_LOG_CONSOLE_FORMAT: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5p [%c] (%t) %s%e%n"
+      # Every sign-in event and admin change in the log, successes too (the `jboss-logging`
+      # listener writes them at DEBUG by default): the log is what an operator sends to a separate
+      # system, out of reach of an admin who clears Keycloak's stored events, which records nothing
+      # (ASVS 5.0 16.3.1, 16.4.3; docs/logging.md, "Sending the logs elsewhere")
+      KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL: info
       # The sign-in changes Keycloak's `email` listener tells a person about (configure.sh turns it
       # on): the general events only, as Keycloak also records each password or authenticator
       # change under an older name (UPDATE_PASSWORD, UPDATE_TOTP), which would mail it twice. Not
