@@ -162,7 +162,7 @@ jobs:
           LANGFUSE_NAME: Gen9 CI
         run: make setup < /dev/null
       - run: make doctor
-      - name: make config (with the shared-network name check)
+      - name: make config (with the shared-network name and image checks)
         run: make config
       - name: stacks call each other over their networks
         run: |

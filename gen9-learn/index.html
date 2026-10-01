@@ -2893,7 +2893,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>make down</code></td><td>Stops them; data stays</td><td><a href="#b7-1">Restart Keycloak</a></td></tr>
       <tr><td><code>make ps</code></td><td>Their containers, and where to open each</td><td><a href="#b0-2">Terminal</a></td></tr>
       <tr><td><code>make logs</code></td><td>The last 50 lines of each (<code>TAIL=n</code>; <code>FOLLOW=1</code> with one stack)</td><td><a href="#b0-5">Logs</a></td></tr>
-      <tr><td><code>make config</code></td><td>Validates the Compose files, and fails if a network change would let a stack reach another under a service name it uses itself</td><td><a href="#b7-3">Who can reach whom</a></td></tr>
+      <tr><td><code>make config</code></td><td>Validates the Compose files, and fails if a network change would let a stack reach another under a service name it uses itself, or if <code>docker-bake.hcl</code> would build one of Gen9's images differently from the Compose files</td><td><a href="#b7-3">Who can reach whom</a></td></tr>
       <tr><td><code>make admin-code</code></td><td>The seeded admin's authenticator code now, for signing in as Ada: admins need a second step, and her app's secret in <code>gen9-keycloak/.env</code> isn't in the form an authenticator app takes</td><td><a href="#b3-3">Lock yourself out</a></td></tr>
       <tr><td><code>make stop-agents</code></td><td>Cancels every run not yet over, pauses every scheduled task, stops the worker; people can still read their chats</td><td><a href="#b7-6">Restore it</a></td></tr>
       <tr><td><code>make resume-agents</code></td><td>Starts the worker and unpauses what the stop paused</td><td><a href="#b7-6">Restore it</a></td></tr>
