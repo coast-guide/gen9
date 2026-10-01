@@ -126,7 +126,7 @@ help:
 	@echo "  make evals-calibrate people score a sample of the rubric judge's verdicts in Langfuse (SAMPLE=20);"
 	@echo "                       REPORT=1: how their scores compare with the judge's;"
 	@echo "                       LABELS=file BY=who: reference labels not from people, reported apart"
-	@echo "  make audit           known vulnerabilities in npm and Python dependencies"
+	@echo "  make audit           known vulnerabilities in npm and Python dependencies, their signatures and provenance"
 	@echo "  make sbom            an SBOM of every image the stacks build or run (scripts/sbom/out/)"
 	@echo "  make scan            known vulnerabilities in those images: fails on a fixable high or critical one"
 	@echo "  make updates         pinned images rebuilt under their tag since, and newer releases (Renovate)"
@@ -279,6 +279,7 @@ audit:
 	  (cd $$d && uv export --frozen --no-hashes --no-emit-project --color never > $$f) && \
 	  NO_COLOR=1 uvx pip-audit -r $$f --disable-pip --no-deps --progress-spinner off; \
 	  status=$$?; rm -f $$f; [ $$status -eq 0 ] || exit $$status; done
+	@echo "== PyPI provenance (scripts/provenance.py)"; uv run -q scripts/provenance.py
 
 # Each image's SBOM, and Grype's scan of them, with pinned and verified Syft and Grype run in a
 # container with no Docker socket (scripts/sbom.sh; docs/operations.md)
