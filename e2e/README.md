@@ -716,6 +716,7 @@ Keycloak's built-in reset flow lets the email link set up a new authenticator ap
 | Sign out, *Forgot password?*, the reset email's link (from Mailpit) | The link asks for the authenticator code, with no page to set up another one |
 | A wrong code, then the right one | The wrong one is refused; the right one (the next 30-second code, as Keycloak won't take the setup code twice) leads to a new password; signed in |
 | Keycloak | Still exactly one authenticator app, one `UPDATE_TOTP` event (the setup), and the password change |
+| The person's inbox (Mailpit) | An email for each change, in words: "An authenticator app was added to your Gen9 account on … UTC, from the address …" and "A password was set for …", each saying what to do if it wasn't them (docs/logging.md, "Alerts") |
 | A second throwaway user, with no second step | *Forgot password?*, the email's link goes straight to choosing a new password (no code asked); signed in, and Keycloak logged `UPDATE_PASSWORD` |
 
 Both users are deleted at the end, whatever happens. With Keycloak's built-in flow bound instead, the link offers to set up a new authenticator and the check fails.

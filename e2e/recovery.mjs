@@ -3,7 +3,8 @@
 //   2. sign out, "Forgot password?", the reset email's link (read from Mailpit)
 //   3. the link asks for the authenticator code (Keycloak's built-in flow instead asks to set up a
 //      new authenticator, so the email alone was enough); a wrong code is refused
-//   4. the right code, then a new password: signed in, still with the one authenticator app
+//   4. the right code, then a new password: signed in, still with the one authenticator app; the
+//      person got an email for each change (the app added, the password set)
 //   5. a person with no second step: the link leads straight to a new password, then signed in
 // gen9-keycloak/config/configure.sh builds and binds the flow (gen9-reset-credentials). The user is
 // deleted at the end, whatever happens.
@@ -160,6 +161,16 @@ try {
   const events = await admin(`/events?user=${user.id}&max=50`);
   check(events.filter((e) => e.type === "UPDATE_TOTP").length === 1, "Keycloak logged one authenticator setup, none during the reset");
   check(events.some((e) => e.type === "UPDATE_PASSWORD"), "Keycloak logged the password change");
+  // 4b. The person is told each change by email, what it was and what to do if it wasn't them
+  // (NIST SP 800-63B-4; manual-e2e.md, P6-C5)
+  let told = [];
+  for (let i = 0; i < 20 && told.length < 2; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const found = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${EMAIL}" subject:"sign-in changed"`)}`, MAIL).then((r) => r.json());
+    told = await Promise.all((found.messages ?? []).map((m) => fetch(`${MAILPIT}/api/v1/message/${m.ID}`, MAIL).then((r) => r.json()).then((x) => x.Text)));
+  }
+  const said = (what) => told.find((t) => t.includes(`${what} your Gen9 account on`) && / UTC, from the address /.test(t) && t.includes("Forgot password?"));
+  check(Boolean(said("An authenticator app was added to")) && Boolean(said("A password was set for")), "each change was emailed to the person, in words, with when in UTC and what to do if it wasn't them", `${told.length} email(s)`);
 
   // 5. A person with no second step: the email alone resets the password (M9, item 7)
   const plain = { email: `recovery-plain-${Date.now()}@gen9.test`, password: `e2e-${randomBytes(12).toString("hex")}`, next: `e2e-${randomBytes(12).toString("hex")}` };

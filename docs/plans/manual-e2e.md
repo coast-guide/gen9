@@ -2875,12 +2875,38 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
   The first probe said no secret reached its host: it had used the path `/`, which matches only
   `/`; Gen9's secrets default to `/*`. Bounding: each denial is one warn line in the sidecar's
   log, bounded like every container's (3 × 10 MB), and the sidecar goes with its environment.
-- [ ] C5 Alerting (A09: "alerting use cases", thresholds, no alert fatigue): what reaches a person
+- [x] C5 Alerting (A09: "alerting use cases", thresholds, no alert fatigue): what reaches a person
   or the operator, and when. Someone trying a person's password (the lockout after 5), their
   password or passkey changed, an admin role granted, the shared daily key nearly spent, a
   sandbox stopped for its disk. Keycloak's `email` event listener (off in Gen9's realm) mails a
   person on `LOGIN_ERROR`, `UPDATE_PASSWORD`, `UPDATE_CREDENTIAL`, `REMOVE_CREDENTIAL`,
   `UPDATE_TOTP` and `REMOVE_TOTP` by default (26.7.4's source); decide which with sources.
+  Done (2026-10-01). Sources: NIST SP 800-63B-4, "When an authenticator is added, the CSP SHALL
+  notify the subscriber", account recovery "SHALL cause a notification", and each notification
+  "SHALL provide clear instructions, including contact information, in case the recipient
+  repudiates the event"; ASVS 5.0 6.3.7 and 6.3.5 (both L3); Keycloak 26.7.5's
+  `EmailEventListenerProviderFactory` (six supported events, all on unless `include-events`).
+  - Keycloak records each change twice, under the general name and an older one (seen in the
+    events table: `UPDATE_PASSWORD` with `UPDATE_CREDENTIAL`, `UPDATE_TOTP` with
+    `UPDATE_CREDENTIAL`, at the same second), so the listener mails only `UPDATE_CREDENTIAL` and
+    `REMOVE_CREDENTIAL` (`KC_SPI_EVENTS_LISTENER__EMAIL__INCLUDE_EVENTS`); `configure.sh` adds
+    the `email` listener next to the log's. Not `LOGIN_ERROR`: anyone could fill a person's inbox,
+    and the lockout answers guessing.
+  - Gen9's words: Keycloak passes the raw type (`otp your Gen9 account on 10/1/26, 1:25 AM`, the
+    first live email), so the email theme owns `event-update_credential.ftl` and
+    `event-remove_credential.ftl` (html and text) and maps it ("An authenticator app was added
+    to", "A passkey was added to", "A password was set for", "New recovery codes were made for"),
+    with the time in UTC and what to do if it wasn't them. The first rebuild dropped the files:
+    the image's `keycloakify sync-extensions` replaces any it doesn't count as owned, so they
+    were claimed with `npx keycloakify own`.
+  - Live: `e2e/recovery.mjs` now checks a person gets "An authenticator app was added to your Gen9
+    account on 1 October 2026, 01:26 UTC, from the address …" and "A password was set for …",
+    with the instructions; a wrong password for the seeded user sent nothing. gen9-learn's b3
+    checks the authenticator's email, and the page shows it (next full run).
+  - The other alerts, decided in `docs/logging.md`, "Alerts": run notices as chosen; nothing for
+    a lockout, a new admin (one without a second step sets one up, which emails them), the shared
+    key near its budget (the router refuses past it; its alerting is the operator's) or an
+    environment removed for its disk (logged; a new one at the next command).
 - [ ] C6 Logs protected (ASVS 16.4.2, 16.4.3): who can read and change each (the audit table is
   append-only, N2; container logs are readable through Docker's socket), and sending them to a
   separate system, left to the operator: say how.

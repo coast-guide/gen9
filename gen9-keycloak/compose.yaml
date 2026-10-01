@@ -44,6 +44,11 @@ services:
       # Each line says when with its zone (Z, UTC), as an event's time must (ASVS 5.0 16.2.2;
       # docs/logging.md): Keycloak's default has no zone
       KC_LOG_CONSOLE_FORMAT: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5p [%c] (%t) %s%e%n"
+      # The sign-in changes Keycloak's `email` listener tells a person about (configure.sh turns it
+      # on): the general events only, as Keycloak also records each password or authenticator
+      # change under an older name (UPDATE_PASSWORD, UPDATE_TOTP), which would mail it twice. Not
+      # failed sign-ins: anyone could fill someone's inbox, and the lockout answers guessing
+      KC_SPI_EVENTS_LISTENER__EMAIL__INCLUDE_EVENTS: update_credential,remove_credential
       # Read by realm/gen9-realm.json placeholders on first import only
       GEN9_UI_CLIENT_SECRET: ${GEN9_UI_CLIENT_SECRET:?run ./init-env.sh first}
       GEN9_AGENT_CLIENT_SECRET: ${GEN9_AGENT_CLIENT_SECRET:?run ./init-env.sh first}

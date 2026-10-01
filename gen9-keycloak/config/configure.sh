@@ -25,6 +25,22 @@ admin_events_expiration() {
 }
 admin_events_expiration
 
+# A person is told by email when how they sign in changes: a password set, an authenticator app,
+# a passkey or recovery codes added or removed (NIST SP 800-63B-4; docs/plans/manual-e2e.md,
+# P6-C5). Keycloak's `email` listener, next to the log's; which events it mails is
+# KC_SPI_EVENTS_LISTENER__EMAIL__INCLUDE_EVENTS in compose.yaml
+email_listener() {
+  local config
+  config=$(kcadm get events/config -r gen9)
+  if [[ $config =~ \"email\" ]]; then
+    echo "sign-in changes: emailed to the person"
+  else
+    kcadm update events/config -r gen9 -s 'eventsListeners=["jboss-logging","email"]'
+    echo "sign-in changes: now emailed to the person"
+  fi
+}
+email_listener
+
 # Back-channel logout: Keycloak tells gen9-ui when a session ends, over the gen9-ui network. The
 # import sets the URL on first start only, so a realm imported earlier is brought in line here.
 backchannel_logout_url() {
