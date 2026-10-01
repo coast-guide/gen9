@@ -638,14 +638,19 @@ links to the step that traces it; `cd gen9-learn/verify && node run.mjs` passes,
         chat deleted again (chats 4 → 3), the wipe and restore as before (4 → 0 → 4), and after
         it, the warning's delete-again-by-id removes the chat; its one failure is "what it may
         spend", from this install's lowered caps (release plan, Surprises).
-      - [ ] T9b, found with T9, not fixed yet: the same join through the API. After a restore
+      - [x] T9b, found with T9: the same join through the API. After a restore
         that couldn't read the audit record (gen9-postgres made again since), the chat is back
         and the restore says to delete it again by id, which works (b7 checks it). A person who
         deletes it in the app instead, within ten minutes of its first deletion, gets 204 while
         the chat stays: `DELETE /v1/threads/{id}` joins the running deletion. Narrow (a restore
         from before a wipe, then a deletion within minutes), but the answer is wrong. Fix to
         design: after `finished_or_accepted`, if the row is still there, start a deletion again
-        (`again=True`); the same for accounts (`DELETE /v1/me`, an admin's delete).
+        (`again=True`). Done for chats (`delete_thread`); accounts need nothing: an account a
+        restore brings back has no Keycloak user any more, so the sweep finds it within 15
+        minutes, by when the first deletion has ended and a new one runs from the start. Tested
+        (`test_delete_thread_again.py`: fails on the old code), and live: a chat deleted, its row
+        put back while that deletion waited for late traces, then deleted in the API: 204 and gone,
+        a `…-again-` deletion next to the first in Temporal.
       - [x] T10's rest: a plain forgot-password (no second step): `e2e/recovery.mjs` step 5, the
         link straight to a new password, then signed in, `UPDATE_PASSWORD` logged; passed live.
     - [x] Housekeeping (backlog 7), kept: `lib/audit-words.test.ts` and `lib/app-scopes.test.ts`
