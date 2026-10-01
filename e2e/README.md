@@ -501,15 +501,18 @@ It turns the setting back on, restores memory, deletes its chats, and costs four
 A chat that outgrows the context budget is summarized, and says so (gen9-agent/README.md,
 "Context"). The worker is swapped for one with `CONTEXT_BUDGET_TOKENS=12000` (`docker compose
 run`, as `fairness.mjs` does), and restored at the end. Nothing else should use the worker
-meanwhile.
+meanwhile. The person's memory and past-chat search are off during the check (put back after):
+the agent saves "a note to keep" to memory, which would carry the code word without the summary.
 
 | Step | Checked |
 | --- | --- |
 | Three long messages, the first with a code word | A run records `context.summarized`, and every answer is the short one asked for (no summary text in it) |
+| The summary | Read from the chat's checkpoint (Deep Agents' `_summarization_event`, with the worker's code), it keeps the code word |
 | Asked afterwards | The answer has the code word from before the summary |
 | Chrome | The turn says "Earlier messages were summarized"; the whole chat is still shown; axe clean |
 
-It deletes its chat, and costs four short replies and their summaries.
+It deletes its chat, puts the person's controls back, and costs four short replies and their
+summaries.
 
 ## Stopping agents (`stop.mjs`)
 
