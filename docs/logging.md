@@ -79,6 +79,27 @@ P6-C2), and why each is there:
   an admin looked up); gen9-postgres logs slow statements without their values; the worker, the web
   app and the other services log none of it.
 
+## Alerts: what reaches a person or the operator
+
+OWASP A09:2025 asks for alerting with thresholds and without alert fatigue. What Gen9 sends:
+
+- **A person, by email, when how they sign in changes:** a password set (at sign-up, a change or a
+  reset), an authenticator app, a passkey or recovery codes added or removed. NIST SP 800-63B-4:
+  "When an authenticator is added, the CSP SHALL notify the subscriber", account recovery too,
+  each with "clear instructions … in case the recipient repudiates the event". Keycloak's `email`
+  event listener (`configure.sh` turns it on), for `UPDATE_CREDENTIAL` and `REMOVE_CREDENTIAL`
+  only: Keycloak also records each change under an older name, which would mail it twice. The
+  email says what changed, when in UTC, from which address, and what to do if it wasn't them.
+- **Not failed sign-ins:** anyone who knows an address could fill its inbox, and the lockout after
+  5 tries answers guessing (the person sees it on the sign-in page, an admin on *Users*).
+- **A person, by email, about their runs:** a background run done or waiting for them, as they
+  chose in *Settings*, *Notifications*.
+- **Not sent, and why:** someone made an admin (recorded in the audit log; one with no second
+  step sets one up at their next sign-in, which emails them as above); the shared model key near
+  its daily budget (the router refuses calls past it, and its admin UI shows the spend: an
+  operator who wants a warning sets the router's alerting); a chat's environment removed for
+  its disk (logged by gen9-sandbox; the chat gets a new one at its next command).
+
 ## Known gaps
 
 Found while taking this inventory; each is an item of docs/plans/manual-e2e.md, phase 6:

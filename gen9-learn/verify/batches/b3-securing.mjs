@@ -65,6 +65,10 @@ export default async function securing(ctx) {
   obs.credentialsAfterTotp = credentials(user.sub);
   obs.totpEvents = events(user.sub, since);
   check(/otp/.test(obs.credentialsAfterTotp), "Keycloak stores an otp credential", obs.credentialsAfterTotp);
+  // The person is told by email, in words (Keycloak's email listener; manual-e2e.md, P6-C5)
+  obs.totpMail = await mailTo(user.email, since, /sign-in changed/);
+  check(/An authenticator app was added to your Gen9 account on .+ UTC, from the address /.test(obs.totpMail?.text ?? "") && /Forgot password\?/.test(obs.totpMail?.text ?? ""),
+    "an email tells the person an authenticator app was added, when (UTC), and what to do if it wasn't them", obs.totpMail?.subject ?? "no email");
 
   // 3.2 Recovery codes, the page the first app led to
   rec.mark("3.2 recovery codes");
