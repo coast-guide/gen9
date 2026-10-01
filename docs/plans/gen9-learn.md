@@ -608,7 +608,14 @@ links to the step that traces it; `cd gen9-learn/verify && node run.mjs` passes,
         (409), the first 10 and 100 kept (`e2e/admin-api.mjs`, passed live after F27's fix).
       - [x] T1, connectors: the 51st refused (409), the first 50 kept, on e2e's elicitation test
         server (`e2e/admin-api.mjs`, passed live).
-      - [ ] T1's rest: the files' cap (10 GiB a person, 413).
+      - [x] T1's rest, the files' caps, which nothing tested: `e2e/admin-api.mjs` now uploads a file
+        of 25 MB and one byte (413, "Files can be up to 25 MB.") and one of 25 MB (201); seeds a
+        chat to 100 bytes short of 250 MB, then a 1 KB file is refused there (413, "This chat's
+        files are up to 250 MB.") and taken by another chat (201); seeds the person's chats to 100
+        bytes short of their limit (10 GB), then a 1 KB file in a third chat is refused (413, "Your
+        chats' files are up to 10 GB together. Delete a chat with files to make room."); deleting
+        the chats deletes every file, seeded ones too. The totals come from a row seeded as the
+        superuser (a size, one byte): uploading 10 GB to prove a limit is no check. Passed live.
       - [ ] T6, the database unavailable (503 with Retry-After), and T9's re-deletion after a
         restore, only manual so far; both disruptive, after the demo.
       - [x] T10's rest: a plain forgot-password (no second step): `e2e/recovery.mjs` step 5, the

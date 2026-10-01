@@ -6,6 +6,7 @@
 //   2. an admin deletes a person from Users: the toast, then gone from Keycloak and Gen9, recorded
 //   3. a person's caps: the 11th scheduled task, the 101st environment secret and the 51st connector
 //      are refused (409); connectors use e2e's elicitation test server (fixtures/elicit_mcp.py)
+//      and files: over 25 MB a file, 250 MB a chat or the person's limit across chats, 413
 //   4. step-up for a client that isn't the web app: a terminal sign-in over 5 minutes old can't
 //      delete the account (401, insufficient_user_authentication, max_age 300); a fresh one can
 // Ada gets no chat from any of it; every throwaway person is deleted at the end.
@@ -152,6 +153,42 @@ try {
     if (server) process.kill(-server.pid);
   }
   check(connectors.length === 50 && lastConnector.status === 409, "the 51st connector is refused (409), the first 50 kept", `${connectors.length} kept; the 51st ${lastConnector.status} ${JSON.stringify(lastConnector.body?.detail ?? "")}`);
+
+  // Files: 25 MB a file and 250 MB a chat (gen9-agent's chat_files.py), and all of a person's chats
+  // together up to FILES_MAX_BYTES_PER_PERSON, 10 GB unless set (settings.py). The two totals are
+  // reached with a row seeded as the superuser, a size with a byte of content: uploading 10 GB to
+  // prove a limit is no check
+  const MB = 1024 * 1024;
+  const perPerson = Number(execFileSync("docker", ["exec", "gen9-agent-api-1", "sh", "-c", "printenv FILES_MAX_BYTES_PER_PERSON || true"], { encoding: "utf8" }).trim() || 10 * 1024 ** 3);
+  const upload = async (thread, name, size) => {
+    await api(stale.dir, "GET", "/v1/me"); // the terminal's token refreshed when due
+    const token = JSON.parse(readFileSync(join(stale.dir, "credentials.json"), "utf8")).access_token;
+    const response = await fetch(`${API}/v1/threads/${thread}/files?name=${encodeURIComponent(name)}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/octet-stream" },
+      body: new Uint8Array(size),
+    });
+    return { status: response.status, detail: (await response.json().catch(() => null))?.detail };
+  };
+  const seed = (thread, size) =>
+    psql(`insert into chat_files (thread_id, origin, path, name, media_type, size, sha256, content) values ('${thread}', 'upload', '/work/in/seed-${randomBytes(4).toString("hex")}', 'seed', 'application/octet-stream', ${size}, repeat('0', 64), '\\x00'::bytea)`);
+  const chats = [];
+  try {
+    for (let i = 0; i < 3; i++) chats.push((await api(stale.dir, "POST", "/v1/threads")).body.id);
+    const tooBig = await upload(chats[0], "big.bin", 25 * MB + 1);
+    const justFits = await upload(chats[0], "fits.bin", 25 * MB);
+    check(tooBig.status === 413 && tooBig.detail === "Files can be up to 25 MB." && justFits.status === 201, "a file over 25 MB is refused (413), one of 25 MB kept", `${tooBig.status} ${tooBig.detail}; 25 MB: ${justFits.status}`);
+    seed(chats[0], 250 * MB - 25 * MB - 100); // the chat now holds 100 bytes less than 250 MB
+    const chatFull = await upload(chats[0], "one-more.txt", 1024);
+    const otherChat = await upload(chats[1], "fits.txt", 1024);
+    check(chatFull.status === 413 && chatFull.detail === "This chat's files are up to 250 MB." && otherChat.status === 201, "a chat's files are refused past 250 MB (413), while another chat still takes one", `${chatFull.status} ${chatFull.detail}; another chat: ${otherChat.status}`);
+    seed(chats[1], perPerson - 250 * MB - 1024 - 100); // all their chats: 100 bytes short of the limit
+    const personFull = await upload(chats[2], "last.txt", 1024);
+    check(personFull.status === 413 && /^Your chats' files are up to \d+ GB together\. Delete a chat with files to make room\.$/.test(personFull.detail ?? ""), "a person's files are refused past their limit across chats (413), with how to make room", `${personFull.status} ${personFull.detail}`);
+  } finally {
+    for (const id of chats) await api(stale.dir, "DELETE", `/v1/threads/${id}`);
+  }
+  check(psql(`select count(*) from chat_files where thread_id in (${chats.map((c) => `'${c}'`).join(",") || "null"})`) === "0", "deleting the chats deletes their files, seeded ones too");
 
   // 4. Step-up for a client that isn't the web app
   const wait = stale.signedInAt + (STEP_UP_S + 20) * 1000 - Date.now();
