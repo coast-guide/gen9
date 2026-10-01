@@ -2238,7 +2238,7 @@ analytics_observations, analytics_scores, analytics_traces, blob_storage_file_lo
       <h3>The sandbox server, inside <span class="depth">Deeper</span> <label><input type="checkbox" data-done> Done</label></h3>
       <div class="cmd"><pre><code data-check="run">docker exec gen9-sandbox-opensandbox-1 sh -c "grep -E '^\[|timeout|image|network_mode' /etc/opensandbox/config.toml"</code></pre></div>
       <div class="out"><span class="cap">verified (comments left out)</span>[server]  max_sandbox_timeout_seconds = <mark>86400</mark>
-[runtime] execd_image = "opensandbox/execd:v1.1.0@sha256:…"
+[runtime] execd_image = "<mark>gen9-sandbox-execd:v1.1.0</mark>"
 [egress]  image = "<mark>gen9-sandbox-egress:release-1.1.0</mark>"   readiness_timeout_seconds = 30.0
 [docker]  network_mode = …</div>
       <div class="notice">
@@ -2423,6 +2423,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
     <tbody>
       <tr data-service="gen9-sandbox/opensandbox"><td><code>opensandbox</code></td><td>OpenSandbox's server, started by <code>launch.py</code>. Creates each chat's sandbox and its egress sidecar as sibling containers, renews and removes them, and deletes one that outgrows its disk</td><td>20000 → 8090; <code>gen9-sandbox_store</code>, <code>gen9-sandbox_metadata</code> (each sandbox's renewals)</td><td><a href="#b2x-3">Give it a place to work</a>, <a href="#b7-sandbox">The sandbox server, inside</a></td></tr>
       <tr data-service="gen9-sandbox/egress-image"><td><code>egress-image</code></td><td>Doesn't run: builds the egress sidecar image every sandbox gets, OpenSandbox's with Gen9's always-deny ranges (<code>egress/deny.always</code>), Debian's security updates and its Go binaries rebuilt with a current Go</td><td>none</td><td><a href="#b2x-3">Give it a place to work</a>, <a href="#b2x-secret">A secret for a host</a></td></tr>
+      <tr data-service="gen9-sandbox/execd-image"><td><code>execd-image</code></td><td>Doesn't run: builds the execd the server copies into every sandbox to run its commands, OpenSandbox's with <code>/execd</code> rebuilt with a current Go (<code>execd/</code>)</td><td>none</td><td><a href="#b2x-3">Give it a place to work</a></td></tr>
     </tbody>
   </table></div>
 

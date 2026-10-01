@@ -3069,16 +3069,37 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
         with a sidecar on the new image; the egress probe (a secret reaches its host, a steered
         `Host` gets 403, a closed host stays closed after the egress process is killed and the
         supervisor restarts it). `make scan` on it: the Go and OpenSSL findings gone. Go 1.25.14
-        is the newest 1.25 (go.dev's list).
+        is the newest 1.25 (go.dev's list). Moved to Go 1.26.8 in D1c5c, below.
       - [ ] D1c5b Its mitmproxy: 11.0.2 caps `h11` (<=0.14.0), `cryptography` (<44.1),
         `tornado` (<=6.4.2) and `pyOpenSSL`, the versions with the advisories; mitmproxy 12.2.3
         needs Python 3.12, and the image is Debian 12's (Python 3.11.2). So: rebuild it on Debian
         13 with mitmproxy 12, after checking OpenSandbox's addon (`mitmscripts/system.py`, with
         Gen9's `sni-binding.py`) and its `config.yaml` against mitmproxy 12's changes; or show which
         advisories mitmproxy reaches (it reads bodies with `h11`'s readers).
-      - [ ] D1c5c execd the same way: its Dockerfile pins `golang:1.25.9` (and Alpine's OpenSSL
+      - [x] D1c5c execd the same way: its Dockerfile pins `golang:1.25.9` (and Alpine's OpenSSL
         3.5.7-r0); config.toml would point at a Gen9 build. First, how the server takes it in: it
         copies `/execd` and others out of the image into each sandbox.
+        Done (2026-10-01). The server takes `/execd`, `bootstrap.sh`, bwrap, the session gate and
+        the launcher out of the image into each sandbox (release-1.1.0's `runtime.py`), using a
+        local image when one is there; `bootstrap.sh` uses neither the supervisor nor the eBPF
+        build. `gen9-sandbox/execd/Dockerfile` rebuilds `/execd` from `docker/execd/v1.1.0`'s
+        commit (`48b0215f`) with Go 1.26.8 and the modules OpenSandbox's main has (grpc 1.83.2,
+        `x/net` 0.58.0, `x/text` 0.41.0), `x/crypto` one further (0.56.0, its SSH servers' fix),
+        removes `execd-ebpf`, `execd.exe` and the supervisor, and takes Alpine's updates (OpenSSL
+        3.5.9-r0); Compose builds it (`execd-image`) and `config.toml` names it. govulncheck: 21
+        reached to none. A `depends_on` change doesn't make Compose recreate the server, which
+        reads its config only at start: `docker compose restart opensandbox` did (the README says
+        so); it also keeps execd's files in memory, so a rebuilt execd needs that restart too.
+        Go 1.25 is no longer supported: Go supports a major release until two newer ones are out,
+        and 1.27.0 came out 2026-08-19 with 1.25.14, the last 1.25 (go.dev's release history). So
+        egress and execd are both built with Go 1.26.8 (2026-09-01), which `x/crypto` 0.56.0 also
+        needs: govulncheck finds none reached in `egress`, its supervisor or `/execd`.
+        Live, on Go 1.26.8: a sandbox's `/opt/opensandbox/execd` is go1.26.8;
+        `e2e/environments.mjs` 24 of 24; `e2e/stop.mjs` passes (Stop, an admin disabling a person,
+        `make stop-agents` and `resume-agents`; $0.0037); the egress probe as in D1c5a. On Go
+        1.25.14 first, the same three passed ($0.0045). `make scan` on execd: one Low left.
+        Renovate's script no longer reads `config.toml` (no pin left there; execd's is in its
+        Dockerfile), and `make updates` runs (49 references).
     - [ ] D1c6 Temporal's UI: its next release (grpc 1.83.2 on main); `make scan` on it.
     - [ ] D1c4 OpenSSL's DSA-6531-1 (and pcre2's DSA-6530-1) in every Debian 13 image, once
       Grype's database has them: announced 2026-09-30 06:10 UTC, after the 00:35 data of the

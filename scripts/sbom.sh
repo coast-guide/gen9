@@ -22,8 +22,8 @@ STACKS=${STACKS:-postgres keycloak langfuse temporal models sandbox agent ui}
 tools() { docker build -q -t "$TOOLS" scripts/sbom >/dev/null; }
 asked() { case " $STACKS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
-# Every image of the stacks, all profiles included, and two outside their Compose files: OpenSandbox's
-# execd, which it adds to each environment, and the environments' own image (SANDBOX_IMAGE in
+# Every image of the stacks, all profiles included, and two the sandbox server starts: the execd it
+# adds to each environment (config.toml's), and the environments' own image (SANDBOX_IMAGE in
 # gen9-agent/.env, or its default in settings.py)
 images() {
   for s in $STACKS; do

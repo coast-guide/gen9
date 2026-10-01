@@ -22,6 +22,8 @@ services:
     depends_on:
       egress-image:
         condition: service_completed_successfully
+      execd-image:
+        condition: service_completed_successfully
     environment:
       SANDBOX_CONFIG_PATH: /etc/opensandbox/config.toml
       OPENSANDBOX_SERVER_API_KEY: ${SANDBOX_API_KEY:?run ./init-env.sh first}
@@ -62,6 +64,15 @@ services:
     logging: *logging
     build: egress
     image: gen9-sandbox-egress:release-1.1.0
+    entrypoint: ["true"]
+    restart: "no"
+
+  # Not a service that runs either: builds the execd the server copies into every sandbox
+  # (config.toml's execd_image), OpenSandbox's with /execd rebuilt with a current Go (execd/)
+  execd-image:
+    logging: *logging
+    build: execd
+    image: gen9-sandbox-execd:v1.1.0
     entrypoint: ["true"]
     restart: "no"
 
