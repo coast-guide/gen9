@@ -3218,9 +3218,18 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
   - [ ] D4b Langfuse's images, once Docker Hub's limit resets; and a check of every locked Python
     package with provenance against the repository it names, from the lock's hashes without
     downloading (pypi-attestations as a library), if it can run in `make audit`.
-- [ ] D5 The repository's own chain: the workflow's actions are pinned by SHA; `main` has no
+- [x] D5 The repository's own chain: the workflow's actions are pinned by SHA; `main` has no
   protection (GitHub's API answers 403 for a private repository on the free plan). What that
   leaves (A03's "separation of duties"), and what the owner can turn on for free.
+  Done (2026-10-01): read with GitHub's API, nothing changed (settings are the owner's). The
+  premise is out of date: the repository is public now, and the owner has set two rulesets
+  ("Protect main": pull requests only, squash, conversations resolved, seven required checks, a
+  CodeQL gate at error and high-severity alerts, no force push or deletion, linear history, no
+  bypass; "Protect release tags": `v*` neither moved nor deleted), SHA pinning required for
+  actions, read-only default workflow permissions, secret scanning with push protection,
+  Dependabot alerts and security updates (and `dependabot.yml` for the actions, 7-day cooldown),
+  private vulnerability reporting, immutable releases and CodeQL's default setup. What's left and
+  the free options: `docs/development.md`, "Checks". Reviews: 0 required, one maintainer.
 - [ ] D6 Unmaintained components (CWE-1104): each direct dependency's last release and whether
   it's archived or deprecated (npm's deprecation notices, PyPI's yanked releases).
 
