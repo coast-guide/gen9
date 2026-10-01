@@ -10,4 +10,3 @@
 
 - [ ] The docs that describe this changed in the same pull request (AGENTS.md, "Keep the top level in sync")
 - [ ] No secrets, `.env` values or personal data in the diff, the logs or screenshots
-- [ ] The commit message is a subject and a body, with no co-author, "assisted by", session or "generated with" lines
