@@ -289,13 +289,15 @@ answered (gen9-agent/README.md, "Models").
 
 Two limits bound what Gen9 can spend, both set in `.env` and applied on the next
 `docker compose up -d --wait`:
-- **Each person's.** A new install limits each person to $20 a month, so no one person's
-  runs, or a stolen account's, can spend without end (OWASP API Security Top 10, API4). The
-  period, `GEN9_USER_BUDGET_PERIOD=30d`, is a calendar month to LiteLLM: a `30d` budget resets
-  on the 1st at 00:00 UTC, for everyone at once, however recently a person joined
-  (`litellm_core_utils/duration_parser.py`, `_handle_day_reset`; the default budget's
-  `budget_reset_at` was the 1st of the next month). An
-  install from before keeps what its `.env` says: set `GEN9_USER_BUDGET_USD` there to add a limit.
+- **Each person's.** A new install limits each person to $1 a day, so no one person's runs, or
+  a stolen account's, can spend without end (OWASP API Security Top 10, API4), and so no one
+  person can use up gen9-agent's day for everyone: $1 is a fifth of its $5. LiteLLM gives an end
+  user one budget period, and a second, per model (`model_max_budget`), needs its enterprise
+  licence (docs/plans/manual-e2e.md, P6-E2), so the period is the day the shared key counts in.
+  A `1d` budget resets at 00:00 UTC; a `30d` one is a calendar month to LiteLLM, resetting on the
+  1st at 00:00 UTC for everyone at once (`litellm_core_utils/duration_parser.py`,
+  `_handle_day_reset`). An install from before keeps what its `.env` says ($20 a `30d` month on
+  one from before this change): set `GEN9_USER_BUDGET_USD` and `GEN9_USER_BUDGET_PERIOD` there.
 - **gen9-agent's, whoever it works for.** Its key may spend at most `GEN9_AGENT_BUDGET_USD` a day
   ($5), the backstop for what one person's limit doesn't cover: many people at once, or a loop
   or bug outside a person's turns. Past it, every call gets the router's budget error until the
@@ -308,8 +310,8 @@ tokens) cost $0.18.
 
 | Variable | Meaning | Default |
 | --- | --- | --- |
-| `GEN9_USER_BUDGET_USD` | USD a user may spend per period; empty for no limit | `20` for a new install (earlier installs: empty) |
-| `GEN9_USER_BUDGET_PERIOD` | The period, such as `30d`, `7d`, `1d` | `30d` |
+| `GEN9_USER_BUDGET_USD` | USD a user may spend per period; empty for no limit | `1` for a new install (earlier installs: what their `.env` says) |
+| `GEN9_USER_BUDGET_PERIOD` | The period, such as `1d`, `7d`, `30d` | `1d` |
 | `GEN9_USER_RPM` | Model requests a user may make per minute; empty for no limit | empty |
 | `GEN9_AGENT_BUDGET_USD` | USD gen9-agent's key may spend per day, for everyone together; empty for no limit | `5` |
 

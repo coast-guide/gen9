@@ -853,7 +853,7 @@ Model use: <mark>All of your limit</mark>: it resets on &lt;date&gt;</div>
         <div class="where browser">On the page</div>
         <div class="out"><span class="cap">verified</span>Gen9 couldn’t finish  <mark>You've reached your model usage limit.</mark> It resets on &lt;date&gt; at 00:00 UTC: try again then, or ask an admin.  [Retry]</div>
         <p>The router refused the call before any provider saw it, so the run parked for <em>Retry</em> after one attempt, a request of kind <code>retry</code> as above. With the limit lifted, <em>Retry</em> finished the same run.</p>
-        <div class="why"><b>Where the number comes from</b><p>Settings asks gen9-agent (<code>GET /v1/me/limit</code>), which asks gen9-models' admin API for the person's spend and budget: $20 a month on a new install (<code>GEN9_USER_BUDGET_USD</code>, <code>GEN9_USER_BUDGET_PERIOD</code>: <code>30d</code>, which LiteLLM resets on the 1st of each month at 00:00 UTC, for everyone at once, however recently a person joined), counted from every call made under their <code>sub</code>. Part 10 reads the budgets themselves.</p></div>
+        <div class="why"><b>Where the number comes from</b><p>Settings asks gen9-agent (<code>GET /v1/me/limit</code>), which asks gen9-models' admin API for the person's spend and budget: $1 a day on a new install (<code>GEN9_USER_BUDGET_USD</code>, <code>GEN9_USER_BUDGET_PERIOD</code>: <code>1d</code>, which LiteLLM resets at 00:00 UTC), a fifth of what the worker's key may spend in a day, so one person can't use up the day for everyone; counted from every call made under their <code>sub</code>. Part 10 reads the budgets themselves.</p></div>
         <div class="where code">In the code</div>
         <ul><li><code>gen9-ui/lib/limit.ts</code>: the words; <code>gen9-agent/src/gen9_agent/runs/executor.py</code>: a refusal for the budget becomes <code>BudgetExceeded</code>, which parks the run; <code>gen9-models/admin/app.py</code>: the person's usage.</li></ul>
       </div>
@@ -2093,7 +2093,7 @@ worker: DATABASE_USER=gen9_agent_app</div>
       <h3>What it may spend <label><input type="checkbox" data-done> Done</label></h3>
       <p class="do">Read the limits: each person's, the worker key's, and a turn's.</p>
       <div class="cmd"><pre><code data-check="run">docker exec gen9-models-postgres-1 psql -U litellm -d litellm -tA -F ' | ' -c "select 'each person', max_budget, budget_duration from \"LiteLLM_BudgetTable\" where budget_id = 'gen9-user-default' union all select key_alias, max_budget, budget_duration from \"LiteLLM_VerificationToken\" where key_alias in ('gen9-agent', 'gen9-evals') order by 1"</code></pre></div>
-      <div class="out"><span class="cap">verified</span><mark>each person | 20 | 30d</mark>
+      <div class="out"><span class="cap">verified</span><mark>each person | 1 | 1d</mark>
 <mark>gen9-agent | 5 | 1d</mark>
 gen9-evals | 5 | 1d</div>
       <div class="cmd"><pre><code data-check="run">docker exec gen9-agent-worker-1 python -c "from gen9_agent.grounding import MODEL_CALLS_PER_TURN, MODEL_CALLS_PER_TURN_ALL, SEARCHES_PER_TURN; print(MODEL_CALLS_PER_TURN, 'model calls an agent,', MODEL_CALLS_PER_TURN_ALL, 'in all, and', SEARCHES_PER_TURN, 'searches a turn')"</code></pre></div>
