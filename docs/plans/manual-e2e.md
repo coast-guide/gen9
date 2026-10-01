@@ -43,9 +43,12 @@ Given by the owner, for this plan and for every session that resumes it:
    next phase's large list here as a new section ("Phase 2", …), committing it, and working
    through it the same way. Each new list goes deeper where the last one found problems, covers
    what it couldn't reach, and adds what changed since.
+   **Stopped by the owner after phase 7** (2026-10-01: "stop after phase 7"). Another phase
+   starts only when they ask; P7-Z2 lists what it would cover.
 8. **A 5-minute keep-alive** (a session cron job, `*/5 * * * *`, re-created by any session that
    finds none: session jobs die with the session and expire after 7 days) re-reads this file
-   and continues the first unchecked item. It changes nothing while work is under way.
+   and continues the first unchecked item. It changes nothing while work is under way. Not
+   needed since the owner stopped the loop after phase 7.
 9. **CI runs on every pull request and on `main`** since the repository went public (it was
    paused before, by hand only). Changes reach `main` only through a pull request (AGENTS.md,
    "Rules"). Run its checks locally before each commit anyway (AGENTS.md, "Checks"), and
@@ -3842,8 +3845,32 @@ served as attachments with `nosniff` and a sandbox CSP (P2-F6, P3-F2).
 
 ### P7-Z. Cleanup, then phase 8
 
-- [ ] Z1 Everything this phase made removed; `make e2e` on the result.
+- [x] Z1 Everything this phase made removed; `make e2e` on the result.
+  - **Cleanup:** removed the two chats of F1 and F2's image tests. Keycloak holds only the two
+    seeded people and no self-registered client; no sandbox was left. The throwaway https server
+    and the probes' sandboxes ended with their runs.
+  - **`make e2e` (2026-10-01, from 08:43 UTC, the stacks at the top of phase 7's stack):** every
+    script before `context` passed, 373 checks. Then `context.mjs` failed one step: a turn told
+    "Reply with only: noted." answered "Memory is off, so I …" (memory is off for that check),
+    and the step read any answer of 40 characters or more as a summary leaking into it.
+  - **Fixed the step:** a leak is now an answer with the summarizer's wording ("has been
+    summarized", "conversation history") or over 400 characters.
+  - **Rerun from `context` to the end:** 321 checks, none failed.
+  - **Spend:** $0.216 for the whole chain (2.0795 to 2.2953 USD).
 - [ ] Z2 Start phase 8 (standing instruction 7): today's sources first, then the next large list.
+  - **Not taken:** the owner stopped the loop after phase 7 (2026-10-01).
+  - **What phase 8 would cover**, from OWASP ASVS 5.0's chapters not yet walked requirement by
+    requirement (read today):
+    - **V6 (authentication):** every way to sign in documented with its controls (6.1.1,
+      6.1.3); 6.2's password rules, tried live; multi-factor for everyone or only admins, as
+      today (6.3.3, L2: a decision to make); the second step's details (6.5).
+    - **V7 (sessions):** the documentation 7.1 asks for; ending other sessions after a factor
+      changes (7.4.3); re-authentication before changing what signs in (7.5.1) and before
+      ending other sessions (7.5.2).
+    - **V3, the rest:** the headers on every surface's responses (3.4.4, 3.4.6); one hostname per
+      application (3.5.4); `postMessage` checks in MCP Apps (3.5.5).
+    - **Then V1 (encoding, injection), V2 (validation, business logic) and V15 (secure coding)**,
+      which would complete ASVS 5.0 at L2. V17 (WebRTC) has nothing in Gen9.
 
 ## Surprises & Discoveries
 

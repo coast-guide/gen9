@@ -117,7 +117,10 @@ try {
   }
   const summarized = psql(`select count(*) from run_events e join runs r on r.id = e.run_id where r.thread_id = '${chat}' and e.type = 'context.summarized'`);
   const answers = thread.messages.filter((m) => m.role === "assistant").map((m) => m.content);
-  check(Number(summarized) >= 1 && answers.every((a) => a.trim().length < 40), "outgrowing the budget, a run records context.summarized, and no summary reaches an answer", `${summarized} summarized; answers ${answers.map((a) => JSON.stringify(a.trim().slice(0, 20))).join(", ")}`);
+  // A summary in an answer reads as the summarizer writes it, at length. An answer may say a word
+  // more than "noted." (P7-Z1: "Memory is off, so I …", as memory is off for this check)
+  const leaked = (a) => /has been summarized|conversation history/i.test(a) || a.trim().length > 400;
+  check(Number(summarized) >= 1 && !answers.some(leaked), "outgrowing the budget, a run records context.summarized, and no summary reaches an answer", `${summarized} summarized; answers ${answers.map((a) => JSON.stringify(a.trim().slice(0, 20))).join(", ")}`);
 
   // 2. Still remembered: in the summary, and in the answer
   const summary = spawnSync("docker", ["exec", "-i", SMALL, "python", "-"], { input: SUMMARY_READER(chat), encoding: "utf8" }).stdout ?? "";

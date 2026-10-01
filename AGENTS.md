@@ -104,10 +104,11 @@ Only then implement. The same applies to design and UX work, and to any change o
   ask for short answers in checks, run costly scenarios once, measure the router's spend log
   before and after, and run any subagents on a cheaper model. Work autonomously: the owner
   isn't there to ask.
-- The verification work is a continuous loop of phases (the owner): when a phase's
-  list is done, its last task is the next phase: /rigor first (date, primary sources, zero
-  assumptions), then the next large list in `docs/plans/manual-e2e.md`, then work through it.
-  Never stop. Keep a 5-minute keep-alive cron job running (create it if the session has none).
+- The verification work ran as a loop of phases in `docs/plans/manual-e2e.md` (each phase's
+  last task the next one: /rigor first, then the next large list) until the owner stopped it
+  after phase 7 (2026-10-01). Start another phase only when the owner asks; P7-Z2 says what it
+  would cover. Its open waits (P7-A1 to A3) are done when they land. No keep-alive cron is
+  needed meanwhile.
 - Secrets: never print, commit or paste values of `.env` or `*.local.env` files; print key names.
   Scripts that need a user's token use `e2e/token.mjs` (device flow, confirmed in headless Chrome).
 - Browser automation driven by an agent must not type passwords; password flows run in Puppeteer
