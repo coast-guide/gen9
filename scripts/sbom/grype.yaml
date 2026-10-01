@@ -18,3 +18,36 @@ ignore:
       version: go1.24.6
       location: /usr/local/bin/gosu
     reason: gosu 1.19 calls none of Go 1.24.6's vulnerable functions (govulncheck); gosu's SECURITY.md
+
+  # MinIO's client, `mc`, which minio-lifecycle runs to set the raw events' expiry: x/crypto
+  # v0.55.0 (SSH server code, GO-2026-6354, GO-2026-6355) and etcd's client v3.5.19
+  # (GO-2026-6107). govulncheck v1.8.0 -mode=binary on this `mc` (2026-10-01): "Your code is
+  # affected by 0 vulnerabilities". The server binary has newer ones of both.
+  - package: {name: golang.org/x/crypto, version: v0.55.0, location: /usr/bin/mc}
+    reason: MinIO's mc calls none of x/crypto v0.55.0's vulnerable functions (govulncheck)
+  - package: {name: go.etcd.io/etcd/client/pkg/v3, version: v3.5.19, location: /usr/bin/mc}
+    reason: MinIO's mc calls none of etcd's client v3.5.19's vulnerable functions (govulncheck)
+
+  # Langfuse 4.48.0: deepmerge-ts 7.1.5 is Prisma 6.19.3's config loader's (@prisma/config), which
+  # Langfuse runs at start to apply its migrations, merging its own settings. The advisory
+  # (GHSA-ggr8-5vv4-36mx, stack exhaustion) needs two self-referencing objects merged: nothing
+  # from outside reaches it. Langfuse's own code has 8.0.2.
+  - vulnerability: GHSA-ggr8-5vv4-36mx
+    package: {name: deepmerge-ts, version: 7.1.5}
+    reason: only Prisma's config loader, on Langfuse's own settings, at start
+
+  # LiteLLM v1.103.1: PyJWT 2.13.0. Its six advisories are about verifying with public keys or
+  # JWKS (algorithm confusion, JWK handling, following redirects for a JWKS): LiteLLM's JWT auth
+  # and SSO, neither of which Gen9's router configures (no enable_jwt_auth, no SSO settings, the
+  # admin UI off: gen9-models/compose.yaml). LiteLLM's main has PyJWT 2.15.0 for its next release.
+  - package: {name: pyjwt, version: 2.13.0}
+    reason: LiteLLM's JWT auth and SSO, where PyJWT verifies with public keys or JWKS, are off in Gen9
+  # Wolfi's glibc 2.44-r1 (CVE-2026-19499, in strfmon) and zlib 1.3.2-r5 (CVE-2026-85091, in the
+  # non-blocking gzwrite path) in LiteLLM's image: Python's locale and gzip call neither. Fixed in
+  # Wolfi; LiteLLM's next image brings them.
+  - vulnerability: CVE-2026-19499
+    package: {version: 2.44-r1}
+    reason: strfmon, which nothing in LiteLLM's Python calls
+  - vulnerability: CVE-2026-85091
+    package: {name: zlib, version: 1.3.2-r5}
+    reason: zlib's non-blocking gz* file writes, which Python's gzip doesn't use

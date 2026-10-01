@@ -2,7 +2,7 @@
 
 The model router: every model Gen9 uses, of every kind and wherever it is hosted, reached through
 one OpenAI-compatible API by **alias**. It runs [LiteLLM Proxy](https://github.com/BerriAI/litellm)
-v1.103.0 (MIT) with a Postgres of its own for keys, budgets and spend. gen9-agent asks for `chat`
+v1.103.1 (MIT) with a Postgres of its own for keys, budgets and spend. gen9-agent asks for `chat`
 or `embed`, never for a vendor's model. Which model answers is decided here, in `config.yaml`,
 and provider keys never leave this stack. Why LiteLLM: the Decision Log in
 [docs/plans/harness.md](../docs/plans/harness.md).

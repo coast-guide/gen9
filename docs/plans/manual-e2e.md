@@ -3002,9 +3002,29 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
     - [ ] D1c1 Python 3.12.15 (tagged 2026-09-30, with three `tarfile` fixes, CVE-2026-82049 the
       High; Grype places it at 3.14.0b1 from NVD's range) for gen9-agent and the environments'
       image, once its official image is out (`make updates`).
-    - [ ] D1c2 Pins with a newer image: MinIO's `latest` (rebuilt: 6a1d0b45 to 4692462f; Go's
+    - [x] D1c2 Pins with a newer image: MinIO's `latest` (rebuilt: 6a1d0b45 to 4692462f; Go's
       `x/crypto`, etcd), LiteLLM v1.103.1 (`pyjwt` 2.13.0, Wolfi's glibc and zlib), and Langfuse
       (`deepmerge-ts`, `nodemailer`; Renovate can't read its registry, so by hand).
+      Done (2026-10-01): the three moved, each read and verified first, then live:
+      - LiteLLM v1.103.1: a security patch (UI and CLI session tokens bound to their own AES-GCM
+        context), released with v1.102.2, v1.101.3 and v1.100.4 within three minutes. Its image's
+        cosign signature checked against LiteLLM's key at the pinned commit its notes give.
+      - Langfuse 4.48.0 (web and worker): 4.47.0 moved `nodemailer` to 10.0.9 (the advisory's
+        fix is 10.0.6); its new ClickHouse writer is opt-in (#17941). The upstream
+        `docker-compose.yml` is the same at 4.48.0. No image signature to check.
+      - MinIO: the new digest's signature is Chainguard's release workflow's.
+      - Live: all healthy; Langfuse's health says 4.48.0, its ClickHouse tables are the same,
+        MinIO's expiry rule was set again; `e2e/stacks.mjs` and `e2e/models.mjs` pass (the
+        router, budgets, a trace in Langfuse under the model that answered, priced; $0.0016).
+      - What the new images still have, each checked and accepted in `scripts/sbom/grype.yaml`
+        with its reason, pinned to its version: MinIO's findings are all in `mc` (the client
+        minio-lifecycle runs), where govulncheck finds 0 reached (the server binary has newer
+        `x/crypto` and etcd; govulncheck finds one reached there, GO-2026-5932, `openpgp`, with no
+        fix); Langfuse's `deepmerge-ts` 7.1.5 is Prisma's config loader's, at start, on
+        Langfuse's own settings; LiteLLM's PyJWT 2.13.0 advisories all need verifying with public
+        keys or JWKS (LiteLLM's JWT auth and SSO, off in Gen9; its main has 2.15.0); Wolfi's
+        glibc `strfmon` and zlib's non-blocking `gzwrite`, which LiteLLM's Python doesn't call.
+      `make scan` now passes for both stacks but Redis 7.4.11 (D1c3).
     - [ ] D1c3 Images with nothing newer: Redis 7.4.11 (Debian 12's OpenSSL 3.0.20, a Critical
       among four; 8.x is a major), Temporal's UI 2.54.1 (Go modules), OpenSandbox's server
       (Python 3.10.21), its egress (mitmproxy 11.0.2's `h11` 0.14.0, Critical, `cryptography`,
