@@ -3248,6 +3248,14 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
     uses httpx2 for the MCP transport, and httpx for the rest.
   - [ ] D6a ESLint 10 for gen9-ui (its 9 is deprecated): read its migration guide and
     eslint-config-next's support first.
+    Tried (2026-10-01), blocked upstream: ESLint 10.0.0 came out 2026-02-06 and 9 is past its
+    maintenance. gen9-ui's config is flat already, as 10 requires, and eslint-config-next 16.3.8
+    accepts `eslint >=9`. But it bundles eslint-plugin-react, whose latest release (7.37.5,
+    2025-04-03) accepts ESLint up to ^9.7 and fails on 10: `npx eslint .` stopped at "Error while
+    loading rule 'react/display-name': contextOrFilename.getFilename is not a function" (a
+    `context` member 10 removed). Its "ESLint v10 compatibility" issue (#3977) is open. Reverted;
+    eslint is a lint-time tool, never in an image. Next: when eslint-plugin-react releases
+    support, or eslint-config-next drops it.
   - [ ] D6b httpx to httpx2 in gen9-agent's and gen9-cli's own code (the libraries Gen9 uses keep
     their own): what changes, and whether the agent's dependencies move with it.
 
