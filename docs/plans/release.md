@@ -64,7 +64,7 @@ something to do". Then: "looks good logo and everything".
   `gen9-learn/verify/lib.mjs` hold the one default per platform; 41 scripts lost their own copy.
   Verified on Linux with `CHROME_PATH` unset: `a11y.mjs` (every screen) and `token.mjs` (the
   terminal's sign-in, confirmed in headless Chrome) pass. `make e2e` as a whole: M5.
-- [ ] M5 The whole system verified on a fresh Linux machine (Validation).
+- [x] M5 The whole system verified on a fresh Linux machine (Validation).
   - [x] The 46 checks of `make e2e`, each by itself, `CHROME_PATH` unset: 43 passed, 3 failed for the
     checks' own reasons (Surprises), fixed, and pass.
   - [x] gen9-learn's `node run.mjs`, in full: 253 steps pass; 2 hold only on the shipped settings
@@ -84,7 +84,11 @@ something to do". Then: "looks good logo and everything".
   - [x] `make wipe` then `make up` (empty data, the seeded users again, the settings kept);
     `make distclean` (every settings file gone, no tracked file changed); `make fresh` with the
     provider key in its environment (162 s).
-  - [ ] On the fresh install: `make e2e` as one command.
+  - [x] On the fresh install: `make e2e` as one command, `CHROME_PATH` unset: exit 0, the 46
+    checks, 655 steps, one skip by design (rerank, off unless gen9-models' `local` profile runs),
+    in 45 minutes, about $0.18 of model calls. It took three fixes to the checks to get there, each
+    found by a run on the new install (Surprises: the HNSW index, the directory's first pass, the
+    background check's wording).
 - [x] M6 The licence and notices: `LICENSE` (Apache-2.0, the text as apache.org publishes it), `NOTICE`
   (what the repository carries from other projects, each with its licence and where its text is),
   and the README's first paragraph and "Licence" section.
@@ -97,9 +101,17 @@ something to do". Then: "looks good logo and everything".
     read-only; no wiki or projects; squash merges, branches deleted after merge.
   - [x] CI started by hand on `main` (the workflow as it was, `workflow_dispatch`): see the pull
     request that turns it on for the result.
-  - [ ] `SECURITY.md`, `.github/dependabot.yml`, CI on every pull request and on `main`; then the
-    ruleset requires its jobs.
-- [ ] M8 The README and the docs, for people and for any AI agent (Decision Log, "The README").
+  - [x] `SECURITY.md`, `.github/dependabot.yml`, CI on every pull request and on `main` (pull request
+    #1: its 7 CI jobs, CodeQL and the Dependabot config check passed); then the ruleset requires
+    the 7 jobs to pass, and CodeQL to find no new alert rated high or higher, before a merge.
+  - [x] CodeQL's first scan, triaged: 15 alerts (Surprises, "CodeQL's first scan"). One is fixed
+    (`gen9-models/scripts/ensure-keys.py` no longer prints the router's error text, which can
+    quote the key; it prints the status and points to the router's log); the 14 others are
+    dismissed on GitHub, each with its reason. Verified: the script's own `ensure_scoped_key`
+    against a fake router whose error echoes the request printed the key before the change and
+    only the status after it; on the running stacks the keys job still sets and reads back every
+    key.
+- [x] M8 The README and the docs, for people and for any AI agent (Decision Log, "The README").
   - [x] `README.md`: what Gen9 is and does, a quick start, how it is built, where to read more, and
     where agents start; everything else it held moved, word for word, to `docs/operations.md`
     (requirements, setup, everyday commands, upgrade, backup, stopping the agents, starting over,
@@ -189,6 +201,32 @@ something to do". Then: "looks good logo and everything".
   The check waited for Cloudflare's server only. It waits for both servers it searches for now.
   Evidence: once the pass had reached GitHub's server, the check passed all six steps, the pass
   still running.
+- **CodeQL's first scan.** Default setup found 15 alerts, 2 of them critical. None is an
+  exploitable hole, and one was worth changing:
+  - `ensure-keys.py` printed the router's error text when a key couldn't be set, and that text
+    can quote the request, which holds the key (a fake router that echoes the request showed the
+    key printed). It now prints the status and points to the router's own log. CodeQL's own
+    reason was elsewhere: its source is the constant `API_KEY_ALIAS = "gen9-agent-api"`, whose
+    name matches its pattern for passwords, flowing into the printed alias (read from the
+    analysis' SARIF), so it kept flagging the line after the fix, and the alert on pull request
+    #2 was dismissed as a false positive; the merge gate then passed. Its
+    other four alerts print an alias, a status, a scope or a description: false positives.
+  - "Full server-side request forgery" in `connector_auth.py`: a connector is fetched at the
+    address a person gives, by design; `check_url` refuses private addresses and the connection
+    pins the address it checked. "Server-side request forgery" in gen9-ui's `agentFetch`: every
+    caller passes an absolute `/v1/` path whose ids were validated as UUIDs first. Both false
+    positives.
+  - Eight in `e2e/` and gen9-learn's verifier (test code), one in a throwaway probe under
+    `explore/`. Dismissed as used in tests, or won't fix, each with its reason on GitHub.
+- **`background.mjs` failed on the model's wording, twice in six runs.** The final `make e2e` from
+  the working copy stopped at "Allow in the chat lets the task go on: it wrote the memory" (the
+  check restores the memory afterwards and printed no detail, so what was written is lost); three
+  runs of the check alone then passed that step, and the third failed "the agent starts a task in
+  the background": the task was started and linked, but the answer quoted the task's
+  description, code word included, and the check read any code word in the answer as the agent
+  having done the task itself. Now it asks whether the turn called `check_async_task`, the
+  tool that fetches a task's result, and the memory step prints what the memory said when it
+  fails.
 - **Three checks deleted their chat by the menu's first item.** `runs.mjs`, `models.mjs` and
   `plugins.mjs` clicked the first `[role=menuitem]` under "Chat options". Since the menu has
   "Rename" above "Delete chat", that opened the rename field, no dialog came, and the chat stayed:
@@ -312,6 +350,15 @@ something to do". Then: "looks good logo and everything".
 ## Outcomes & Retrospective
 
 (at each milestone)
+
+- M5: every command of Validation ran on a Linux/amd64 machine that had never run Gen9, and `make
+  e2e` passed as one command on an install `make fresh` had just made. Nothing in the product had
+  to change for it; what failed was the checks' own assumptions: a Mac's Chrome path, a letter-only
+  pattern for settings keys (Gen9's name holds a digit), a menu's first item, a toast scanned while
+  it faded in, and three things only a new install shows (no HNSW index before the first reindex,
+  a registry copy still filling, a model quoting a task back). The backup scripts gained a mount
+  check, and the router's key script stopped printing its error text. Lesson: run the checks on a
+  new install, on the platform people will use, before calling them done.
 
 ## Context
 
