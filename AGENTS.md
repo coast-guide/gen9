@@ -53,7 +53,8 @@ Only then implement. The same applies to design and UX work, and to any change o
   test.
 
   - `async def` for anything that does I/O, with async clients and drivers: SQLAlchemy asyncio with
-    psycopg, `httpx.AsyncClient`, the SDKs' async APIs.
+    psycopg, `httpx.AsyncClient` (gen9-cli: httpx2's, httpx's maintained continuation), the SDKs'
+    async APIs.
   - `asyncio.run` only at the entry point.
   - Nothing blocks the event loop: no `time.sleep`, `requests`, sync HTTP or database calls, or
     blocking file and `pathlib` I/O inside async code.

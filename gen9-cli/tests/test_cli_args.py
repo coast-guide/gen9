@@ -1,7 +1,7 @@
 """The command line (main.parse): words need no quotes, --limit is checked before any call, and a
 refusal from Gen9 is reported in its own words (main.refusal), not as a failure to reach it."""
 
-import httpx
+import httpx2
 import pytest
 
 from gen9_cli.main import parse, refusal
@@ -28,11 +28,11 @@ async def test_limit_is_checked_first(capsys: pytest.CaptureFixture[str]) -> Non
 
 
 async def test_a_refusal_says_why() -> None:
-    plain = httpx.Response(
+    plain = httpx2.Response(
         409, json={"detail": "This chat is answering: wait or stop it."}
     )
     assert refusal(plain) == "This chat is answering: wait or stop it."
-    invalid = httpx.Response(
+    invalid = httpx2.Response(
         422,
         json={
             "detail": [
@@ -45,7 +45,7 @@ async def test_a_refusal_says_why() -> None:
     )
     assert refusal(invalid) == "limit: Input should be less than or equal to 50"
     assert (
-        refusal(httpx.Response(502, text="<html>bad gateway</html>")) == "Bad Gateway"
+        refusal(httpx2.Response(502, text="<html>bad gateway</html>")) == "Bad Gateway"
     )
 
 

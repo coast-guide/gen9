@@ -3,7 +3,7 @@
 import json
 import stat
 
-import httpx
+import httpx2
 import pytest
 
 from gen9_cli import auth
@@ -40,16 +40,16 @@ async def keycloak(
     """A Keycloak whose token endpoint answers with `token_responses`, in order."""
     posted: list[dict] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("/openid-configuration"):
-            return httpx.Response(200, json=DISCOVERY)
+            return httpx2.Response(200, json=DISCOVERY)
         if request.url.path.endswith("/auth/device"):
-            return httpx.Response(200, json=GRANT)
-        posted.append(dict(httpx.QueryParams(request.content.decode())))
+            return httpx2.Response(200, json=GRANT)
+        posted.append(dict(httpx2.QueryParams(request.content.decode())))
         status, body = token_responses.pop(0)
-        return httpx.Response(status, json=body)
+        return httpx2.Response(status, json=body)
 
-    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    http = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
     return await Keycloak.discover(ISSUER, http), posted
 
 

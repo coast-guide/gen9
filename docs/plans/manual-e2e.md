@@ -3256,8 +3256,19 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
     `context` member 10 removed). Its "ESLint v10 compatibility" issue (#3977) is open. Reverted;
     eslint is a lint-time tool, never in an image. Next: when eslint-plugin-react releases
     support, or eslint-config-next drops it.
-  - [ ] D6b httpx to httpx2 in gen9-agent's and gen9-cli's own code (the libraries Gen9 uses keep
+  - [x] D6b httpx to httpx2 in gen9-agent's and gen9-cli's own code (the libraries Gen9 uses keep
     their own): what changes, and whether the agent's dependencies move with it.
+    Done (2026-10-01) for gen9-cli; gen9-agent waits. httpx2's changelog: 2.0.0 renamed the
+    package ("No other public API changed"), and since then dropped only Python 3.9. In the
+    locks, httpx is needed by nothing but gen9-cli in gen9-cli, while in gen9-agent six libraries
+    still need it (a2a-sdk, google-genai, langchain-core, langfuse, langgraph-sdk, opensandbox;
+    openai, anthropic, mcp and langsmith have moved to httpx2). So gen9-cli moved: its dependency
+    and imports are httpx2's, and its lock lost httpx, httpcore and certifi (httpx2 brings
+    httpcore2 and truststore: TLS is checked against the system's certificate store). 43 tests,
+    ruff and ty pass; live, `e2e/audit.mjs` (the terminal's device-flow sign-in, signed out when
+    made admin, signing in again) and `e2e/environments.mjs` (`gen9 ask --attach`, streamed) pass
+    ($0.013). gen9-agent keeps httpx for its own code until those six move: moving it alone
+    removes nothing. AGENTS.md names httpx2 as gen9-cli's async client.
 
 ### P6-E. Left by phase 5
 
