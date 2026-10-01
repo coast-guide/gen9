@@ -3055,12 +3055,26 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
       - Upstream won't fix them by waiting: OpenSandbox's egress and execd Dockerfiles pin
         `golang:1.25.9` and egress `mitmproxy==11.0.2`, on `release-1.1.1-rc.1` and main too
         (main has grpc 1.83.2). Temporal UI's main has grpc 1.83.2, Go 1.26.5.
-    - [ ] D1c5 Egress and execd built in Gen9's own layer, with Go 1.25.13 and a current
+    - [x] D1c5 Egress and execd built in Gen9's own layer, with Go 1.25.13 and a current
       mitmproxy (`h11` 0.14.0 is Critical, GHSA-vqfr-h8mv-ghfj, in the proxy every environment's
       traffic goes through), checked by `e2e/environments.mjs` (secrets reach their hosts, closed
       hosts stay closed, E4b). And for the owner, a report to OpenSandbox: egress and execd built
       with Go 1.25.9 (govulncheck: 14 and 21 reached), egress with mitmproxy 11.0.2, the server on
       Python 3.10 at its end of life.
+      Done in a, b and c below. The report, for the owner to file at opensandbox-group/OpenSandbox
+      (outward actions are the owner's):
+      > **Images built with an unsupported Go, and egress on mitmproxy 11.0.2.** At
+      > `release-1.1.0` and on main, `components/egress/Dockerfile` and
+      > `components/execd/Dockerfile` build with `golang:1.25.9`. Go 1.25 left support when 1.27.0
+      > came out (2026-08-19); govulncheck v1.8.0 `-mode=binary` finds 14 vulnerabilities the
+      > `egress` binary reaches and 21 `execd` reaches (grpc 1.82.1 among them), none when rebuilt
+      > from the same commits with Go 1.26.8 (and execd with main's grpc 1.83.2). Egress pins
+      > `mitmproxy==11.0.2`, which caps `h11` at 0.14.0 (GHSA-vqfr-h8mv-ghfj, read through
+      > `h11`'s `ChunkedReader`), `cryptography`, `tornado` and `pyOpenSSL`; mitmproxy 12 needs
+      > Python 3.12, so Debian 13. The addon in `mitmscripts/` runs unchanged on mitmproxy 12.2.3
+      > in our tests (credential injection, the credential binding, policy closing, DNS denials).
+      > The server's image is on `python:3.10-slim`, whose security support ends about October
+      > 2026 (PEP 619).
       - [x] D1c5a Egress's Go binaries and its OpenSSL (2026-10-01). `egress/Dockerfile` builds
         `egress` and the supervisor from release-1.1.0's commit (`b1a29cf9`, the tag's) with
         `golang:1.25.14-bookworm` and upstream's flags, over OpenSandbox's image, and applies
