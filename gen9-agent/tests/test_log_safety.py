@@ -31,7 +31,8 @@ def record(
 
 async def test_control_characters_are_written_as_their_escapes() -> None:
     assert (
-        escape("a\nb\r\tc\x1b[31m\x7f\x85\u2028") == "a\\nb\\r\\tc\\x1b[31m\\x7f\\x85\\u2028"
+        escape("a\nb\r\tc\x1b[31m\x7f\x85\u2028")
+        == "a\\nb\\r\\tc\\x1b[31m\\x7f\\x85\\u2028"
     )
     assert escape("plain, ünïcode and % signs") == "plain, ünïcode and % signs"
 
