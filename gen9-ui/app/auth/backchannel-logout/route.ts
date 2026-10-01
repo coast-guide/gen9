@@ -1,5 +1,6 @@
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createRemoteJWKSet } from "jose";
 
+import { verifyLogoutToken } from "@/lib/auth/logout-token";
 import { oidc } from "@/lib/auth/oidc";
 import { readBounded } from "@/lib/bounded-body";
 import { deleteSessionsBySid, deleteSessionsBySub, rememberLogoutTokenId } from "@/lib/auth/store";
@@ -8,7 +9,6 @@ import { env } from "@/lib/env";
 // OpenID Connect Back-Channel Logout 1.0: Keycloak POSTs a signed logout token when a session ends
 // elsewhere (sign-out in another app, admin action, "sign out everywhere"). We drop the matching
 // server-side sessions, so the browser is signed out on its next request.
-const LOGOUT_EVENT = "http://schemas.openid.net/event/backchannel-logout";
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
 
@@ -34,16 +34,7 @@ export async function POST(request: Request) {
   if (!token) return reply(400, { error: "invalid_request" });
 
   try {
-    const { payload } = await jwtVerify(token, await keys(), {
-      issuer: env().KEYCLOAK_ISSUER,
-      audience: env().KEYCLOAK_CLIENT_ID,
-      algorithms: ["RS256"],
-      maxTokenAge: "5 minutes",
-      requiredClaims: ["iat", "jti"],
-    });
-    const events = payload.events as Record<string, unknown> | undefined;
-    if (!events || !(LOGOUT_EVENT in events) || "nonce" in payload) throw new Error("not a logout token");
-    if (!payload.sid && !payload.sub) throw new Error("logout token names neither sid nor sub");
+    const payload = await verifyLogoutToken(token, await keys(), env().KEYCLOAK_ISSUER, env().KEYCLOAK_CLIENT_ID);
     if (!(await rememberLogoutTokenId(String(payload.jti), 300))) throw new Error("replayed logout token");
 
     const dropped = payload.sid
