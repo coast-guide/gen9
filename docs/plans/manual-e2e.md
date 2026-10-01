@@ -3070,12 +3070,31 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
         `Host` gets 403, a closed host stays closed after the egress process is killed and the
         supervisor restarts it). `make scan` on it: the Go and OpenSSL findings gone. Go 1.25.14
         is the newest 1.25 (go.dev's list). Moved to Go 1.26.8 in D1c5c, below.
-      - [ ] D1c5b Its mitmproxy: 11.0.2 caps `h11` (<=0.14.0), `cryptography` (<44.1),
+      - [x] D1c5b Its mitmproxy: 11.0.2 caps `h11` (<=0.14.0), `cryptography` (<44.1),
         `tornado` (<=6.4.2) and `pyOpenSSL`, the versions with the advisories; mitmproxy 12.2.3
         needs Python 3.12, and the image is Debian 12's (Python 3.11.2). So: rebuild it on Debian
         13 with mitmproxy 12, after checking OpenSandbox's addon (`mitmscripts/system.py`, with
         Gen9's `sni-binding.py`) and its `config.yaml` against mitmproxy 12's changes; or show which
         advisories mitmproxy reaches (it reads bodies with `h11`'s readers).
+        Done (2026-10-01). Every mitmproxy after 11.0.2 needs Python 3.12 (PyPI). mitmproxy's HTTP/1
+        layer does read bodies with `h11`'s `ChunkedReader` (11.0.2's `_http1.py`). The addon uses
+        flow fields, four hooks, `ctx.options` and `ctx.log` (deprecated, still in 12.2.3), and the
+        changelog to 12.2.3 changes none of them nor the options `config.yaml` sets.
+        `egress/Dockerfile` is now upstream's image on `debian:trixie-slim`: upstream's packages,
+        the Go binaries as in D1c5a, mitmproxy 12.2.3 from `requirements.txt` (uv's universal lock
+        with hashes; `pip --require-hashes`), pip and wheel removed once it's in, and the addon,
+        `config.yaml` and `cleanup.sh` copied from OpenSandbox's image of the release (`system.py`'s
+        checksum unchanged, `sni-binding.py` applies). `make scan`: the Critical and every High
+        gone or accepted. What mitmproxy 12.2.3 still caps below a fix isn't reached by `mitmdump`:
+        `tornado` is imported only by its console and web UIs, `msgpack` by none of its code, and it
+        verifies upstream certificates through pyOpenSSL and OpenSSL, not `cryptography`'s X.509
+        verifier, and decrypts no PKCS#7 (accepted, held to the image's Python path). Live, on
+        that image (a sidecar checked to run it: mitmproxy 12.2.3, Debian 13.7): `e2e/environments.mjs`
+        24 of 24 (secrets reach their hosts through mitmproxy, only reads by default); the egress
+        probe (a steered `Host` gets 403: `sni-binding.py` holds on mitmproxy 12; a closed host stays
+        closed after a restart); a denied lookup logged (`[dns] denied by policy`, C7); nothing in
+        the sidecar's log but its IPv6 loopback note. The first live check read an older sidecar:
+        environments live 30 minutes after use, so pick a sidecar by its image ID.
       - [x] D1c5c execd the same way: its Dockerfile pins `golang:1.25.9` (and Alpine's OpenSSL
         3.5.7-r0); config.toml would point at a Gen9 build. First, how the server takes it in: it
         copies `/execd` and others out of the image into each sandbox.
