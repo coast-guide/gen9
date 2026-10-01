@@ -468,6 +468,7 @@ gen9-ui is the only browser client; gen9-agent allows no origin but Temporal's w
 | A page on another site (`127.0.0.1` is not `localhost`'s site) fetching the chats, the export, a new chat and the API with credentials | Each blocked, and Chrome withholds the session cookie from each (`SchemefulSameSiteLax`) |
 | An HTML and an SVG file attached to a chat, whose scripts would mark Gen9's `localStorage`, opened signed in, and the SVG shown as an image | Each answered `attachment`, `nosniff`, `Content-Security-Policy: sandbox`; opening them downloads them (the page stays put); no script ran as Gen9. It deletes the chat |
 | The CSP's reports | Every screen has the CSP, the sign-in error page (`/auth/error`) too, and none of chat, search, scheduled, settings and that page reports anything; an image injected on `/chat` is blocked, reported, and gen9-ui logs `[csp] img-src blocked https://httpbin.org/image/png on /chat`, its query nowhere in the log |
+| Signed out through the menu (P7-E3) | The pages were sent `private, no-cache, no-store`; no draft, `localStorage` entry (but the theme), database or cache is left on the app's origin; Back goes to Keycloak's sign-in, not a page of theirs |
 
 ## An admin whose access is removed (`demotion.mjs`)
 

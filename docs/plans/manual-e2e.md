@@ -3736,9 +3736,24 @@ M5).
     refuse it.
   - `e2e/README.md`'s list of scripts lacked `admin-api`, `lockout` and `oauth`: now as the
     Makefile has them.
-- [ ] E3 The browser after sign-out (14.3.1) and on a shared computer: `Cache-Control: no-store` on
+- [x] E3 The browser after sign-out (14.3.1) and on a shared computer: `Cache-Control: no-store` on
   pages and answers with personal data (14.3.2; the back button after sign-out), what
   localStorage, IndexedDB and the cache still hold (14.3.3), `Clear-Site-Data`.
+  - **Seen in Chrome, as the seeded user:**
+    - pages and their data come `private, no-cache, no-store, max-age=0, must-revalidate`; only
+      the manifest and icons are cacheable, and they hold nothing of theirs;
+    - the web app's only storage is `sessionStorage`, for unsent drafts (`lib/drafts.ts`), and
+      `next-themes`' `theme` in `localStorage`;
+    - after Sign out through the menu: no draft, no other `localStorage` entry, no database, no
+      Cache Storage;
+    - Back reloads the page, which sends to Keycloak's sign-in.
+  - **A draft outlives a session that ends some other way** (it expired, or Sign out everywhere
+    from another device), in that tab only and under that person's id. That was chosen in P4-C1,
+    so re-authentication doesn't lose what was typed (WCAG 2.2.5).
+  - **No `Clear-Site-Data`:** nothing of the person's is left for it to clear, and its `storage`
+    would also wipe the theme the person picked.
+  - **Kept as a check:** `cross-site.mjs`, step 5. It plants a draft, signs out through the real
+    menu, and finds `no-store`, nothing left, and Back at Keycloak's sign-in: 11 of 11.
 - [ ] E4 Personal data in addresses and to third parties (14.2.1, 14.2.3): query strings in the
   access logs, the router's and Langfuse's copies.
 
