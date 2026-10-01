@@ -6,10 +6,10 @@
 //   self        a client that registers itself: its Client ID Metadata Document's URL is its client
 //               id; Keycloak fetches the document, names the client on the consent screen, and issues
 //               a token for the MCP server (served here at host.docker.internal, which Keycloak reaches)
-// No model call. Tokens are used in memory and dropped.
+// No model call. Tokens are used in memory and dropped, and the self-registered client is deleted.
 import { createServer } from "node:http";
 import { Client as McpClient, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { API, KEYCLOAK, appdb, check } from "../lib.mjs";
+import { API, KEYCLOAK, admin, appdb, check } from "../lib.mjs";
 
 const MCP = `${API}/mcp`;
 const claims = (jwt) => JSON.parse(Buffer.from((jwt ?? "..").split(".")[1] ?? "", "base64url").toString() || "{}");
@@ -83,6 +83,9 @@ export default async function agentsDeeper(ctx) {
     );
   } finally {
     docs.close();
+    // Keycloak keeps a client it registered by its document: removed, so runs don't pile them up
+    const [kept] = (await admin(`/clients?clientId=${encodeURIComponent(documentUrl)}`).catch(() => null)) ?? [];
+    if (kept) await admin(`/clients/${kept.id}`, { method: "DELETE" }).catch(() => {});
   }
   await mcp.client.close().catch(() => {});
   delete ctx.agents;

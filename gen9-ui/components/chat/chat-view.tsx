@@ -48,7 +48,7 @@ import { replacesDraft, settled } from "@/lib/app-asks";
 import { chatTitle } from "@/lib/chat-title";
 import { ANSWERABLE_KINDS } from "@/lib/input-requests";
 import { lengthNote, MAX_MESSAGE_CHARS } from "@/lib/message-length";
-import { untilBroken } from "@/lib/run-events";
+import { completedRest, untilBroken } from "@/lib/run-events";
 import { answerSources, turnOf } from "@/lib/sources";
 import { useStickyInset } from "@/lib/sticky-inset";
 import { cn } from "@/lib/utils";
@@ -155,6 +155,8 @@ export function ChatView({
   const [deleting, startDelete] = useTransition();
   // The run being followed: its id (from `run.queued`) and the last event seen, to resume from
   const run = useRef<{ threadId: string; runId: string | null; lastEventId: string | null } | null>(null);
+  // The text each message of the run has shown, by its id: one the model didn't stream shows when it completes
+  const shown = useRef(new Map<string, string>());
   const listening = useRef<AbortController | null>(null);
   // Stop pressed before the run said its id: stop it as soon as it does (P2-K1)
   const stopWhenKnown = useRef(false);
@@ -195,7 +197,10 @@ export function ChatView({
           void cancelRun(run.current.threadId, run.current.runId);
         }
       }
-      if (event === "run.started" && Number(data.attempt) > 1) updateAnswer((a) => ({ ...a, content: "", steps: [] })); // a new attempt answers again
+      if (event === "run.started" && Number(data.attempt) > 1) {
+        shown.current.clear();
+        updateAnswer((a) => ({ ...a, content: "", steps: [] })); // a new attempt answers again
+      }
       if (event === "status") setStatus(String(data.text));
       if (event === "tool.started") {
         const step = {
@@ -231,7 +236,10 @@ export function ChatView({
       if (event === "input.provided") {
         setRequests((r) => r.filter((x) => x.id !== data.id));
         // Retried: the turn starts again from its checkpoint and writes its answer anew
-        if (data.retry) updateAnswer((a) => ({ ...a, content: "" }));
+        if (data.retry) {
+          shown.current.clear();
+          updateAnswer((a) => ({ ...a, content: "" }));
+        }
         void refreshThreadList();
       }
       if (event === "message.completed" && Array.isArray(data.citations)) {
@@ -248,7 +256,18 @@ export function ChatView({
       }
       if (event === "message.delta") {
         setStatus(null);
+        const id = String(data.id ?? "");
+        shown.current.set(id, (shown.current.get(id) ?? "") + String(data.text));
         setAnswer((content) => content + String(data.text));
+      }
+      if (event === "message.completed") {
+        const id = String(data.id ?? "");
+        const rest = completedRest(shown.current.get(id) ?? "", String(data.text));
+        if (rest) {
+          setStatus(null);
+          shown.current.set(id, String(data.text));
+          setAnswer((content) => content + rest);
+        }
       }
       if (event === "run.completed") return data as RunEnd;
     }
@@ -300,6 +319,7 @@ export function ChatView({
   ) {
     listening.current = controller;
     run.current = { threadId: threadIdToFollow, runId, lastEventId: null };
+    shown.current.clear();
     try {
       const response = await start(controller.signal);
       if (!response) return;

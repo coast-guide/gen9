@@ -35,3 +35,9 @@ export async function* untilBroken(body: ReadableStream<Uint8Array>) {
     if ((error as Error).name === "AbortError") throw error;
   }
 }
+
+/** What a message's `message.completed` adds to the text its deltas showed: all of it for a message the model didn't
+ * stream (a step budget's stop, an answer cut off at its length limit), the rest when it ends with more, else nothing. */
+export function completedRest(shown: string, text: string): string {
+  return text.startsWith(shown) ? text.slice(shown.length) : "";
+}

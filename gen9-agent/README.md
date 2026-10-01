@@ -225,6 +225,13 @@ Every model call goes through gen9-models, the router, by alias; gen9-agent hold
     limit of 150 steps, mine and my helpers' together…".
   - Under both, the router caps each person's spend and the worker's key per day
     (gen9-models/README.md, "Budgets").
+- **An answer's length.** The router stops each answer at 32,000 tokens (gen9-models/README.md,
+  "Budgets"). An answer cut off there keeps its text and gets "I stopped here: this answer
+  reached the longest one answer may be…" after it, and its tool calls are dropped
+  (`OutputLimit`): a tool call cut off in its arguments still parses, truncated, and would run
+  (manual-e2e.md, P6-Z1). The web app and `gen9 ask` show such a message as it ends: they print
+  what a `message.completed` adds to the text its deltas showed, so a message the model didn't
+  stream (this one, a step budget's) shows without a reload.
 - **Traces while Langfuse is down.** The worker's exporter keeps a batch of spans for about 31 s
   (`LANGFUSE_TIMEOUT`, 35 s here; the SDK's default of 5 s gave up after 3 s), retrying 1, 2, 4, 8 and
   16 s apart, so a restart of Langfuse (its web is back in about 26 s) loses nothing. A longer

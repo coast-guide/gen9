@@ -12,6 +12,11 @@
   `MODEL_CALLS_PER_TURN` model calls, whatever the model loops on, with a plain answer saying so.
   Deep Agents allows 9,999 steps, and a model stuck calling tools would spend without end
   (docs/plans/harness.md, "Spend can't run away").
+- **An answer's length.** The router caps each call's output (gen9-models/config.yaml,
+  `max_tokens`). An answer cut off there is useless, or worse: a tool call cut off in its arguments
+  still parses, with them truncated, and would run (half a file written, a command cut short).
+  `OutputLimit` keeps such an answer's text, drops its tool calls and says it was cut off. A
+  model once wrote 114,559 tokens of one tool call's arguments in 13 minutes (manual-e2e.md, P6-Z1).
 
 Deep Agents' subagents don't inherit the main agent's middleware, so the main agent and each
 subagent get their own (agent.py).
@@ -23,6 +28,7 @@ from typing import Any
 from langchain.agents.middleware import (
     AgentMiddleware,
     ModelCallLimitMiddleware,
+    ModelResponse,
     ToolCallLimitMiddleware,
     hook_config,
 )
@@ -45,6 +51,10 @@ MODEL_CALLS_PER_TURN_ALL = 150
 STOPPED_ALL = (
     f"I stopped here: this turn reached its limit of {MODEL_CALLS_PER_TURN_ALL} steps, mine and "
     "my helpers' together, before I finished. Ask me to continue and I'll pick up from here."
+)
+CUT_OFF = (
+    "I stopped here: this answer reached the longest one answer may be, and was cut off, so I "
+    "didn't do what it was about to do. Ask for it in smaller parts."
 )
 
 
@@ -86,6 +96,39 @@ class StepBudget(ModelCallLimitMiddleware):
         return stop
 
 
+def cut_off(message: AIMessage) -> bool:
+    """Whether the model stopped at its output limit: Chat Completions' `finish_reason`, or the
+    Responses API's `incomplete` status."""
+    meta = message.response_metadata
+    if meta.get("finish_reason") == "length":
+        return True
+    reason = (meta.get("incomplete_details") or {}).get("reason")
+    return meta.get("status") == "incomplete" and reason == "max_output_tokens"
+
+
+class OutputLimit(AgentMiddleware):
+    """An answer cut off at the router's output limit: its text kept with `CUT_OFF` after it, its
+    tool calls dropped, so the turn ends there."""
+
+    async def awrap_model_call(self, request, handler):
+        response = await handler(request)
+        result = []
+        for message in response.result:
+            if isinstance(message, AIMessage) and cut_off(message):
+                text = message.text.strip()
+                message = message.model_copy(
+                    update={
+                        "content": f"{text}\n\n{CUT_OFF}" if text else CUT_OFF,
+                        "tool_calls": [],
+                        "invalid_tool_calls": [],
+                    }
+                )
+            result.append(message)
+        return ModelResponse(
+            result=result, structured_response=response.structured_response
+        )
+
+
 class Turn:
     """The model calls one turn has made so far, shared by its agent and subagents: the run's
     context (memory.Gen9Context.turn) reaches the subagents too."""
@@ -114,6 +157,7 @@ class TurnBudget(AgentMiddleware):
 
 
 def middleware() -> list[AgentMiddleware[Any, Any]]:
-    """The grounding for one agent: today's date, the search budget, its step budget, and the
-    turn's, shared with the other agents of the turn."""
-    return [TodaysDate(), search_budget(), StepBudget(), TurnBudget()]
+    """The grounding for one agent: today's date, the search budget, its step budget, the
+    turn's, shared with the other agents of the turn, and what an answer cut off at its length
+    limit may do."""
+    return [TodaysDate(), search_budget(), StepBudget(), TurnBudget(), OutputLimit()]

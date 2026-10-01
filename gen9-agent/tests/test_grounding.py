@@ -18,11 +18,13 @@ from pydantic import Field
 from gen9_agent.agent import subagents
 from gen9_agent.definition import GEN9, AgentDefinition, SubAgentSpec
 from gen9_agent.grounding import (
+    CUT_OFF,
     MODEL_CALLS_PER_TURN,
     MODEL_CALLS_PER_TURN_ALL,
     SEARCHES_PER_TURN,
     STOPPED,
     STOPPED_ALL,
+    OutputLimit,
     StepBudget,
     TodaysDate,
     TurnBudget,
@@ -162,6 +164,7 @@ async def test_every_subagent_is_grounded_and_a_definition_may_declare_its_own_g
             ToolCallLimitMiddleware,
             StepBudget,
             TurnBudget,
+            OutputLimit,
             MemoryRules,
         }
     # The person's plugins' skills, then Gen9's own (plugin_skills.py)
@@ -307,3 +310,88 @@ async def test_a_turn_that_keeps_delegating_ends_at_the_turns_budget() -> None:
     assert context.turn.calls == MODEL_CALLS_PER_TURN_ALL
     assert main.calls + helper.calls == MODEL_CALLS_PER_TURN_ALL
     assert result["messages"][-1].text == STOPPED_ALL
+
+
+class CutOff(BaseChatModel):
+    """Answers once with what the router sends back at its output limit: `text` so far and a
+    tool call whose arguments were cut off but still parse, as langchain-openai streams them
+    (explore/models/output_cap.py). `metadata` is how the stop is said."""
+
+    calls: int = 0
+    text: str = ""
+    metadata: dict = Field(default_factory=lambda: {"finish_reason": "length"})
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
+        self.calls += 1
+        if self.calls > 1:
+            return said(AIMessage("Done."))
+        call = {
+            "name": "look_up",
+            "args": {"thing": "1\n2\n3"},
+            "id": "cut",
+            "type": "tool_call",
+        }
+        return said(
+            AIMessage(self.text, tool_calls=[call], response_metadata=self.metadata)
+        )
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    @property
+    def _llm_type(self) -> str:
+        return "cut-off"
+
+
+@pytest.mark.parametrize(
+    ("text", "metadata"),
+    [
+        ("", {"finish_reason": "length"}),
+        ("Here are the numbers: 1, 2", {"finish_reason": "length"}),
+        (
+            "",
+            {
+                "status": "incomplete",
+                "incomplete_details": {"reason": "max_output_tokens"},
+            },
+        ),
+    ],
+)
+async def test_an_answer_cut_off_at_its_length_limit_runs_nothing_and_says_so(
+    text: str, metadata: dict
+) -> None:
+    # P6-Z1: a tool call cut off in its arguments still parses; it mustn't run
+    LOOKUPS.clear()
+    model = CutOff(text=text, metadata=metadata)
+    agent = create_deep_agent(
+        model=model,
+        tools=[look_up],
+        checkpointer=InMemorySaver(),
+        middleware=middleware(),
+    )
+    result = await agent.ainvoke(
+        {"messages": [{"role": "user", "content": "save the numbers"}]},
+        {"configurable": {"thread_id": str(uuid.uuid4())}},
+    )
+    last = result["messages"][-1]
+    assert LOOKUPS == []
+    assert model.calls == 1
+    assert not last.tool_calls
+    assert last.text == (f"{text}\n\n{CUT_OFF}" if text else CUT_OFF)
+
+
+async def test_an_answer_that_finished_is_left_as_it_is() -> None:
+    LOOKUPS.clear()
+    model = CutOff(metadata={"finish_reason": "tool_calls"})
+    agent = create_deep_agent(
+        model=model,
+        tools=[look_up],
+        checkpointer=InMemorySaver(),
+        middleware=middleware(),
+    )
+    result = await agent.ainvoke(
+        {"messages": [{"role": "user", "content": "save the numbers"}]},
+        {"configurable": {"thread_id": str(uuid.uuid4())}},
+    )
+    assert LOOKUPS == ["1\n2\n3"]
+    assert result["messages"][-1].text == "Done."
