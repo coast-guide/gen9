@@ -67,7 +67,9 @@ const REDIRECT = `http://127.0.0.1:${callback.address().port}/callback`;
 const arrived = new Map();
 callback.on("request", (req, res) => {
   const query = new URL(req.url, REDIRECT).searchParams;
-  arrived.get(query.get("state"))?.(Object.fromEntries(query));
+  // Only a request this script made has a waiting function under its state
+  const waiting = arrived.get(query.get("state") ?? "");
+  if (typeof waiting === "function") waiting(Object.fromEntries(query));
   res.end("Done.");
 });
 
