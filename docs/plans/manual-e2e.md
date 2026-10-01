@@ -3272,12 +3272,19 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
 
 ### P6-E. Left by phase 5
 
-- [ ] E1 Relative times with a viewer's clock off (P5-D3, cosmetic): something just past reads
+- [x] E1 Relative times with a viewer's clock off (P5-D3, cosmetic): something just past reads
   "in 3 minutes". Decide with how established products handle it; fix or hold.
   (while listing) GitHub's `relative-time` element (5.3.1) has a `tense` for this:
   "Setting `tense=past` will always display future `relative` dates as `now`". Gen9's
   `components/relative-time.tsx` serves past and future alike. Only a task's next run is future
   (`scheduled/task-row.tsx`); the settings, search, memory and plugin sources' times are past.
+  Fixed (2026-10-01) as GitHub's element does (its README, 5.3.1: "Setting `tense=past` will
+  always display future `relative` dates as `now`", and `future` past dates). `lib/relative-time.ts`
+  takes a tense: a past time on the far side of now reads "just now", a future one already
+  passed "now"; `RelativeTime` is past by default and a task's "Next:" is future (3 tests). Live,
+  in Chrome with the page's `Date.now` 5 minutes behind the server's: Settings' "This browser.
+  Signed in in 4 minutes." before (the image rebuilt without the fix), "Signed in just now." after.
+  gen9-ui's 158 tests, tsc, eslint and gen9-learn's `reference.mjs` pass.
 - [ ] E2 One person can spend the shared $5-a-day key for everyone, since their own limit is $20
   over 30 days (P5-C8). Decide from LiteLLM's docs (an end user has one budget period;
   per-end-user rate and token limits) what keeps one person from stopping the others; check it

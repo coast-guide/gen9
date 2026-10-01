@@ -94,7 +94,7 @@ export function TaskRow({ task }: { task: ScheduledTask }) {
         </p>
         {task.next_at && (
           <p className="text-muted-foreground">
-            Next: <RelativeTime ms={Date.parse(task.next_at)} />
+            Next: <RelativeTime ms={Date.parse(task.next_at)} tense="future" />
           </p>
         )}
         {(task.runs.length > 0 || task.skipped > 0) && (
