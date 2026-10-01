@@ -35,6 +35,15 @@ describe("audit words", () => {
     );
   });
 
+  it("says why an answer was refused", () => {
+    expect(whatHappened(event({ action: "run.answer", outcome: "denied", detail: { why: "already answered" } }))).toBe(
+      "Answered a question already answered (an approval sent again, say)",
+    );
+    expect(whatHappened(event({ action: "run.answer", outcome: "denied", detail: { why: "not waiting" } }))).toBe(
+      "Answered a question its run no longer asked",
+    );
+  });
+
   it("names the tools a person let Gen9 use after they changed", () => {
     expect(whatHappened(event({ action: "connector.tools.keep", detail: { name: "words", tools: ["define", "lookup"] } }))).toBe(
       "Let Gen9 use the changed tools of the connector words (define, lookup)",

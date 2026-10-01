@@ -166,7 +166,9 @@ try {
     const stored = storedAnswers(thread);
     check(ended === "success" && answer && stored === '["Rome"]', "answered in Chrome, the run goes on and the reply uses the answer", `${ended}, stored ${stored}`);
     const again = await api(alan, "POST", `/v1/threads/${thread}/runs/${run}/inputs/${inputId}`, { answers: ["Paris"] });
-    check(again.status === 409, "a second answer is refused", `${again.status} ${again.body?.detail ?? ""}`);
+    // ...and recorded with who tried, on which run, and why (P6-C4)
+    const tried = psql(`select actor || ' ' || outcome || ' ' || (detail->>'why') from audit_events where action = 'run.answer' and target = '${run}'`);
+    check(again.status === 409 && /^\S+ denied already answered$/.test(tried), "a second answer is refused, and the audit record says so", `${again.status} ${again.body?.detail ?? ""}; ${tried.replace(/^\S+/, "<sub>")}`);
     await page.reload({ waitUntil: "networkidle0" });
     await page.click("ol[aria-live] > li:last-child details > summary");
     const steps = await page.$$eval('ul[aria-label="Tools used"] > li', (lis) => lis.map((li) => li.textContent.trim()));

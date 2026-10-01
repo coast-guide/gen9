@@ -27,7 +27,7 @@ from .directory_activities import DirectoryActivities
 from .environment_activities import EnvironmentActivities
 from .keycloak_admin import KeycloakAdmin
 from .langfuse_tracer import start_tracing
-from .log_safety import guard
+from .log_safety import UTC, guard
 from .plugin_activities import PluginActivities
 from .runs.activities import HEARTBEAT_S, RunActivities
 from .runtime import open_runtime
@@ -167,8 +167,11 @@ def main() -> None:
         level=os.environ.get("LOG_LEVEL", "INFO").upper(),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    # What other servers say goes in as one line, without terminal escapes (log_safety.py)
+    # What other servers say goes in as one line, without terminal escapes, and each line says
+    # when in UTC (log_safety.py)
     guard(logging.root.handlers)
+    for handler in logging.root.handlers:
+        handler.setFormatter(UTC("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     # Before any run traces: its media store's internal address (langfuse_tracer.py)
     start_tracing()
     asyncio.run(_main())

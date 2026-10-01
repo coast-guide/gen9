@@ -21,15 +21,16 @@ automatically, and none leaves the host.
 control characters as `?`, so nothing in a log acts on your terminal (a username typed at a sign-in
 can carry one). `docker logs` prints them as they are.
 
-The containers' clock is UTC. Where a format prints no zone, the time is UTC; where it prints no
-time, `docker logs --timestamps` shows the time Docker received each line.
+The containers' clock is UTC. gen9-agent's and Keycloak's lines start with the time in UTC with
+its zone (`2026-10-01T00:46:24.364Z`); where another service's format prints no zone, the time is
+UTC.
 
 | Stack, service | What it logs | Format |
 | --- | --- | --- |
-| gen9-agent `api` | Each request (client address, method, path, status), its query values masked but counts and cursors (`GET /v1/search?q=…&mode=hybrid&limit=5`: what was searched, a file's name, an email an admin looked up stay out); warnings and errors | uvicorn's plain text: `INFO:     172.24.0.1:58824 - "GET /v1/me HTTP/1.1" 200 OK`, no time |
-| gen9-agent `worker` | Runs (attempts, waiting, done), deletions, Schedules, search indexing, notices; a service that doesn't answer as one line a try (`transient.py`) | `2026-09-30 23:31:00,803 INFO gen9_agent.deletion: …`, no zone |
+| gen9-agent `api` | Each request (client address, method, path, status), its query values masked but counts and cursors (`GET /v1/search?q=…&mode=hybrid&limit=5`: what was searched, a file's name, an email an admin looked up stay out); a connector server whose TLS failed, with why; warnings and errors | uvicorn's, after the time: `2026-10-01T01:00:05.956Z INFO:     172.24.0.1:65464 - "GET /v1/me HTTP/1.1" 200 OK` |
+| gen9-agent `worker` | Runs (attempts, waiting, done), deletions, Schedules, search indexing, notices; a service that doesn't answer as one line a try (`transient.py`); a connector server whose TLS failed, with why | `2026-10-01T01:00:05.645Z INFO gen9_agent.runs.activities: …` |
 | gen9-ui `prod` | Back-channel logouts, server errors | Plain text, no time |
-| gen9-keycloak `keycloak` | Sign-in events (Keycloak's `jboss-logging` listener: type, client, user id, IP address; failures with the email tried), warnings | `2026-09-30 23:30:50,735 WARN  [org.keycloak.events] (executor-thread-6) …`, no zone |
+| gen9-keycloak `keycloak` | Sign-in events (Keycloak's `jboss-logging` listener: type, client, user id, IP address; failures with the email tried), warnings | `2026-10-01T00:57:52.234Z WARN  [org.keycloak.events] (executor-thread-6) …` (`KC_LOG_CONSOLE_FORMAT`) |
 | gen9-keycloak `mailpit` | Its start and errors | logfmt, `time="2026/09/30 22:49:09" level=info msg=…` |
 | gen9-temporal `temporal`, `ui` | The server's events and errors; the UI's requests | JSON, `"ts":"2026-09-30T23:34:20.611Z"` |
 | gen9-models `litellm` | Warnings and errors only (`LITELLM_LOG=WARNING`): refused keys, budgets exceeded (with the person's `sub`) | Plain text |
@@ -47,7 +48,7 @@ time, `docker logs --timestamps` shows the time Docker received each line.
 | --- | --- | --- | --- | --- |
 | Sign-in events | gen9-keycloak's Postgres | 103 event types: sign-ins and their failures, sign-outs, password, authenticator and profile changes, consents, emails sent, with the user id, the app (client), the IP address and the time (`events/config`) | Keycloak's admins (its console and Admin API); each person their own, in Settings' *Download a copy* (`sign-ins.json`) | 30 days (`eventsExpiration`) |
 | Keycloak's admin events | gen9-keycloak's Postgres | Every change made through Keycloak's Admin API, with what was sent (`adminEventsDetailsEnabled`); Gen9's own changes appear as its service account's | Keycloak's admins | 30 days (`adminEventsExpiration`, set by `configure.sh`) |
-| Gen9's audit record | gen9-postgres, `audit_events` | Admin actions, people's security actions and access refused: when, where (the route), who (the person's `sub`), what, the outcome ([gen9-agent's README, "How auth works"](../gen9-agent/README.md#how-auth-works)). Never tokens, passwords, secret values or message text | Gen9's admins (*Audit log*, `GET /v1/admin/audit`); the database's superuser | Kept for good. Append-only: triggers refuse changes, deletions and truncation, and the services' own role can't lift them (`e2e/audit.mjs`) |
+| Gen9's audit record | gen9-postgres, `audit_events` | Admin actions, people's security actions, access refused, and an answer sent again to a run's question (a replayed approval): when, where (the route), who (the person's `sub`), what, the outcome ([gen9-agent's README, "How auth works"](../gen9-agent/README.md#how-auth-works)). Never tokens, passwords, secret values or message text | Gen9's admins (*Audit log*, `GET /v1/admin/audit`); the database's superuser | Kept for good. Append-only: triggers refuse changes, deletions and truncation, and the services' own role can't lift them (`e2e/audit.mjs`) |
 | The router's spend log | gen9-models' Postgres (`LiteLLM_SpendLogs`, daily totals) | Each model call: model, tokens, cost, status, the person's `sub`. No prompts or answers (none stored: 0 of 2,036 rows) | The router's admin API and UI (its master key) | Until the person's account is deleted, which erases their rows; the per-key daily totals stay |
 | Traces | gen9-langfuse (ClickHouse, and MinIO for what they reference) | Each run's steps: the question, the model's answers, tools called and their results | Langfuse's users (its own sign-in) | Until the chat or the account is deleted: Gen9 erases their traces then |
 | Langfuse's raw copies | gen9-langfuse's MinIO, `events/` | Each batch as it arrived, what the traces hold | MinIO's credentials | A day (rounded up to the next midnight UTC), by `minio-lifecycle`'s rule |
@@ -81,6 +82,6 @@ P6-C2), and why each is there:
 
 Found while taking this inventory; each is an item of docs/plans/manual-e2e.md, phase 6:
 
-- Times: the API and the web app print none, and several print no zone (UTC, as their clocks are)
-  (P6-C4, ASVS 16.2.2).
+- An environment's lookup of a host its policy denies isn't logged: OpenSandbox's egress v1.1.7, the
+  latest, doesn't say (P6-C7).
 - No log leaves the host for a separate system (P6-C5, P6-C6; ASVS 16.4.3).

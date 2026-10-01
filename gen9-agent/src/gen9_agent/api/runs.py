@@ -307,8 +307,26 @@ async def answer_input(
     except control.InputNotFound:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such question") from None
     except control.AlreadyAnswered:
+        # An answer sent again (a replayed approval, or two tabs) is refused, and recorded:
+        # the first one decided (manual-e2e.md, P6-C4; ASVS 5.0 16.3.3)
+        await audit.record(
+            request,
+            principal.sub,
+            "run.answer",
+            target=run.id,
+            outcome=audit.DENIED,
+            detail={"input": input_id, "why": "already answered"},
+        )
         raise HTTPException(status.HTTP_409_CONFLICT, "Already answered") from None
     except control.NotWaiting:
+        await audit.record(
+            request,
+            principal.sub,
+            "run.answer",
+            target=run.id,
+            outcome=audit.DENIED,
+            detail={"input": input_id, "why": "not waiting"},
+        )
         raise HTTPException(
             status.HTTP_409_CONFLICT, "This run is no longer waiting for an answer"
         ) from None
