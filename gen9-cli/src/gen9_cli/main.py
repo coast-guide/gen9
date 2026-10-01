@@ -177,6 +177,9 @@ async def cmd_ask(keycloak: Keycloak, http: httpx2.AsyncClient, args) -> int:
         return 1
     # What the chat's environment shared this turn (its files.shared events)
     shared: list[dict] = []
+    # The text each message has shown so far, by its id: a message the model didn't stream (a
+    # step budget's stop, an answer cut off at its length limit) shows when it completes
+    shown: dict[str, str] = {}
     if not thread_id:
         created = await api_request(keycloak, http, "POST", "/v1/threads")
         created.raise_for_status()
@@ -226,6 +229,13 @@ async def cmd_ask(keycloak: Keycloak, http: httpx2.AsyncClient, args) -> int:
                 )
             elif event == "message.delta":
                 print(data["text"], end="", flush=True)
+                message = data.get("id", "")
+                shown[message] = shown.get(message, "") + data["text"]
+            elif event == "message.completed":
+                message, before = data.get("id", ""), shown.get(data.get("id", ""), "")
+                if data["text"].startswith(before):
+                    print(data["text"][len(before) :], end="", flush=True)
+                    shown[message] = data["text"]
             elif event == "status":
                 print(f"({data['text']}…)", file=sys.stderr, flush=True)
             elif event == "files.shared":

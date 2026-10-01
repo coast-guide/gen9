@@ -3435,6 +3435,36 @@ claims about today's state, not rewritten.
 ### P6-Z. Cleanup, then phase 7
 
 - [ ] Z1 Everything this phase made removed; `make e2e` on the result.
+  - **First run (2026-10-01, from 05:58 UTC):** it stopped at `agents` (`make e2e` runs its
+    scripts in a chain). The fact-check turn showed no step after `run.started` for 13 minutes.
+    - **Seen:** `ss -ti` from a throwaway container in each one's network namespace. The router's
+      connection to the provider had received 37.5 MB and was still receiving; the worker's to the
+      router, 28 MB. No `message.delta`, so not answer text: at about 330 bytes per streamed
+      token, a tool call's arguments.
+    - **Stopped:** the run's workflow cancelled through Temporal. The call: 3,035 input and
+      114,559 output tokens, $0.058, 13.5 minutes; the run's whole spend $0.068. The router keeps
+      no response and Langfuse no generation for a cancelled call, so what it wrote is unknown.
+  - **Nothing bounded one answer:** no `max_tokens` anywhere, and the turn's budgets count calls.
+    GPT-6 Luna's own limit is 128,000 (OpenRouter's models API).
+  - **A cut-off tool call runs:** `gen9-agent/explore/models/output_cap.py` through the router
+    with a 60-token cap: `finish_reason='length'`, and the tool call's cut-off arguments parsed
+    into a valid call (langchain-openai's partial JSON while streaming).
+  - **Fixed** (Decision Log, "One answer's length"):
+    - gen9-models: each chat alias `max_tokens: 32000`. Probed: with 60 on the deployment and
+      none in the request, `length` at 60; at 32,000 a normal answer ends `stop`.
+    - gen9-agent: `OutputLimit` (`grounding.py`) keeps a cut-off answer's text, adds "I stopped
+      here: this answer reached the longest one answer may be…", and drops its tool calls. Four
+      tests; without it the cut-off call ran (3 failed).
+    - gen9-ui and gen9-cli showed only deltas, so a message the model didn't stream (this note,
+      and the step budgets' since P5-C8) showed only after a reload, and never on the terminal.
+      Both now add what `message.completed` has beyond the deltas (`completedRest`, tested).
+    - Live, the router's cap lowered to 400 for it: asked to write 3,000 numbers in one
+      `write_file` call, the turn ended with the note, in Chrome as it ended and on the terminal;
+      no step started, no file, the run `success`. The cap was put back to 32,000.
+  - **Cleanup:** the seeded user's seven leftover chats from earlier checks (P6-E3, E4, a budget
+    probe, `scheduled.mjs` of 2026-09-30, this run's), and six clients gen9-learn's b5xd had
+    registered by their metadata documents: Keycloak keeps them. b5xd now deletes its own, as
+    `e2e/mcp-server.mjs` does.
 - [x] Z2 Start phase 7 (standing instruction 7): /rigor first, then the next large list.
   Done (2026-10-01): "Phase 7" below, from ASVS 5.0's unread chapters and today's releases
   (Decision Log, "Phase 7's list").
@@ -3827,6 +3857,13 @@ served as attachments with `nosniff` and a sandbox CSP (P2-F6, P3-F2).
   sandbox running for an hour: the deletion removed the environment's workflow and swept before
   the sandbox existed, and the create activity already running finished anyway.
 
+- A model's answer can run to its output limit, 128,000 tokens on GPT-6 Luna, in one call and for
+  minutes, with nothing shown: 114,559 tokens of a tool call's arguments in 13 minutes (P6-Z1).
+  Cut off by a cap, that tool call still parses into a valid call with truncated arguments and
+  would run: a stop at the length limit has to drop the tool calls, not only say so.
+- Gen9's clients built a live answer from `message.delta` only, so anything a middleware wrote
+  (the step budgets' "I stopped here…") reached the screen only after a reload (P6-Z1).
+
 ## Decision Log
 
 - Decision: phase 2's list, from these sources read today: Next.js 16's
@@ -4194,6 +4231,21 @@ served as attachments with `nosniff` and a sandbox CSP (P2-F6, P3-F2).
   - **How it runs:** in a container with no Docker socket and no network while it reads an image
     (each image as `docker save`'s archive), since a scanner reads everything and Trivy's
     compromise stole what its runs could reach.
+- Decision (P6-Z1): one answer's length is capped in the router, at 32,000 tokens, and a turn
+  cut off there ends without running its tool calls.
+  - **Sources:** OpenAI's reasoning guide ("reserving at least 25,000 tokens for reasoning and
+    outputs"; an answer at the limit is `incomplete`, possibly before any visible output);
+    LiteLLM v1.103.1's router (`{**litellm_params, …, **kwargs}`: a deployment's parameter is a
+    default a request overrides); Deep Agents 0.7.19's summarization (`_input_budget` reserves
+    a model's `max_tokens` out of its `max_input_tokens`); OpenRouter's models API (each chat
+    model's output limit: GPT-6 Luna 128,000, DeepSeek-V4.1-Flash 943,718, Ling 3.0 Flash VL
+    32,768).
+  - **Where:** in the router, not on gen9-agent's model. There Deep Agents would reserve it out of
+    the context budget, and at e2e's 12,000 nothing would be left. The router is where Gen9's
+    spending limits are; gen9-agent sends no `max_tokens`, so the deployment's holds.
+  - **How much:** 32,000, above OpenAI's 25,000 for reasoning and output, a quarter of GPT-6
+    Luna's limit, and within every chat alias's model.
+  - **Cut off:** the answer's text kept, the note after it, tool calls dropped (`OutputLimit`).
 - Decision (P6-Z2): phase 7's list. Sources read today:
   - **OWASP ASVS 5.0** (OWASP/ASVS, `5.0/en`, the chapter files for V5 and V9 to V14). Earlier
     phases cite V6, V7, V8 and V16 and the API Security Top 10. The other chapters were met only

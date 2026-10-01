@@ -130,3 +130,33 @@ async def test_ctrl_c_before_the_run_is_known_still_stops_it(
     assert lookups == ["GET", "GET"] and cancelled == ["r9"]
     err = capsys.readouterr().err
     assert "Stopped." in err and 'gen9 ask --thread t1 "…"' in err
+
+
+async def test_a_message_the_model_didnt_stream_shows_when_it_completes(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # P6-Z1: a step budget's stop and an answer cut off at its length limit come only as
+    # message.completed; streamed text isn't shown twice
+    async def stream():
+        yield event("run.queued", '{"run_id": "r1"}', 1)
+        yield event("message.delta", '{"id": "m1", "text": "Here: 1, "}', 2)
+        yield event("message.delta", '{"id": "m1", "text": "2"}', 3)
+        yield event(
+            "message.completed",
+            '{"id": "m1", "text": "Here: 1, 2\\n\\nI stopped here."}',
+            4,
+        )
+        yield event("message.delta", '{"id": "m2", "text": " Next."}', 5)
+        yield event("message.completed", '{"id": "m2", "text": " Next."}', 6)
+        yield event(
+            "message.completed", '{"id": "", "text": " Stopped at the budget."}', 7
+        )
+        yield event("run.completed", '{"status": "success", "error": null}', 8)
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, content=stream())
+
+    assert await ask(handler) == 0
+    assert capsys.readouterr().out.startswith(
+        "Here: 1, 2\n\nI stopped here. Next. Stopped at the budget."
+    )

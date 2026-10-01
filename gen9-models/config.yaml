@@ -12,6 +12,11 @@
 # no GPT-6 Luna endpoint lists `temperature` or `parallel_tool_calls`, so the call fails.
 x-openrouter: &openrouter {data_collection: deny}
 
+# Every chat alias stops an answer at 32,000 tokens (`max_tokens`, which gen9-agent doesn't send,
+# so this one holds): OpenAI's reasoning guide reserves at least 25,000 for reasoning and output.
+# Without it one call wrote 114,559 tokens of a tool call's arguments for 13 minutes
+# (docs/plans/manual-e2e.md, P6-Z1); gen9-agent ends a turn cut off there (grounding.py). A model
+# put here must allow that much output (OpenRouter's models API: max_completion_tokens).
 model_list:
   # The agent's model: reasoning, tools, images, long context. OpenAI's GPT-6 Luna through
   # OpenRouter, which serves most providers' models with one key. Another provider by its own key,
@@ -21,17 +26,17 @@ model_list:
   # gen9-agent searches the web through the router (WEB_SEARCH=router): OpenAI's built-in search
   # needs OpenAI's own API.
   - model_name: chat
-    litellm_params: {model: openrouter/openai/gpt-6-luna, api_key: os.environ/OPENROUTER_API_KEY, provider: *openrouter}
+    litellm_params: {model: openrouter/openai/gpt-6-luna, max_tokens: 32000, api_key: os.environ/OPENROUTER_API_KEY, provider: *openrouter}
   # Used only when `chat` keeps failing (router_settings.fallbacks): another company's model
   # (DeepSeek-V4.1-Flash, MIT), served by other providers
   - model_name: chat-backup
-    litellm_params: {model: openrouter/deepseek/deepseek-v4.1-flash, api_key: os.environ/OPENROUTER_API_KEY, provider: *openrouter}
+    litellm_params: {model: openrouter/deepseek/deepseek-v4.1-flash, max_tokens: 32000, api_key: os.environ/OPENROUTER_API_KEY, provider: *openrouter}
   # Images and other media as input: inclusionAI's Ling 3.0 Flash VL, the cheapest that read every
   # test image right (README.md, "Why these"), served under data_collection: deny (Novita, DeepInfra).
   # Priced here: LiteLLM doesn't know this model, and without a price its calls cost $0 in each
   # person's budget ($0.021 and $0.062 a million tokens, OpenRouter)
   - model_name: vision
-    litellm_params: {model: openrouter/inclusionai/ling-3.0-flash-vl, api_key: os.environ/OPENROUTER_API_KEY, provider: *openrouter, input_cost_per_token: 0.000000021, output_cost_per_token: 0.000000062}
+    litellm_params: {model: openrouter/inclusionai/ling-3.0-flash-vl, max_tokens: 32000, api_key: os.environ/OPENROUTER_API_KEY, provider: *openrouter, input_cost_per_token: 0.000000021, output_cost_per_token: 0.000000062}
   # Text embeddings. Qwen3-Embedding (Apache-2.0), shortened to 1024 dimensions (its Matryoshka
   # training keeps most of the quality; pgvector indexes at most 2000 as vector, 4000 as halfvec).
   # gen9-agent re-embeds its chats by itself when this changes; its search puts queries in this
@@ -65,7 +70,7 @@ model_list:
   # local, point it here too, e.g. `embed` at ollama/embeddinggemma (768 dimensions; gen9-agent
   # re-embeds its chats by itself).
   - model_name: chat-local
-    litellm_params: {model: ollama_chat/qwen3:0.6b, api_base: "http://ollama:11434"}
+    litellm_params: {model: ollama_chat/qwen3:0.6b, max_tokens: 32000, api_base: "http://ollama:11434"}
   - model_name: embed-local
     litellm_params: {model: ollama/embeddinggemma, api_base: "http://ollama:11434"}
     model_info: {mode: embedding}

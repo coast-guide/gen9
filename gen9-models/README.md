@@ -303,9 +303,12 @@ Two limits bound what Gen9 can spend, both set in `.env` and applied on the next
   or bug outside a person's turns. Past it, every call gets the router's budget error until the
   day resets; raise it for a busy install.
 
-gen9-agent bounds each turn too: an agent stops after 50 model calls, and a turn's agents after
-150 together (gen9-agent/README.md,
-"Models"). For scale, on GPT-6 Luna the busiest hour of checks so far (740 calls, 5.4 million
+Each answer is bounded too: every chat alias stops one at 32,000 tokens (`max_tokens` in
+`config.yaml`, which gen9-agent doesn't send, so it holds). Without it one call once wrote
+114,559 tokens of a tool call's arguments for 13 minutes (docs/plans/manual-e2e.md, P6-Z1); the
+model's own limit is 128,000. A model put on a chat alias must allow that much output. And
+gen9-agent bounds each turn: an agent stops after 50 model calls, and a turn's agents after
+150 together (gen9-agent/README.md, "Models"). For scale, on GPT-6 Luna the busiest hour of checks so far (740 calls, 5.4 million
 tokens) cost $0.18.
 
 | Variable | Meaning | Default |
