@@ -15,13 +15,13 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 # The stacks' files only: not Langfuse's upstream file (never edited; compose.override.yaml pins its
 # images) nor the probes under gen9-agent/explore
-# Two more pins live outside them: the chats' environment image (settings.py) and OpenSandbox's execd
+# One more pin lives outside them: the chats' environment image (settings.py)
 { git ls-files | grep -E '(^|/)(compose[^/]*\.ya?ml|Dockerfile[^/]*)$' | grep -v '^gen9-agent/explore/'
-  echo gen9-agent/src/gen9_agent/settings.py; echo gen9-sandbox/config.toml; } |
+  echo gen9-agent/src/gen9_agent/settings.py; } |
   while read -r file; do mkdir -p "$work/src/$(dirname "$file")"; cp "$file" "$work/src/$file"; done
-# Renovate reads those two through a regex manager: a quoted "image:tag@sha256:…"
+# Renovate reads it through a regex manager: a quoted "image:tag@sha256:…"
 # The gen9-* images are built here, from Dockerfiles whose own images it checks: no registry has them
-custom='[{"customType":"regex","managerFilePatterns":["/(^|/)settings\\.py$/","/(^|/)config\\.toml$/"],"matchStrings":["\"(?<depName>[a-z0-9./-]+):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[0-9a-f]{64})\""],"datasourceTemplate":"docker"}]'
+custom='[{"customType":"regex","managerFilePatterns":["/(^|/)settings\\.py$/"],"matchStrings":["\"(?<depName>[a-z0-9./-]+):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[0-9a-f]{64})\""],"datasourceTemplate":"docker"}]'
 
 echo "Looking up every pinned image's tag and releases (about a minute)…"
 (cd "$work/src" && LOG_LEVEL=debug LOG_FORMAT=json RENOVATE_ONBOARDING=false RENOVATE_REQUIRE_CONFIG=optional \

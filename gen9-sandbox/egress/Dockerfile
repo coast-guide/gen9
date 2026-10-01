@@ -3,11 +3,13 @@
 # can lift: deny.always. To upgrade: this digest, the source commit below and config.toml's
 # [egress] image together.
 
-# Its two Go binaries, rebuilt from the same release's source with a current Go: OpenSandbox builds
-# them with Go 1.25.9, in whose standard library govulncheck finds 14 vulnerabilities the egress
-# binary reaches (docs/plans/manual-e2e.md, P6-D1c5). The commit pins the source; Go checks each
-# module against go.sum. The flags are upstream's (components/egress/Dockerfile).
-FROM golang:1.25.14-bookworm@sha256:3b4a11519ad929d1e1d261a12cff056f0c85b735253d7d861346b9c6f8b36437 AS builder
+# Its two Go binaries, rebuilt from the same release's source with a supported Go: OpenSandbox
+# builds them with Go 1.25.9, in whose standard library govulncheck finds 14 vulnerabilities the
+# egress binary reaches, and Go 1.25 left support when Go 1.27 came out (each major release is
+# supported until two newer ones are; docs/plans/manual-e2e.md, P6-D1c5). The commit pins the
+# source; Go checks each module against go.sum. The flags are upstream's
+# (components/egress/Dockerfile).
+FROM golang:1.26.8-bookworm@sha256:a688600ca24f8a4d3ca77f95b0dd40704a9fc787c826660eb7ba0b641b8b175d AS builder
 ARG COMMIT=b1a29cf93a823a95913f7943010febb3f29de05c
 ADD https://github.com/opensandbox-group/OpenSandbox.git#${COMMIT} /src
 ENV CGO_ENABLED=0
