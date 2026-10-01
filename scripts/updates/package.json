@@ -5,5 +5,11 @@
   "type": "module",
   "dependencies": {
     "renovate": "44.115.12"
+  },
+  "allowScripts": {
+    "protobufjs": false,
+    "core-js-pure": false,
+    "dtrace-provider": false,
+    "re2": false
   }
 }

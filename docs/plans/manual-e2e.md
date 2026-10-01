@@ -3166,7 +3166,7 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
     docker datasource gives none here), and `minimumReleaseAge` needs one: with the default
     `timestamp-required` it would hold back every update, with `timestamp-optional` none. Image
     pins move by hand, after reading the release and checking its signature (D1c2).
-- [ ] D3 Install scripts: gen9-ui's image runs `npm ci` with its dependencies' install scripts
+- [x] D3 Install scripts: gen9-ui's image runs `npm ci` with its dependencies' install scripts
   (the Shai-Hulud worm spread through post-install scripts, A03's third scenario), while
   gen9-keycloak's theme has `--ignore-scripts`. Which of gen9-ui's, e2e's, `scripts/updates`'
   and the terminal's dependencies need theirs; then turn the rest off.
@@ -3174,6 +3174,25 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
   optional, macOS) and `unrs-resolver` (dev). `scripts/updates` (Renovate): `protobufjs`,
   `core-js-pure`, `dtrace-provider` and `re2` (both optional). The theme: `esbuild` and `fsevents`
   (dev). e2e and gen9-learn's verifier: none.
+  Done (2026-10-01) with npm's own policy (npm's changelog and docs: `allowScripts` in the root
+  `package.json`, managed by `npm install-scripts`, backported to 11.x; `strict-allow-scripts`
+  turns an unreviewed script into an error; npm 12.0.0, 2026-07-08, denies them by default). On
+  Node 24.21.0's npm 11.19.0 (CI's and the images'), `npm install-scripts ls` after a clean `npm ci`
+  of each project found six: gen9-ui's `unrs-resolver` and the theme's `esbuild` (each checks that
+  its native binary, from an optional platform package npm installs anyway, is there, and
+  downloads it if not), and Renovate's `protobufjs` (a version check), `core-js-pure` (a funding
+  banner), `dtrace-provider` and `re2` (optional `node-gyp` builds). All six denied (`npm
+  install-scripts deny`), and `strict-allow-scripts=true` in the five `.npmrc`; gen9-ui's two
+  Dockerfiles copy the `.npmrc` (the theme's image already installs with `--ignore-scripts`).
+  Checked, each installed afresh under the policy: gen9-ui's tsc, eslint (which loads
+  `unrs-resolver`'s binding), 155 tests and build; the theme's tsc (its own `postinstall`,
+  `keycloakify sync-extensions`, still runs: the policy covers dependencies); `make updates`
+  (Renovate without its native extras, 50 references); `e2e/stacks.mjs`; gen9-learn's `page.mjs`;
+  gen9-ui's and Keycloak's images rebuilt and healthy. And the other way: installing `esbuild` into
+  a project with the same `.npmrc` failed, "--strict-allow-scripts: 1 package(s) have install
+  scripts not covered by allowScripts", and installed nothing. The Python side has no install
+  hooks: uv runs code at install only to build a package that has no wheel, and every registry
+  package locked for gen9-agent (161) and gen9-cli (17) has one.
 - [ ] D4 Signatures and provenance (A03: "Prefer signed packages"): `npm audit signatures` over
   each lockfile, the images whose publishers sign them checked, PyPI's attestations where uv can
   read them.
