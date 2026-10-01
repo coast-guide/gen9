@@ -3031,6 +3031,37 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
       `tornado`; Debian 12's OpenSSL; Go 1.25.9) and its execd (Alpine's OpenSSL 3.5.7-r0; Go).
       For each: govulncheck on the Go binaries, whether Gen9 reaches what is vulnerable, and a fix
       in Gen9's own layer where it has one (egress has) or a report upstream (the owner's).
+      Triaged (2026-10-01):
+      - OpenSandbox's server: its two High (Python 3.10.21's CVE-2026-7210, Expat's hash
+        salt, and CVE-2026-82049, `tarfile`'s extraction filters) aren't reached: the server
+        parses no XML and extracts no archive to disk (release-1.1.0's `services/docker`: it
+        writes archives, and reads two files of the pinned execd image with `extractfile`). Its
+        `jaraco.context` and `wheel` are setuptools' vendored copies, for building packages.
+        Accepted with those reasons. Both Python fixes are in 3.10.22 (tagged), the last 3.10:
+        3.10's security support ends about October 2026 (PEP 619), and the server's Dockerfile
+        is on `python:3.10-slim`, main included.
+      - Redis 7.4.11 (Langfuse's queue): its four (CMP, DTLS, CMS, and `EVP_Cipher` with an empty
+        AEAD ciphertext) are fixed for Debian 12 by DLA-4795-1 (2026-09-25), after Debian's
+        images were last rebuilt (2026-09-19); Redis's next rebuild brings them (`make updates`).
+        Gen9's Redis serves no TLS. Left failing until then: Grype's rules can't hold a Debian
+        package to one image, and egress has the same `libssl3`, with TLS.
+      - Reached, by govulncheck v1.8.0 on the binaries: OpenSandbox's execd (21: Go 1.25.9's
+        standard library, grpc 1.82.1), its egress (14, Go 1.25.9) and Temporal's UI server (11:
+        Go 1.26.5, grpc 1.82.1, `x/text`; its `dockerize` 4). Most are denial of service or
+        parsing (an HTTP/2 SETTINGS loop, a long CNAME, quadratic URL paths, ASN.1 depth), and
+        `html/template` escaping in binaries that serve no page to a person. In each
+        environment's own sidecars, code inside can at worst stop its own egress or execd;
+        Temporal's UI is behind Keycloak, for admins, on 127.0.0.1.
+      - Upstream won't fix them by waiting: OpenSandbox's egress and execd Dockerfiles pin
+        `golang:1.25.9` and egress `mitmproxy==11.0.2`, on `release-1.1.1-rc.1` and main too
+        (main has grpc 1.83.2). Temporal UI's main has grpc 1.83.2, Go 1.26.5.
+    - [ ] D1c5 Egress and execd built in Gen9's own layer, with Go 1.25.13 and a current
+      mitmproxy (`h11` 0.14.0 is Critical, GHSA-vqfr-h8mv-ghfj, in the proxy every environment's
+      traffic goes through), checked by `e2e/environments.mjs` (secrets reach their hosts, closed
+      hosts stay closed, E4b). And for the owner, a report to OpenSandbox: egress and execd built
+      with Go 1.25.9 (govulncheck: 14 and 21 reached), egress with mitmproxy 11.0.2, the server on
+      Python 3.10 at its end of life.
+    - [ ] D1c6 Temporal's UI: its next release (grpc 1.83.2 on main); `make scan` on it.
     - [ ] D1c4 OpenSSL's DSA-6531-1 (and pcre2's DSA-6530-1) in every Debian 13 image, once
       Grype's database has them: announced 2026-09-30 06:10 UTC, after the 00:35 data of the
       database `make scan` used. OpenSSL rates one High (DTLS) and the rest Low (QUIC, DTLS, SM2,
