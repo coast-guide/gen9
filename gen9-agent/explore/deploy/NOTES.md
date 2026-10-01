@@ -107,3 +107,38 @@ Drift with Compose, on that project:
 So a drift command for Docker compares the hash, and also what Compose doesn't: the image digest
 running, the settings `docker update` can change (memory, CPUs, restart policy), and containers in
 the project that Compose doesn't declare. Containers whose files mustn't change run `read_only`.
+
+## Sandboxes on OpenSandbox's Kubernetes runtime (R2d)
+
+OpenSandbox's all-in-one chart from `release-1.1.0` (`manifests/charts/opensandbox`, chart 1.1.0:
+the CRDs in `base`, the controller, the server; `helm dependency build` first) on `kind-r2c`, with
+the controller and server images from Docker Hub (`opensandbox/controller:release-1.1.0`,
+`opensandbox/server:release-1.1.0`, the same digest `gen9-sandbox/Dockerfile` pins), and Gen9's
+execd and egress images loaded with `kind load docker-image` (7 s). The chart's defaults pull from
+an Aliyun registry and ask 4 GiB for the server; the probe set the images, 256 MiB, and a
+`configToml` with `[runtime] type = "kubernetes"`, `execd_image = "gen9-sandbox-execd:v1.1.0"`,
+`[egress] image = "gen9-sandbox-egress:release-1.1.0"`, `mode = "dns+nft"`. Installed and ready
+in 32 s.
+
+`sandbox_k8s.py` (the SDK 1.1.0, through the server forwarded to 127.0.0.1:25090):
+
+- The first create failed: "namespaces "opensandbox" not found". The chart doesn't create the
+  namespace sandboxes go to (`[kubernetes] namespace`); created by hand, it worked.
+- A `BatchSandbox` became one pod with two containers, `sandbox` (`python:3.12-slim`) and
+  `egress` (Gen9's image), and an init container `execd-installer` (Gen9's execd image).
+- Through the server: `id -u` 0; the allowed host (`pypi.org`) 200; an undeclared host and the
+  cloud metadata address blocked (`URLError`). Gen9's egress image, with `deny.always`, works there
+  unchanged.
+
+What differs from Gen9's Docker sandboxes, for U6 (the pod's spec):
+
+- `execd-installer` runs `privileged: true`.
+- The sandbox container drops only `NET_ADMIN` (Docker's: all capabilities but a few, raw sockets
+  among those dropped, `no_new_privileges`), runs as root, and gets 1 CPU and 2 GiB, not Gen9's
+  1 CPU and 1 GiB.
+- No `runtimeClassName` (gVisor or Kata need `[secure_runtime]` and the runtime on the nodes).
+- No NetworkPolicy in the sandboxes' namespace: other pods could reach a sandbox's execd. The
+  service account token isn't mounted (`automountServiceAccountToken: false`).
+- The pod template comes from `/etc/opensandbox/example.batchsandbox-template.yaml` in the server
+  image (`restartPolicy: Never`, tolerating every taint); `[kubernetes] batchsandbox_template_file`
+  can point at Gen9's own.

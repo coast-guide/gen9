@@ -75,7 +75,7 @@ What the owner asked, restated before starting (they went on to "start the loop"
   - The running version visible (API, web app, CLI), so drift is checkable by version too.
   - OpenSSF Scorecard and what it finds; the Best Practices badge.
   - Anything else today's sources list that Gen9 lacks.
-- [ ] R2 Probes, outside the repository (scratch directory, throwaway projects and clusters),
+- [x] R2 Probes, outside the repository (scratch directory, throwaway projects and clusters),
   written into `gen9-agent/explore/deploy/NOTES.md`:
   - [x] R2a `docker compose publish` on one Gen9 stack: what it refuses (bind mounts: Gen9
     mounts 16 files and folders, and the Docker socket; `configs:`), `--resolve-image-digests`,
@@ -86,10 +86,26 @@ What the owner asked, restated before starting (they went on to "start the loop"
     transformation and with templates of our own; whether Compose can stay the one definition.
   - [x] R2c kind and k3d on this machine: create, load or pull images, a Gateway API controller,
     delete; time, memory and disk.
-  - [ ] R2d OpenSandbox's Kubernetes runtime on kind: its CRDs and controller chart, the server
+  - [x] R2d OpenSandbox's Kubernetes runtime on kind: its CRDs and controller chart, the server
     with `[kubernetes]`, a sandbox pod with Gen9's egress image, gVisor or not.
   - [x] R2e Drift on Kubernetes: `helm diff upgrade` (and its three-way mode) and
     `kubectl diff --server-side`, each against an edit made by hand.
+- [ ] R3 Each third-party part's own official deployment guides, of the version Gen9 pins, read
+  that day (the owner: "for third party stacks we are using refer to their own official docs to
+  see if they provide guides - latest research"), findings and links in the Decision Log
+  ("Third-party guides"), before U3 chooses adopt, adapt or build for each:
+  - [ ] Keycloak 26.7.5 (container guide, Operator, production configuration).
+  - [ ] Temporal server 1.32.0 and UI 2.54.1 (self-hosted guide, the Helm chart, production
+    checklist).
+  - [ ] Langfuse 4.48.0 (self-hosting: Docker Compose, Kubernetes Helm; ClickHouse, S3, Redis,
+    Postgres requirements).
+  - [ ] LiteLLM proxy v1.103.1 (Docker, Helm chart, production settings).
+  - [ ] OpenSandbox 1.1.0 (Kubernetes deployment, controller, secure runtime).
+  - [ ] PostgreSQL 18 and 16/17 with pgvector (the image's docs; CloudNativePG as the operator).
+  - [ ] Valkey 9.1, Redis 7.4 (the official images, valkey-helm).
+  - [ ] ClickHouse 26.8 (its Docker image, its Kubernetes operator).
+  - [ ] MinIO (Chainguard image) and the S3 alternatives Langfuse documents.
+  - [ ] SearXNG, Mailpit, Ollama and llama.cpp server (their container docs).
 - [ ] U1 Images built once: a bake file for the 7 Gen9 images from the Dockerfiles Compose builds;
   a workflow that builds them for linux/amd64 and linux/arm64, pushes them to
   `ghcr.io/coast-guide/gen9-*`, and attests provenance and SBOM; a lock of their digests in git.
@@ -111,6 +127,12 @@ What the owner asked, restated before starting (they went on to "start the loop"
   gen9-learn); `make e2e` against Docker and kind from published images.
 
 ## Surprises & Discoveries
+
+- OpenSandbox's Kubernetes runtime works with Gen9's egress and execd images unchanged (a command
+  ran, the allowed host answered, an undeclared host and the metadata address were blocked), but
+  its pod is looser than Gen9's Docker sandboxes: a privileged init container, only `NET_ADMIN`
+  dropped, root, 2 GiB, no NetworkPolicy; and the chart doesn't create the sandboxes' namespace
+  (NOTES.md, R2d).
 
 - This machine has Docker 29.8.1 (Docker Desktop: a VM of 20 CPUs and 17.6 GiB) and Compose
   v5.5.1, and had no Kubernetes tooling: `which kind k3d helm kubectl` printed nothing. R2c
