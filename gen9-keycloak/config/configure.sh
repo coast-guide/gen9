@@ -479,18 +479,27 @@ mcp_clients() {
   IFS=, read -ra list <<<"$GEN9_MCP_CLIENT_DOMAINS"
   for d in "${list[@]}"; do domains+="${domains:+,}\"${d// /}\""; done
   [[ $GEN9_MCP_CLIENT_ALLOW_HTTP == true ]] && scheme='"https","http"'
+  # Every public client needs PKCE with S256 on each authorization and code exchange, as OAuth's
+  # security BCP says (RFC 9700, 2.1.1; ASVS 5.0 10.4.6): those that register themselves too, which
+  # are public. A policy of its own, as the `client-id-uri` condition votes only before the request
+  # and abstains on it, where `pkce-enforcer` acts: in the MCP profile it never ran (manual-e2e.md,
+  # P7-B1). A public client created or updated gets S256 set (auto-configure)
   kcadm update client-policies/profiles -r gen9 -f - <<JSON
 {"profiles": [{"name": "mcp-clients", "description": "MCP clients by Client ID Metadata Document",
   "executors": [{"executor": "client-id-metadata-document", "configuration": {
     "cimd-allow-http-scheme": "$GEN9_MCP_CLIENT_ALLOW_HTTP", "cimd-allow-permitted-domains": [$domains],
-    "cimd-restrict-same-domain": "false", "only-allow-confidential-client": "false"}}]}]}
+    "cimd-restrict-same-domain": "false", "only-allow-confidential-client": "false"}}]},
+  {"name": "pkce", "description": "PKCE with S256",
+  "executors": [{"executor": "pkce-enforcer", "configuration": {"auto-configure": "true"}}]}]}
 JSON
   kcadm update client-policies/policies -r gen9 -f - <<JSON
 {"policies": [{"name": "mcp-clients", "enabled": true, "profiles": ["mcp-clients"],
   "conditions": [{"condition": "client-id-uri", "configuration": {
-    "client-id-uri-scheme": [$scheme], "client-id-uri-allow-permitted-domains": [$domains]}}]}]}
+    "client-id-uri-scheme": [$scheme], "client-id-uri-allow-permitted-domains": [$domains]}}]},
+  {"name": "public-clients", "enabled": true, "profiles": ["pkce"],
+  "conditions": [{"condition": "client-access-type", "configuration": {"type": ["public"]}}]}]}
 JSON
-  echo "mcp clients: documents from $GEN9_MCP_CLIENT_DOMAINS (http allowed: $GEN9_MCP_CLIENT_ALLOW_HTTP)"
+  echo "mcp clients: documents from $GEN9_MCP_CLIENT_DOMAINS (http allowed: $GEN9_MCP_CLIENT_ALLOW_HTTP); public clients: PKCE S256"
 }
 mcp_clients
 
@@ -499,3 +508,49 @@ mcp_clients
 # (docs/plans/gen9-learn.md, M9, F14)
 kcadm add-roles -r gen9 --uusername service-account-gen9-agent --cclientid realm-management --rolename view-events
 echo "gen9-agent: reads sign-in records (view-events)"
+
+# OAuth, as OWASP ASVS 5.0's V10.4 asks of an authorization server (docs/plans/manual-e2e.md, P7-B1)
+# - No password grant: OAuth's security BCP forbids it (RFC 9700, 2.4). Keycloak gives every realm
+#   an `admin-cli` client that allows it; Gen9's scripts sign in to the master realm's, so this
+#   realm's goes without (10.4.4).
+# - PKCE with S256 on every client of the code flow (10.4.6): Keycloak's own `account` client
+#   didn't ask for it. temporal-ui stays without, since Temporal's UI sends no code_challenge
+#   (temporalio/ui#2519): a confidential client that checks the ID token's nonce before using any
+#   token, which RFC 9700 (2.1.1, 4.5.3.2) allows instead.
+# - Offline tokens end 30 days after the sign-in that made them, however often they're used, as the
+#   longest "remember me" sign-in does (10.4.8). Keycloak's default keeps them for as long as
+#   they're used. The import sets it on first start; this brings older realms in line.
+# - Only the scopes a client asks for (10.4.11): Gen9's clients ask for openid, profile and email,
+#   or gen9-mcp and gen9-a2a, so Keycloak's address, phone, organization and microprofile-jwt go,
+#   from them and from what a client that registers itself gets. offline_access stays only for
+#   agents (gen9-mcp, and those that register themselves), which MCP lets ask for it.
+UNASKED_SCOPES=(address phone organization microprofile-jwt)
+# Takes the named scopes off a list of client scopes, where they are: $1 the list's path
+# (default-optional-client-scopes, or clients/<id>/optional-client-scopes), then the names
+drop_scopes() {
+  local path=$1 line name
+  shift
+  while IFS= read -r line; do
+    for name in "$@"; do
+      if [[ ${line#*,} == "$name" ]]; then
+        kcadm delete "$path/${line%%,*}" -r gen9
+        echo "$path: $name taken off"
+      fi
+    done
+  done < <(kcadm get "$path" -r gen9 --fields id,name --format csv --noquotes)
+}
+oauth() {
+  local id client
+  id=$(client_id admin-cli)
+  kcadm update "clients/$id" -r gen9 -s directAccessGrantsEnabled=false
+  id=$(client_id account)
+  kcadm update "clients/$id" -r gen9 -s 'attributes."pkce.code.challenge.method"=S256'
+  kcadm update realms/gen9 -s offlineSessionMaxLifespanEnabled=true -s offlineSessionMaxLifespan=2592000
+  drop_scopes default-optional-client-scopes "${UNASKED_SCOPES[@]}"
+  for client in gen9-ui gen9-cli temporal-ui gen9-agent; do
+    drop_scopes "clients/$(client_id "$client")/optional-client-scopes" "${UNASKED_SCOPES[@]}" offline_access
+  done
+  drop_scopes "clients/$(client_id gen9-mcp)/optional-client-scopes" "${UNASKED_SCOPES[@]}"
+  echo "oauth: no password grant, PKCE but temporal-ui, offline tokens for 30 days, only the scopes asked for"
+}
+oauth

@@ -3434,7 +3434,7 @@ claims about today's state, not rewritten.
 
 ### P6-Z. Cleanup, then phase 7
 
-- [ ] Z1 Everything this phase made removed; `make e2e` on the result.
+- [x] Z1 Everything this phase made removed; `make e2e` on the result.
   - **First run (2026-10-01, from 05:58 UTC):** it stopped at `agents` (`make e2e` runs its
     scripts in a chain). The fact-check turn showed no step after `run.started` for 13 minutes.
     - **Seen:** `ss -ti` from a throwaway container in each one's network namespace. The router's
@@ -3465,6 +3465,8 @@ claims about today's state, not rewritten.
     probe, `scheduled.mjs` of 2026-09-30, this run's), and six clients gen9-learn's b5xd had
     registered by their metadata documents: Keycloak keeps them. b5xd now deletes its own, as
     `e2e/mcp-server.mjs` does.
+  - **Second run, with those fixes (2026-10-01, 06:38 to 07:23 UTC):** `make e2e` exit 0, 682
+    checks, none failed, in 45 minutes; the router's spend $0.199 (1.8509 to 2.0495).
 - [x] Z2 Start phase 7 (standing instruction 7): /rigor first, then the next large list.
   Done (2026-10-01): "Phase 7" below, from ASVS 5.0's unread chapters and today's releases
   (Decision Log, "Phase 7's list").
@@ -3486,6 +3488,12 @@ today's sources first, then live, then its own pull request, as before.
 - [ ] A2 Released since phase 6's look, past the 7-day cooldown (P6-D2) unless a fix is urgent:
   Keycloak 26.8.0 (2026-10-01; a minor, its upgrading guide first), Next.js 16.3.8, deepagents
   0.7.21. Each read, verified where its publisher signs, and run live, as in P6-D1c2.
+  - **Keycloak 26.8.0 (2026-10-01), its security fixes read:** none urgent for Gen9, so it waits
+    out the cooldown (from 2026-10-08). CVE-2026-12388 and CVE-2026-14781 are in identity
+    brokering, CVE-2026-19608 in authorization services, CVE-2026-4633 in Organizations: Gen9
+    configures none. The dependency fixes are medium: jackson-databind (CVE-2026-54515,
+    CVE-2026-59889: per-property annotations on deserialization) and netty-codec-http
+    (CVE-2026-59903: Netty's CORS handler and its `Vary` header).
 - [ ] A3 P6-A3 (the raw event file of 2026/09/30, after 2026-10-02 00:00 UTC) and the A6 watches.
 
 ### P7-B. Tokens and OAuth (ASVS 5.0 V9, V10)
@@ -3495,16 +3503,76 @@ realm's `revokeRefreshToken`, checked by `gen9-keycloak/verify.sh`), revocation 
 and sign-out everywhere (10.4.9, phase 1's K11 and I12), and consents withdrawn in the Account
 Console (10.7.3).
 
-- [ ] B1 Each Keycloak client against V10.4, from the realm's export and tried live: a code used
+- [x] B1 Each Keycloak client against V10.4, from the realm's export and tried live: a code used
   twice (10.4.2) and its lifetime (10.4.3), the grants each allows (10.4.4: no password or
   implicit grant), PKCE required with S256 (10.4.6), anonymous dynamic registration and its
   policies (10.4.7, MCP clients), refresh tokens' absolute expiry (10.4.8), confidential clients'
   authentication (10.4.10), scopes and response modes per client (10.4.11, 10.4.12). A replayed
   refresh token refused, as rotation promises (10.4.5).
-- [ ] B2 gen9-agent's API as a resource server (V9, 10.3): a token signed with `none`, with
+  - **Read first** (the realm over the Admin API, Keycloak 26.7.5's source, RFC 9700, the MCP
+    authorization spec of 2026-07-28):
+    - codes last 60 s; anonymous registration is refused (Trusted Hosts, none trusted);
+    - `temporal-ui` sends no PKCE: Temporal UI 2.54.1's login has no `code_challenge`
+      (temporalio/ui#2519, #2753 open). It checks the ID token's `nonce` before using any token,
+      which RFC 9700 (2.1.1, 4.5.3.2) allows a confidential client instead. Kept as it is.
+  - **Found, before any change** (new checks in `gen9-keycloak/verify.sh` and `e2e/oauth.mjs`,
+    run against the realm as it was):
+    - **The password grant:** Keycloak's own `admin-cli` in realm gen9 allowed it. A throwaway
+      person's password alone got tokens. Gen9's API refused them (`aud`), but Keycloak's Account
+      API took them (200 on `/account/credentials`), so a password alone could manage the
+      account, past the sign-in page's second step. Nothing of Gen9's used it: every script signs
+      in to the master realm's.
+    - **PKCE:** Keycloak's own public `account` client didn't need it, and neither did a client
+      that registers itself by its metadata document: an authorization request without
+      `code_challenge` led to sign-in.
+    - **Offline tokens:** `offline_access` was in everyone's default roles and every client's
+      optional scopes, and the realm had no maximum for offline sessions. The token carried no
+      `exp`.
+    - **Sign out everywhere:** an agent's offline token kept refreshing after it (200). Keycloak's
+      admin logout ends online sessions only ("The offline token is valid after a user logout",
+      its guide); its refresh checks the user's not-before for nothing offline (source).
+    - **Scopes:** Gen9's clients carried Keycloak's `address`, `phone`, `organization` and
+      `microprofile-jwt` scopes, which none asks for, and so did every client that registers
+      itself.
+  - **Fixed** (Decision Log, "OAuth as ASVS asks of an authorization server"):
+    - `configure.sh`: `admin-cli` without the password grant; S256 on `account`; a client policy
+      `public-clients` (condition `client-access-type` public, executor `pkce-enforcer`); offline
+      sessions 30 days at most; the four scopes off Gen9's clients and the realm's defaults, and
+      `offline_access` kept only for agents. The realm file has the offline maximum for new
+      installs.
+    - A first try put `pkce-enforcer` in the MCP clients' profile, and it never ran: the
+      `client-id-uri` condition votes only before the authorization request and abstains on it.
+    - gen9-agent's `logout` (Sign out everywhere, an admin's sign-out, disabling, deletion) also
+      ends the person's offline sessions: each client holding one is among their consents (an
+      "Offline Token" grant), then `DELETE /sessions/{id}?isOffline=true`. Two tests.
+  - **Live, after:**
+    - `verify.sh` all passing.
+    - `oauth.mjs` 10 of 10: a code works once and the first one's tokens stop refreshing; a code
+      after a minute and a wrong verifier refused; a replayed refresh token refused, and so is
+      the one that replaced it; an offline token ends 30 days on, the same end after two
+      refreshes; signed in on the terminal, Sign out everywhere (204), then the offline token is
+      refused ("Offline user session not found"); a self-registered client without
+      `code_challenge` refused; `gen9-agent` without its secret or with a wrong one refused.
+    - The password grant: "Client not allowed for direct access grants".
+    - What goes through these clients still works: `temporal.mjs` 12, `lockout.mjs` 4 (the device
+      grant), `connectors-keycloak.mjs` 7 (Keycloak as a connector's server, `offline_access`),
+      `mcp-server.mjs` 27 (`gen9-mcp`, a self-registered client, Apps with access), `a2a.mjs` 18;
+      $0.0104 of model spend.
+  - **Not taken:** 10.4.12 to 10.4.16 are L3 (response modes per client, PAR, sender-constrained
+    tokens).
+- [x] B2 gen9-agent's API as a resource server (V9, 10.3): a token signed with `none`, with
   HS256 under the public key, with a key from elsewhere (9.1.1 to 9.1.3), expired or not yet valid
   (9.2.1), an ID token or another client's access token (9.2.2, 9.2.3, 10.3.1), and the person
   identified by `sub` (10.3.3).
+  - **Already in `test_auth.py`:** RS256 only (an HS256 token refused), another key, an expired
+    token, the issuer, the audience, an ID token, another client (`azp`), no subject.
+  - **Added:**
+    - three tests: `alg: none`; HS256 keyed with the realm's public key (made by hand, as PyJWT
+      refuses a PEM public key as an HMAC secret); not yet valid (`nbf`). Each refused.
+    - live (`oauth.mjs`): an ID token, and a real access token re-addressed to the API (`aud`,
+      `azp`) unsigned, both 401.
+  - Keys come only from the configured JWKS URL (`PyJWKClient`), never a token's header (9.1.3).
+    The person is `sub` (10.3.3).
 - [ ] B3 The web app as a client (10.1, 10.2, 10.5): which tokens reach the browser (10.1.1),
   `state` and `nonce` (10.2.1, 10.5.1), the ID token's audience (10.5.4), and back-channel
   logout's checks (10.5.5).
@@ -4231,6 +4299,20 @@ served as attachments with `nosniff` and a sandbox CSP (P2-F6, P3-F2).
   - **How it runs:** in a container with no Docker socket and no network while it reads an image
     (each image as `docker save`'s archive), since a scanner reads everything and Trivy's
     compromise stole what its runs could reach.
+- Decision (P7-B1): OAuth as ASVS asks of an authorization server, set in Keycloak by
+  `configure.sh` and checked by `verify.sh` and `e2e/oauth.mjs`.
+  - **Sources:** OWASP ASVS 5.0 V10.4; RFC 9700 (2.1.1, 2.4, 4.5.3.2); Keycloak 26.7.5's source
+    (`PKCEEnforcerExecutor`, `ClientIdUriSchemeCondition`, `ClientAccessTypeCondition`,
+    `TokenManager.validateToken`, `UserResource.logout` and `getConsents`,
+    `DefaultRefreshTokenProvider`) and its offline-access guide; the MCP authorization spec
+    (2026-07-28: clients MAY ask for `offline_access`); Temporal UI 2.54.1's `route/auth.go`.
+  - **Offline tokens kept for agents:** taking the role away would fail every MCP client that
+    asks for `offline_access` ("Offline tokens not allowed for the user or client"). So they keep
+    it, with an end: 30 days, the longest sign-in Gen9 has ("remember me").
+  - **Gen9 ends them at sign-out:** Keycloak doesn't, by design: the not-before its logout sets on
+    the person isn't checked when an offline token refreshes (source; seen live).
+  - **PKCE by client type:** every public client must use it (RFC 9700), whatever its scheme or
+    domain; the confidential `temporal-ui` uses the nonce, which RFC 9700 allows.
 - Decision (P6-Z1): one answer's length is capped in the router, at 32,000 tokens, and a turn
   cut off there ends without running its tool calls.
   - **Sources:** OpenAI's reasoning guide ("reserving at least 25,000 tokens for reasoning and

@@ -174,7 +174,35 @@ class KeycloakAdmin:
         await self._request("DELETE", f"/attack-detection/brute-force/users/{user_id}")
 
     async def logout(self, user_id: str) -> None:
+        """Ends every sign-in of the person: their sessions (Keycloak tells gen9-ui by back-channel
+        logout), and their offline sessions. An agent that asked for `offline_access` holds one,
+        and Keycloak's logout leaves it ("The offline token is valid after a user logout", its
+        guide): a refresh worked after "Sign out everywhere" (docs/plans/manual-e2e.md, P7-B1).
+        Every client holding one is among the person's consents, with an "Offline Token" grant."""
         await self._request("POST", f"/users/{user_id}/logout")
+        consents = (await self._request("GET", f"/users/{user_id}/consents")).json()
+        clients = {
+            grant["client"]
+            for consent in consents
+            for grant in consent.get("additionalGrants") or []
+            if grant.get("key") == "Offline Token"
+        }
+        for client in clients:
+            sessions = (
+                await self._request(
+                    "GET", f"/users/{user_id}/offline-sessions/{client}"
+                )
+            ).json()
+            for offline in sessions:
+                try:
+                    await self._request(
+                        "DELETE",
+                        f"/sessions/{offline['id']}",
+                        params={"isOffline": "true"},
+                    )
+                except KeycloakAdminError as error:
+                    if error.status_code != 404:  # gone meanwhile: what was wanted
+                        raise
 
     async def credentials(self, user_id: str) -> list[dict[str, Any]]:
         """Credential metadata only (type, created date); Keycloak never returns secrets here."""

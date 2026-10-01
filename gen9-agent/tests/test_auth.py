@@ -1,9 +1,14 @@
 """TokenVerifier accepts only well-formed Keycloak access tokens for this API."""
 
+import base64
+import hashlib
+import hmac
+import json
 import time
 
 import jwt
 import pytest
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from gen9_agent.auth import TokenVerifier
@@ -75,6 +80,7 @@ def test_valid_access_token(verifier, keypair):
         ({"typ": "ID"}, jwt.InvalidTokenError),  # an ID token, not an access token
         ({"azp": "some-other-client"}, jwt.InvalidTokenError),
         ({"sub": None}, jwt.MissingRequiredClaimError),
+        ({"nbf": int(time.time()) + 60}, jwt.ImmatureSignatureError),
     ],
     ids=[
         "expired",
@@ -83,6 +89,7 @@ def test_valid_access_token(verifier, keypair):
         "id-token",
         "unknown-client",
         "no-subject",
+        "not-yet-valid",
     ],
 )
 def test_rejected_tokens(verifier, keypair, overrides, error):
@@ -115,3 +122,42 @@ def test_rejects_non_rs256_algorithms(verifier):
     )
     with pytest.raises(jwt.InvalidAlgorithmError):
         verifier.verify(hmac_token)
+
+
+def _claims() -> dict:
+    now = int(time.time())
+    return {
+        "iss": ISSUER,
+        "aud": "gen9-agent",
+        "sub": "x",
+        "azp": "gen9-ui",
+        "typ": "Bearer",
+        "iat": now,
+        "exp": now + 60,
+    }
+
+
+def test_rejects_an_unsigned_token(verifier):
+    """ASVS 5.0 9.1.1, 9.1.2 (P7-B2): `alg: none` carries no signature to check."""
+    unsigned = jwt.encode(_claims(), None, algorithm="none", headers={"kid": "k1"})
+    with pytest.raises(jwt.InvalidAlgorithmError):
+        verifier.verify(unsigned)
+
+
+def test_rejects_hmac_keyed_with_the_public_key(verifier, keypair):
+    """The classic confusion (P7-B2): HS256 with the realm's public key, which anyone can fetch,
+    as the secret. PyJWT refuses a PEM public key as an HMAC secret, so the token is made by hand."""
+
+    def b64(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+    pem = keypair[1].public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    signing_input = (
+        f"{b64(json.dumps({'alg': 'HS256', 'typ': 'JWT', 'kid': 'k1'}).encode())}"
+        f".{b64(json.dumps(_claims()).encode())}"
+    )
+    signature = hmac.new(pem, signing_input.encode(), hashlib.sha256).digest()
+    with pytest.raises(jwt.InvalidAlgorithmError):
+        verifier.verify(f"{signing_input}.{b64(signature)}")
