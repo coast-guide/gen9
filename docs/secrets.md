@@ -1,7 +1,8 @@
 # Secrets, and how to replace each
 
 Every secret Gen9 keeps, which files hold it, who uses it, and how to replace it without losing
-data (docs/plans/harness.md, "Auth across the harness"). `make setup` generates them all, and
+data (docs/plans/harness.md, "Auth across the harness"). What each key does, with which algorithm,
+is in [cryptography.md](cryptography.md). `make setup` generates them all, and
 never prints them: read key names, never values (root AGENTS.md). After a change, `make up
 STACKS="…"` restarts what reads it.
 
