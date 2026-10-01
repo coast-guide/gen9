@@ -12,6 +12,8 @@
 //   4. the CSP reports what it blocks (report-uri; report-to too over https): the app's screens,
 //      the sign-in error page among them, have it and trip nothing, an injected image is
 //      reported, and gen9-ui logs it without its query
+//   5. signed out through the menu: the pages were sent no-store, no draft, storage or cache is
+//      left on the app's origin, and Back goes to Keycloak's sign-in, not a page of theirs
 // It deletes the chat it makes. No model call.
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
@@ -202,6 +204,29 @@ try {
     (FIREFOX ? reports.length > 0 : reports.some((r) => r.startsWith("img-src https://httpbin.org"))) && line.includes("blocked https://httpbin.org/image/png on /chat") && !logged.includes(tag),
     "an injected image is blocked, reported, and logged without its query",
     line.replace(/^.*\[csp\]/, "[csp]"),
+  );
+
+  // 5. Signed out through the menu, nothing of theirs stays in the browser (P7-E3; OWASP ASVS 5.0
+  // 14.3): the pages are sent no-store, no draft, storage or cache is left on the app's origin, and
+  // Back asks the server again, which sends to Keycloak's sign-in
+  const settings = await page.goto(`${APP}/settings`, { waitUntil: "networkidle0" });
+  const sentAs = settings.headers()["cache-control"] ?? "none";
+  await page.evaluate(() => sessionStorage.setItem("gen9-draft:e2e:new", "unsent"));
+  await page.evaluate(() => [...document.querySelectorAll('button[aria-haspopup="menu"]')].find((b) => b.textContent.includes("Turing"))?.click());
+  const item = await page.waitForSelector('::-p-xpath(//*[@role="menuitem"][contains(., "Sign out")])', { timeout: 5_000 });
+  await Promise.all([page.waitForNavigation({ waitUntil: "networkidle0" }).catch(() => {}), item.click()]);
+  const left = await page.evaluate(async () => ({
+    session: Object.keys(sessionStorage).filter((k) => k.startsWith("gen9-draft:")),
+    local: Object.keys(localStorage).filter((k) => k !== "theme"),
+    databases: indexedDB.databases ? (await indexedDB.databases()).length : 0,
+    caches: (await caches.keys()).length,
+  }));
+  await page.goBack({ waitUntil: "networkidle0" }).catch(() => {});
+  const back = new URL(page.url());
+  check(
+    sentAs.includes("no-store") && !left.session.length && !left.local.length && !left.databases && !left.caches && back.origin !== new URL(APP).origin,
+    "signed out through the menu: the pages were sent no-store, nothing of theirs is left in the browser, and Back goes to the sign-in",
+    `${sentAs}; left ${JSON.stringify(left)}; Back to ${back.origin}${back.pathname}`,
   );
 } catch (e) {
   check(false, "the cross-site check ran to the end", e.message);
