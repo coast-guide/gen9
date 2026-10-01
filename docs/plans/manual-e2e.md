@@ -3434,7 +3434,7 @@ claims about today's state, not rewritten.
 
 ### P6-Z. Cleanup, then phase 7
 
-- [ ] Z1 Everything this phase made removed; `make e2e` on the result.
+- [x] Z1 Everything this phase made removed; `make e2e` on the result.
   - **First run (2026-10-01, from 05:58 UTC):** it stopped at `agents` (`make e2e` runs its
     scripts in a chain). The fact-check turn showed no step after `run.started` for 13 minutes.
     - **Seen:** `ss -ti` from a throwaway container in each one's network namespace. The router's
@@ -3465,6 +3465,8 @@ claims about today's state, not rewritten.
     probe, `scheduled.mjs` of 2026-09-30, this run's), and six clients gen9-learn's b5xd had
     registered by their metadata documents: Keycloak keeps them. b5xd now deletes its own, as
     `e2e/mcp-server.mjs` does.
+  - **Second run, with those fixes (2026-10-01, 06:38 to 07:23 UTC):** `make e2e` exit 0, 682
+    checks, none failed, in 45 minutes; the router's spend $0.199 (1.8509 to 2.0495).
 - [x] Z2 Start phase 7 (standing instruction 7): /rigor first, then the next large list.
   Done (2026-10-01): "Phase 7" below, from ASVS 5.0's unread chapters and today's releases
   (Decision Log, "Phase 7's list").
@@ -3486,6 +3488,12 @@ today's sources first, then live, then its own pull request, as before.
 - [ ] A2 Released since phase 6's look, past the 7-day cooldown (P6-D2) unless a fix is urgent:
   Keycloak 26.8.0 (2026-10-01; a minor, its upgrading guide first), Next.js 16.3.8, deepagents
   0.7.21. Each read, verified where its publisher signs, and run live, as in P6-D1c2.
+  - **Keycloak 26.8.0 (2026-10-01), its security fixes read:** none urgent for Gen9, so it waits
+    out the cooldown (from 2026-10-08). CVE-2026-12388 and CVE-2026-14781 are in identity
+    brokering, CVE-2026-19608 in authorization services, CVE-2026-4633 in Organizations: Gen9
+    configures none. The dependency fixes are medium: jackson-databind (CVE-2026-54515,
+    CVE-2026-59889: per-property annotations on deserialization) and netty-codec-http
+    (CVE-2026-59903: Netty's CORS handler and its `Vary` header).
 - [ ] A3 P6-A3 (the raw event file of 2026/09/30, after 2026-10-02 00:00 UTC) and the A6 watches.
 
 ### P7-B. Tokens and OAuth (ASVS 5.0 V9, V10)
