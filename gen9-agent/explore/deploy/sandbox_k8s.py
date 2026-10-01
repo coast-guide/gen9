@@ -34,7 +34,8 @@ async def main() -> None:
         connection_config=config,
         timeout=timedelta(minutes=10),
         network_policy=NetworkPolicy(
-            defaultAction="deny", egress=[NetworkRule(action="allow", target="pypi.org")]
+            defaultAction="deny",
+            egress=[NetworkRule(action="allow", target="pypi.org")],
         ),
     )
     print("sandbox:", sandbox.id)
@@ -46,7 +47,9 @@ async def main() -> None:
             ("cloud metadata", FETCH + "http://169.254.169.254/"),
         ]:
             ran = await sandbox.commands.run(command)
-            out = ran.logs.stdout[0].text.strip() if ran.logs.stdout else ran.logs.stderr
+            out = (
+                ran.logs.stdout[0].text.strip() if ran.logs.stdout else ran.logs.stderr
+            )
             print(f"{label}: {out}")
     finally:
         if not os.environ.get("KEEP"):
