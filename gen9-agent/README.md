@@ -835,7 +835,8 @@ state, as before.
   and the server finds it again when it starts.
 - **Its files** (`chat_files.py`): the agent is told to save what it gives the person in
   `/work/out`, which each environment has from the start. After each turn that used the environment, the worker captures what's new or
-  changed there (regular files, three folders deep, 25 MB each, 250 MB a chat) into
+  changed there (regular files, three folders deep, 25 MB each, read no further than that even
+  if one grew after it was listed, 250 MB a chat) into
   `chat_files`, and the turn's `files.shared` event lists them. Gen9 keeps them, so they
   outlive the environment; they go with the chat or the account. The API serves them as
   downloads, never inline (`GET /v1/threads/{id}/files/{file}`); it never reaches the

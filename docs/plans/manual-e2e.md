@@ -3784,15 +3784,61 @@ M5).
 Settled before: 25 MB a file and 250 MB a chat (P2-H2), names with folders refused and files
 served as attachments with `nosniff` and a sandbox CSP (P2-F6, P3-F2).
 
-- [ ] F1 What a file is (5.2.2): an extension that lies about the content, and what reaches the
+- [x] F1 What a file is (5.2.2): an extension that lies about the content, and what reaches the
   vision model and the environment from it.
-- [ ] F2 Archives and images (5.2.3, 5.2.5, 5.2.6, 5.3.3): Gen9 unpacks nothing on its servers;
+  - **Gen9 decodes no file it's given:**
+    - an upload is kept as its bytes, typed by its name's extension (`mimetypes`), and served
+      only as an attachment with `nosniff`, a sandbox CSP and `no-store` (P3-F2);
+    - the agent reads it in the environment;
+    - Deep Agents' `read_file` sends an image, by its extension, to the model as an image block.
+  - **Live:** `photo.png` holding HTML, attached and read. The provider refused it ("The image
+    data you provided does not represent a valid image"); Deep Agents put "Unsupported content"
+    in its place, and the agent answered that it couldn't view the file. $0.003 with F2.
+  - The router tried each refused call 9 times (retries, then the fallback model) before giving
+    up: a refusal of the content can't succeed on retry. Not billed; noted.
+- [x] F2 Archives and images (5.2.3, 5.2.5, 5.2.6, 5.3.3): Gen9 unpacks nothing on its servers;
   the agent can in the environment: a zip bomb, a symlink out, a pixel flood, each tried there,
   and an image with 50,000 by 50,000 pixels sent to the model.
-- [ ] F3 One person's whole storage (5.2.4): files and chats across all their chats, and how
+  - **A pixel flood:** a 300 KB PNG declaring 50,000 × 50,000 pixels, attached and read. The
+    provider refused it as not a valid image, and nothing of Gen9's decoded it.
+  - **Unpacking in the environment:** an archive the agent unpacks there is held by the
+    environment's bounds, checked by `e2e/environments.mjs` (P5): 10 GiB of disk, then the
+    environment is deleted; 1 GiB of memory without swap; 4,096 processes.
+  - **Links:** a link can point anywhere in the environment, so capture takes regular files only.
+    execd types each entry itself (`fileType`: symlink, directory, file, other), seen live: a
+    link to `/dev/zero` listed as "symlink", left out.
+  - **Fixed, the read after the listing:** capture checked the size it listed, then read the
+    whole file. A process left running in the environment can grow it in between: a sparse
+    `truncate -s 9G` is instant and takes no disk past the watchdog. execd sends what a file holds
+    when it opens it (`http.ServeContent`), and the worker would have held all of it. Now
+    `read_capped` asks for a byte range, at most 25 MB + 1, and leaves the file out past 25 MB.
+    - Live, from the worker, on a sandbox the SDK made: a 1 KiB range on an empty file gave 0
+      bytes, on 40 bytes 40, on a 40 MB sparse file 1,025.
+    - A test covers a file grown to 9 GB.
+    - `environments.mjs` 24 of 24 after the rebuild, a shared file captured and downloaded as
+      written ($0.0126).
+- [x] F3 One person's whole storage (5.2.4): files and chats across all their chats, and how
   much one person can fill.
-- [ ] F4 Names as served (5.4.1, 5.4.2): quotes, CR and LF, non-ASCII and right-to-left names in
+  - **The bounds:** 25 MB a file, 250 MB a chat, and `FILES_MAX_BYTES_PER_PERSON` (10 GiB) across
+    all of a person's chats, under one lock, 413 past it (P4).
+  - **Open, L3:** no bound on the number of files: an empty file is allowed (P2-H2), so a person
+    could add rows without end. 5.2.4's count is L3. Each upload is the person's own and signed
+    in. Recorded, not taken.
+- [x] F4 Names as served (5.4.1, 5.4.2): quotes, CR and LF, non-ASCII and right-to-left names in
   `Content-Disposition`; known-malicious files (5.4.3) and photos' metadata (14.2.8): decided.
+  - **Live, uploaded over the API and downloaded:**
+    - `a"b.txt` came back as `attachment; filename*=UTF-8''a%22b.txt`;
+    - `📊 sales.csv` and an Arabic name came back percent-encoded the same way (RFC 8187), so
+      nothing can close or extend the header;
+    - a name with CR and LF was refused (422). Its message, "Name the file without folders.", is
+      the folders' one: a little off, noted;
+    - one with U+202E was refused ("The name has characters that change the order it reads in").
+  - The stored name never becomes a path: files live in Postgres, and in the environment
+    under `/work/in` by a name without folders (5.3.2).
+  - **No malware scanning (5.4.3):** a file goes back only to the person who gave it, or who had
+    their environment make it, never to anyone else, and is served as an attachment that never
+    renders inline. The threat 5.4.3 answers, serving known malware to others, has no path.
+  - **Photos' metadata (14.2.8, L3) kept as given:** the person's own file, for their own use.
 
 ### P7-Z. Cleanup, then phase 8
 
