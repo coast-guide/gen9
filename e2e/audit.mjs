@@ -8,7 +8,9 @@
 //      each recorded with them as the actor, and no secret's value anywhere in the record
 //   3. the throwaway person tries the seeded user's chat (404) and an admin route (403): both
 //      recorded as denied; a made-up id isn't recorded
-//   4. the record can't be changed, deleted or truncated
+//   4. the record can't be changed, deleted or truncated; each record is also a line of JSON in
+//      the API's log, and Keycloak's log has the sign-ins that succeeded and its admin changes
+//      (what an operator sends to a separate system: docs/logging.md)
 //   5. the admin reads it in Chrome on Audit log, in plain words: the role changes, and under
 //      "Refused access" the throwaway person's tries; axe clean on both
 // It deletes what it made, and costs no model call.
@@ -18,7 +20,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { launch } from "./browser.mjs";
 import { deleteChats } from "./chats.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
@@ -225,6 +227,28 @@ try {
       `${who}; ${rest.filter((line) => !line.startsWith("refused")).join(", ") || `${rest.length} refused`}`,
     );
   }
+
+  // 4b. Each record is also a line of the API's log, the stream an operator sends to a separate
+  // system (docs/logging.md, "Sending the logs elsewhere"); Keycloak's log has the sign-ins that
+  // succeeded and the admin changes too, not only failures
+  const logOf = (container) => {
+    const out = spawnSync("docker", ["logs", "--since", since, container], { encoding: "utf8", maxBuffer: 64 << 20 });
+    return `${out.stdout}${out.stderr}`.split("\n");
+  };
+  const apiLog = logOf("gen9-agent-api-1");
+  const lines = apiLog.flatMap((l) => {
+    const m = / INFO: +audit (\{.*\})$/.exec(l);
+    return m ? [JSON.parse(m[1])] : [];
+  });
+  const asLines = new Set(lines.map((e) => `${e.actor}|${e.action}|${e.outcome}|${e.target ?? ""}|${e.where}`));
+  const stored = events().map((e) => e.split("|").slice(0, 5).join("|"));
+  const missing = stored.filter((e) => !asLines.has(e));
+  check(stored.length > 0 && !missing.length, "each audit record is also a line of JSON in the API's log, with the same who, what, outcome, target and route", `${stored.length} records, ${lines.length} lines${missing.length ? `; missing: ${missing.slice(0, 3).join(", ")}` : ""}`);
+  check(apiLog.every((l) => !l.includes(SECRET_VALUE)), "no secret's value is in the API's log");
+  const keycloakLog = logOf("gen9-keycloak-keycloak-1").filter((l) => l.includes("[org.keycloak.events]"));
+  const signedIn = keycloakLog.find((l) => / INFO  /.test(l) && l.includes('type="LOGIN"') && l.includes(`userId="${otherId}"`));
+  const changed = keycloakLog.find((l) => / INFO  /.test(l) && l.includes("operationType=") && l.includes(`resourcePath="users/${otherId}`));
+  check(Boolean(signedIn && changed), "Keycloak's log has the throwaway person's sign-in and the admin changes to them, at INFO", `${keycloakLog.length} event lines; sign-in ${Boolean(signedIn)}, admin change ${Boolean(changed)}`);
 
   // 5. The admin reads it
   const rows = async () => page.$$eval('ol[aria-label="Events, newest first"] > li', (lis) => lis.map((li) => li.innerText.replace(/\s+/g, " ")));

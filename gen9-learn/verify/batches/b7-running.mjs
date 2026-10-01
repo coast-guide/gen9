@@ -14,7 +14,7 @@ export default async function running() {
   const from = new Date(Date.now() - 1000).toISOString();
   const restart = sh("make down STACKS=keycloak && make up STACKS=keycloak", { timeout: 300_000 });
   obs.keycloakRestart = restart.out.split("\n").filter((l) => /^==|Open:|configure|ready|Keycloak admin/.test(l)).slice(0, 12);
-  obs.importLine = sh(`docker logs --since ${from} gen9-keycloak-keycloak-1 2>&1 | grep -iE 'import' | tail -2`).out;
+  obs.importLine = sh(`docker logs --since ${from} gen9-keycloak-keycloak-1 2>&1 | grep -v 'org.keycloak.events' | grep -iE 'import' | tail -2`).out;
   obs.configureLog = sh("docker logs gen9-keycloak-configure-1 2>&1 | grep '^sign-in:'").out.split("\n");
   obs.sessionsAfter = { before: sessionsBefore, after: kcdb(`select count(*) from offline_user_session where offline_flag = '0' and realm_id = (select id from realm where name = 'gen9')`) };
   check(restart.code === 0 && /already exists|skipp/i.test(obs.importLine), "restart: realm import skipped (the realm exists), configure re-applied", obs.importLine.split("\n")[0].slice(-80));

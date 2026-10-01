@@ -60,7 +60,7 @@ class QueryValues(logging.Filter):
 def log_config() -> dict[str, Any]:
     """uvicorn's own logging settings: health checks that passed left out of the access log, what
     people typed masked in it, control characters escaped in every line, and Gen9's own warnings
-    formatted as uvicorn's."""
+    and audit records formatted as uvicorn's."""
     config = copy.deepcopy(LOGGING_CONFIG)
     config["filters"] = {
         "health_checks": {"()": HealthChecks},
@@ -73,6 +73,8 @@ def log_config() -> dict[str, Any]:
         handler["filters"] = ["control_characters"]
     # Gen9's own warnings through the same handler, which Python's last resort printed bare
     config["root"] = {"handlers": ["default"], "level": "WARNING"}
+    # and each audit record as its line (audit.py)
+    config["loggers"]["gen9_agent.audit"] = {"level": "INFO"}
     # Each line says when, in UTC (log_safety.py)
     config["formatters"]["default"]["()"] = UTCDefault
     config["formatters"]["default"]["fmt"] = "%(asctime)s %(levelprefix)s %(message)s"

@@ -1,0 +1,31 @@
+# A single Loki on its own disk, serving only TLS: the stand-in for the operator's system
+auth_enabled: false
+server:
+  http_listen_port: 3100
+  http_tls_config:
+    cert_file: /certs/loki.pem
+    key_file: /certs/loki-key.pem
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+schema_config:
+  configs:
+    - from: 2026-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+limits_config:
+  # Alloy's first start sends what each running container has logged so far
+  ingestion_rate_mb: 64
+  ingestion_burst_size_mb: 128

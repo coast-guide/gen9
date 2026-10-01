@@ -1,0 +1,46 @@
+// Every container's log on this host, Gen9's and each chat's environment's, read through
+// Docker's API and sent over TLS to a separate system (docs/logging.md, "Sending the logs
+// elsewhere"). Tested with Alloy v1.20.1 against Gen9's running stacks (../NOTES.md).
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+  // Docker lists running containers only, unless asked for a status: without this, a one-shot
+  // job (gen9-agent's migrate, Keycloak's configure) that ends between two looks is missed
+  filter {
+    name   = "status"
+    values = ["running", "exited"]
+  }
+}
+
+// Labels for each line: the container, and its Compose project (the stack)
+discovery.relabel "containers" {
+  targets = []
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "stack"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.containers.targets
+  labels        = {"source" = "docker"}
+  relabel_rules = discovery.relabel.containers.rules
+  forward_to    = [loki.write.elsewhere.receiver]
+}
+
+loki.write "elsewhere" {
+  endpoint {
+    url = sys.env("LOGS_URL")
+    // Your system's certificate authority; add basic_auth or bearer_token_file as it asks
+    tls_config {
+      ca_file = "/etc/alloy/ca.pem"
+    }
+  }
+}
