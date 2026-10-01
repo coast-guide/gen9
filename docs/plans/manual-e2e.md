@@ -3142,9 +3142,30 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
     table), development.md (instead of Docker Scout by hand), SECURITY.md, the Makefile's help,
     and gen9-keycloak's README.
 
-- [ ] D2 Dependency cooldowns: npm 11.10's `min-release-age` (npm's config docs), uv's relative
+- [x] D2 Dependency cooldowns: npm 11.10's `min-release-age` (npm's config docs), uv's relative
   `exclude-newer` ("7 days", uv's resolution docs; with the lockfile's drift, astral-sh/uv#18775,
   open) and Renovate's `minimumReleaseAge` for `make updates`. Adopt or record why not.
+  Done (2026-10-01), each probed before adopting (sources: npm's config definitions, 11.10+;
+  uv's resolution docs; astral-sh/uv#18775; Renovate 44.115.12's configuration options):
+  - npm, adopted: `.npmrc` with `min-release-age=7` in the five npm projects. In Node 24.21.0's
+    npm (11.19.0, CI's and the images'), on a copy of gen9-ui's lock holding a 6-day-old
+    `@modelcontextprotocol/ext-apps` 2.0.1: `npm ci` installed it as locked; `npm install
+    …@latest` chose 2.0.0, the newest older than 7 days. npm 11.9.0 warns "Unknown project config"
+    and goes on without it.
+  - uv, adopted: `exclude-newer = "7 days"` in gen9-agent's and gen9-cli's `pyproject.toml`. uv
+    writes the cutoff into `uv.lock` (`exclude-newer-span = "P7D"`) and moves it only on a new
+    resolution; #18775's drift comes from a cooldown in one machine's global `uv.toml`, not the
+    project's, and `uv lock --check` passes. Without exceptions gen9-agent's own requirements
+    were unsatisfiable (`deepagents>=0.7.19`, uploaded 2026-09-24), and FastMCP would have gone from 4.0.10
+    to 4.0.8: both were taken on purpose in P6-A2 and A3, so they're exempt by name with that
+    reason. The relock moved google-api-core 2.39.0 to 2.38.0, platformdirs 4.11.13 to 4.11.12
+    (gen9-agent) and ty 0.0.84 to 0.0.83 (gen9-cli). gen9-agent 597 tests, gen9-cli 43, ruff and
+    ty pass; the rebuilt agent runs those versions; `e2e/stacks.mjs` and `e2e/runs.mjs` pass
+    ($0.0026).
+  - Renovate, not adopted: its lookup gave a release time for none of the 25 image updates (the
+    docker datasource gives none here), and `minimumReleaseAge` needs one: with the default
+    `timestamp-required` it would hold back every update, with `timestamp-optional` none. Image
+    pins move by hand, after reading the release and checking its signature (D1c2).
 - [ ] D3 Install scripts: gen9-ui's image runs `npm ci` with its dependencies' install scripts
   (the Shai-Hulud worm spread through post-install scripts, A03's third scenario), while
   gen9-keycloak's theme has `--ignore-scripts`. Which of gen9-ui's, e2e's, `scripts/updates`'

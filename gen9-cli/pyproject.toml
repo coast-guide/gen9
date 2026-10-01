@@ -30,3 +30,9 @@ dev = [
 # Defaults (E4, E7, E9, F) + import sorting, pyupgrade, bugbear, and flake8-async: nothing blocks
 # the event loop (AGENTS.md, "Python is async from the ground up")
 extend-select = ["I", "UP", "B", "ASYNC"]
+
+[tool.uv]
+# A dependency cooldown: uv lock and uv add choose versions published at least 7 days before, so a
+# malicious release has had time to be found and pulled before it can come in. uv writes the cutoff
+# into uv.lock and moves it only on a new resolution (docs/development.md, "Dependencies").
+exclude-newer = "7 days"
