@@ -3683,8 +3683,31 @@ Settled before: the session cookie and the composer's sessionStorage cleared at 
 P4-C1), files served `private, no-store` (P3-F2), the API's `/docs` readable by design (phase 1's
 M5).
 
-- [ ] E1 Secrets (13.1.4, 13.3): which container gets which secret (13.3.2, least privilege), and
+- [x] E1 Secrets (13.1.4, 13.3): which container gets which secret (13.3.2, least privilege), and
   the schedule for replacing each (13.1.4, 13.3.4).
+  - **Who gets what** (each service's settings files and variables in the compose files; the
+    running API's and worker's, by name, set or empty):
+    - gen9-agent's migrations alone use the owner database role, the API and worker the app's
+      own;
+    - the API has its own router key, no sandbox key, and Langfuse's and SMTP's settings emptied;
+    - only the router's `keys` job holds its master key;
+    - Temporal's internode certificate is only in the server, the `namespace` job and the CLI.
+    Least privilege holds.
+  - **Kept:** Keycloak's container keeps the seeded users' passwords and the bootstrap admin's in
+    its environment after the first import, which alone reads them. Taking them out would need a
+    second compose file for the first start; anyone who can read a container's environment holds
+    Docker already. gen9-keycloak's README says to replace the bootstrap admin in production.
+  - **Fixed:** `secrets.md` said how to replace each secret, never when (13.1.4). It now has a
+    schedule from NIST SP 800-57 Part 1 Rev. 5's Table 1:
+    - keys that encrypt data, 2 years;
+    - the session secret (keys are derived from it), a year;
+    - signing keys, 2 years;
+    - secrets that prove who's calling, a year;
+    - `LITELLM_SALT_KEY` never, as it can't be.
+  - **Open:** 13.3.1 (L2) asks for a secrets manager, such as a vault. Gen9 keeps its own secrets
+    in each stack's `.env` and `*.local.env`, readable only by their owner (mode 600 here;
+    `setup.sh` makes gen9-agent's so). A manager (OpenBao, Docker's secrets) is a larger change,
+    left for a later phase. 13.3.3 (an HSM) is L3.
 - [ ] E2 Leakage (13.4), on every port Gen9 opens: `.git` (13.4.1), debug modes (13.4.2),
   directory listings (13.4.3), `TRACE` (13.4.4), monitoring endpoints (13.4.5), version headers
   and pages (13.4.6), the web app's source maps (13.4.7).
