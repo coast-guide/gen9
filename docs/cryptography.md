@@ -11,7 +11,7 @@ replace each secret is in [secrets.md](secrets.md). Read from the code and the r
 | --- | --- | --- | --- | --- |
 | People's connector tokens, connector sign-ins and environment secrets, in Postgres | AES-256-GCM, a random 96-bit nonce each; bound to its owner and connector as associated data, so it doesn't open on another row | `GEN9_SECRET_KEYS`, 256-bit keys in a ring (the first seals, all open) | `make setup` (`openssl rand -base64 32`), `gen9-agent/.env` | gen9-agent's API and worker (`vault.py`) |
 | What gen9-agent sends through Temporal: workflow and Activity inputs, results, failures | AES-256-GCM, a random 96-bit nonce each | `TEMPORAL_PAYLOAD_KEYS`, 256-bit keys in a ring | `make setup`, `gen9-agent/.env` | gen9-agent's API and worker, and Temporal UI's codec endpoint (`codec.py`) |
-| Web sessions in Valkey, refresh tokens among them | AES-256-GCM, a random 96-bit IV each; the key derived with HKDF-SHA256 | `SESSION_SECRET`, 256 bits | `gen9-ui/init-env.sh`, `gen9-ui/.env` | gen9-ui (`lib/auth/crypto.ts`) |
+| Web sessions in Valkey, refresh tokens among them | AES-256-GCM, a random 96-bit IV each, bound to its key in the store as associated data; the key derived with HKDF-SHA256 | `SESSION_SECRET`, 256 bits | `gen9-ui/init-env.sh`, `gen9-ui/.env` | gen9-ui (`lib/auth/crypto.ts`) |
 | Temporal's services, to each other | TLS with a private CA: EC P-256 keys, SHA-256 signatures; the CA for 10 years, the certificate for 825 days | Generated | `gen9-temporal/init-tls.sh`, `gen9-temporal/tls.local.env` | Temporal's frontend, history, matching and worker services |
 | Langfuse's stored secrets (its LLM connections) | Langfuse's own | `ENCRYPTION_KEY`, 256 bits | `gen9-langfuse/init-env.sh`, `gen9-langfuse/.env` | Langfuse |
 | LiteLLM's stored credentials | LiteLLM's own | `LITELLM_SALT_KEY` | `gen9-models/init-env.sh`, `gen9-models/.env` | LiteLLM |
@@ -42,8 +42,11 @@ tokens.
 
 Every value meant to be unguessable comes from the operating system's generator: `os.urandom`
 and `secrets` in Python, `crypto.randomBytes` in Node, `openssl rand` (else `/dev/urandom`) in the
-setup scripts. Keys and tokens are 256 bits, passwords between services at least 128. The web
-app's CSP nonce is `crypto.randomUUID()`, 122 random bits, as Next.js's guide does it (P7-C2).
+setup scripts. Keys and tokens are 256 bits, passwords between services and the web app's CSP
+nonce 128 (the nonce had been `crypto.randomUUID()`'s 122, as Next.js's guide does it; P7-C2).
+
+Each AES-GCM key takes a random 96-bit nonce per message. NIST SP 800-38D (8.3) keeps one key
+under 2^32 such messages; each ring's rotation (secrets.md) starts a new count.
 
 SHA-256 also names things, with no secret involved: an agent folder's version, a search index, a
 file's or a plugin's content.

@@ -65,7 +65,9 @@ export function proxy(request: NextRequest) {
     return secured(NextResponse.redirect(login));
   }
 
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  // 128 random bits, as CSP asks of a nonce and OWASP ASVS 5.0 (11.5.1) of anything unguessable;
+  // Next.js's guide's crypto.randomUUID() has 122 (docs/plans/manual-e2e.md, P7-C2)
+  const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64");
   const csp = contentSecurityPolicy(nonce, request);
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);

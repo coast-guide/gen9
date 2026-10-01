@@ -65,7 +65,7 @@ export async function saveSession(id: string, record: SessionRecord): Promise<vo
   const alive = indexed.length ? await client.mGet(indexed.map(K.session)) : [];
   const ended = indexed.filter((indexedHash, i) => alive[i] === null && indexedHash !== hash);
 
-  const multi = client.multi().set(K.session(hash), seal(record), { EX: ttl });
+  const multi = client.multi().set(K.session(hash), seal(record, K.session(hash)), { EX: ttl });
   // Indexes for back-channel logout (by Keycloak session id) and "sign out everywhere" (by user)
   if (record.sid) multi.sAdd(K.bySid(record.sid), hash).expire(K.bySid(record.sid), ttl);
   if (ended.length) multi.sRem(K.bySub(record.sub), ended);
@@ -74,8 +74,9 @@ export async function saveSession(id: string, record: SessionRecord): Promise<vo
 }
 
 export async function readSession(id: string): Promise<SessionRecord | null> {
-  const sealed = await (await store()).get(K.session(hashId(id)));
-  return sealed ? unseal<SessionRecord>(sealed) : null;
+  const key = K.session(hashId(id));
+  const sealed = await (await store()).get(key);
+  return sealed ? unseal<SessionRecord>(sealed, key) : null;
 }
 
 export async function deleteSession(id: string): Promise<void> {
@@ -116,13 +117,13 @@ export async function withSessionLock<T>(id: string, fn: () => Promise<T>): Prom
 export type AuthTransaction = { codeVerifier: string; nonce: string; returnTo: string; action?: string; removing?: string; createdAt: number };
 
 export async function saveTransaction(state: string, txn: AuthTransaction): Promise<void> {
-  await (await store()).set(K.txn(state), seal(txn), { EX: 600 });
+  await (await store()).set(K.txn(state), seal(txn, K.txn(state)), { EX: 600 });
 }
 
 /** One-time read: the transaction is deleted as it is read, so a callback URL cannot be replayed. */
 export async function takeTransaction(state: string): Promise<AuthTransaction | null> {
   const sealed = await (await store()).getDel(K.txn(state));
-  return sealed ? unseal<AuthTransaction>(sealed) : null;
+  return sealed ? unseal<AuthTransaction>(sealed, K.txn(state)) : null;
 }
 
 /** Remember a logout token id until it expires; false if it was already used (replay). */

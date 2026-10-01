@@ -542,7 +542,7 @@ footer { border-top: 1px solid var(--hairline); padding-top: 1.5rem; font-size: 
         <div class="cmd"><pre><code data-check="run">docker exec gen9-ui-valkey-1 sh -c 'export REDISCLI_AUTH="$VALKEY_PASSWORD"; keys=$(valkey-cli --scan --pattern "gen9:auth-txn:*"); for k in $keys; do echo "$k expires in $(valkey-cli TTL "$k") s"; done; [ -n "$keys" ] || echo "no sign-in in progress"'</code></pre></div>
         <div class="where code">In the code</div>
         <ul><li><code data-at="randomPKCECodeVerifier" data-to="buildAuthorizationUrl">gen9-ui/app/auth/login/route.ts:30-58</code>: state, nonce, PKCE; <code>prompt=create</code> for sign-up (<code data-at="authorizationParams.prompt">:51</code>).</li>
-        <li><code data-at="K.txn(state), seal(txn)">gen9-ui/lib/auth/store.ts:119</code>: the transaction, sealed, 600 s.</li></ul>
+        <li><code data-at="K.txn(state), seal(txn, K.txn(state))">gen9-ui/lib/auth/store.ts:120</code>: the transaction, sealed, 600 s.</li></ul>
       </div>
     </li>
 
@@ -605,7 +605,7 @@ events so far: REGISTER SEND_VERIFY_EMAIL</div>
         <ul>
           <li><code data-at="!state || params.get(">gen9-ui/app/auth/callback/route.ts:28</code>: state must match the cookie; <code data-at="authorizationCodeGrant">:52</code>: the code exchange with the PKCE verifier and nonce, over <code>gen9-keycloak:8080</code>.</li>
           <li><code>…/callback/route.ts</code>, after the exchange: a <em>new</em> random session id every sign-in, the old one deleted (no session fixation).</li>
-          <li><code data-at="const K = {" data-to="await multi.exec()">gen9-ui/lib/auth/store.ts:44-73</code> and <code>crypto.ts</code>: the key is <code>gen9:session:&lt;sha256 of the cookie&gt;</code>, the value AES-256-GCM, indexed by <code>sid</code> and <code>sub</code>.</li>
+          <li><code data-at="const K = {" data-to="await multi.exec()">gen9-ui/lib/auth/store.ts:44-73</code> and <code>crypto.ts</code>: the key is <code>gen9:session:&lt;sha256 of the cookie&gt;</code>, the value AES-256-GCM, bound to that key, indexed by <code>sid</code> and <code>sub</code>.</li>
         </ul>
       </div>
     </li>

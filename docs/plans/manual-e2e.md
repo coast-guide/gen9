@@ -3616,10 +3616,26 @@ Settled before: the payload key's and the signing keys' rotations, tried live (P
   - **Found, for C2:** the web app's CSP nonce is `crypto.randomUUID()`, 122 random bits, under
     11.5.1's 128. Web sessions were sealed without associated data, unlike the vault, so a record
     copied under another session's key in Valkey opens there.
-- [ ] C2 Each against 11.2 to 11.6: authenticated encryption and nonces (11.3.2 to 11.3.4),
+- [x] C2 Each against 11.2 to 11.6: authenticated encryption and nonces (11.3.2 to 11.3.4),
   128-bit strength (11.2.3), constant-time comparisons of tokens and secrets (11.2.4), password
   hashing's parameters against OWASP's Password Storage Cheat Sheet (11.4.2), and every generator
   of a value meant to be unguessable (11.5.1), each read in the code.
+  - **Held:**
+    - AES-256-GCM everywhere Gen9 encrypts (11.3.2, 11.3.3), with random 96-bit nonces (11.3.4;
+      NIST SP 800-38D's 2^32 messages per key, noted in cryptography.md);
+    - every key at least 128-bit strong (11.2.3);
+    - secrets compared with `hmac.compare_digest` (trigger tokens, the router's admin keys)
+      (11.2.4);
+    - passwords Argon2id at OWASP's m=7168, t=5, p=1 (11.4.2);
+    - every value meant to be unguessable from the OS's generator (11.5.1).
+  - **Fixed** (C1's two findings):
+    - **The CSP nonce:** 16 random bytes (`crypto.getRandomValues`), where `crypto.randomUUID()`
+      gave 122 random bits. Live: two pages' nonces decode to 16 bytes each, different.
+    - **Web sessions:** each record sealed with its key in Valkey as associated data, as the vault
+      does, so one copied under another session's key doesn't open there. A test copies one; the
+      transaction records too. Records sealed before don't open, so people sign in once more.
+    - Live, rebuilt: `cross-site.mjs` 8 of 8 (sessions, cookies, CSP in Chrome), `stacks.mjs` 12
+      of 12.
 
 ### P7-D. Communication between services (ASVS 5.0 V12, V13.2)
 
