@@ -5,7 +5,7 @@ are kept in a file only the user can read. Keycloak rotates refresh tokens, so e
 saves the new one. Signing out revokes this client's refresh token (RFC 7009), which ends the
 CLI's access without signing the browser out.
 
-Async throughout (AGENTS.md): HTTP goes through `httpx.AsyncClient`, and the token file, which
+Async throughout (AGENTS.md): HTTP goes through `httpx2.AsyncClient`, and the token file, which
 has no async API in the standard library, is read and written in a thread.
 """
 
@@ -18,7 +18,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-import httpx
+import httpx2
 
 CLIENT_ID = "gen9-cli"
 
@@ -85,12 +85,12 @@ async def forget_tokens() -> None:
 class Keycloak:
     """The realm's OIDC endpoints, from discovery (`await Keycloak.discover(...)`)."""
 
-    def __init__(self, http: httpx.AsyncClient, endpoints: dict) -> None:
+    def __init__(self, http: httpx2.AsyncClient, endpoints: dict) -> None:
         self.http = http
         self.endpoints = endpoints
 
     @classmethod
-    async def discover(cls, issuer: str, http: httpx.AsyncClient) -> "Keycloak":
+    async def discover(cls, issuer: str, http: httpx2.AsyncClient) -> "Keycloak":
         metadata = await http.get(
             f"{issuer.rstrip('/')}/.well-known/openid-configuration"
         )

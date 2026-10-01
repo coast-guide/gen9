@@ -1,6 +1,6 @@
 """Server-sent events as gen9-agent sends them."""
 
-import httpx
+import httpx2
 import pytest
 
 from gen9_cli.main import sse_events
@@ -17,7 +17,7 @@ STREAM = (
 
 @pytest.mark.asyncio
 async def test_parses_events_and_skips_comments():
-    response = httpx.Response(200, stream=httpx.ByteStream(STREAM.encode()))
+    response = httpx2.Response(200, stream=httpx2.ByteStream(STREAM.encode()))
     assert [event async for event in sse_events(response)] == [
         ("run.queued", {"run_id": "r1"}, "1"),
         ("status", {"text": "Searching the web"}, "2"),

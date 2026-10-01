@@ -12,7 +12,7 @@ gen9 search "..."   search your past chats (--mode hybrid|keyword|semantic|fuzzy
 gen9 files CHAT     the files a chat's environment shared; with a name, download it (-o PATH)
 gen9 logout         sign this terminal out (revokes its token; the browser stays signed in)
 
-Async throughout (AGENTS.md): one `asyncio.run` at the entry point, `httpx.AsyncClient` for every
+Async throughout (AGENTS.md): one `asyncio.run` at the entry point, `httpx2.AsyncClient` for every
 request. Ctrl-C cancels the main task (asyncio.run's SIGINT handling), which `gen9 ask` turns
 into a cancel of the run on the server.
 """
@@ -29,7 +29,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-import httpx
+import httpx2
 
 from . import approvals, elicitation, questions
 from .auth import (
@@ -68,8 +68,8 @@ def show_code(grant: dict) -> None:
 
 
 async def api_request(
-    keycloak: Keycloak, http: httpx.AsyncClient, method: str, path: str, **kwargs
-) -> httpx.Response:
+    keycloak: Keycloak, http: httpx2.AsyncClient, method: str, path: str, **kwargs
+) -> httpx2.Response:
     """Calls gen9-agent with the user's token; refreshes once if the API says it expired."""
     extra = kwargs.pop("headers", {})
     for attempt in range(2):
@@ -82,7 +82,7 @@ async def api_request(
 
 
 async def sse_events(
-    response: httpx.Response,
+    response: httpx2.Response,
 ) -> AsyncIterator[tuple[str, dict, str | None]]:
     """Server-sent events (event, JSON data, id), per the WHATWG spec's line format."""
     event, data, event_id = "message", [], None
@@ -99,7 +99,7 @@ async def sse_events(
             event_id = line[3:].strip()
 
 
-async def cmd_login(keycloak: Keycloak, http: httpx.AsyncClient, args) -> int:
+async def cmd_login(keycloak: Keycloak, http: httpx2.AsyncClient, args) -> int:
     await save_tokens(await keycloak.device_sign_in(show_code))
     signed_in = await cmd_whoami(keycloak, http, args)
     # Told before the first question, as the web app does (AI Act Art. 50(1) and (5))
@@ -107,7 +107,7 @@ async def cmd_login(keycloak: Keycloak, http: httpx.AsyncClient, args) -> int:
     return signed_in
 
 
-async def cmd_whoami(keycloak: Keycloak, http: httpx.AsyncClient, _args) -> int:
+async def cmd_whoami(keycloak: Keycloak, http: httpx2.AsyncClient, _args) -> int:
     me = await api_request(keycloak, http, "GET", "/v1/me")
     me.raise_for_status()
     body = me.json()
@@ -119,7 +119,7 @@ async def cmd_whoami(keycloak: Keycloak, http: httpx.AsyncClient, _args) -> int:
 
 async def answer_here(
     keycloak: Keycloak,
-    http: httpx.AsyncClient,
+    http: httpx2.AsyncClient,
     run_path: str,
     request: dict,
     terminal: questions.Terminal,
@@ -159,7 +159,7 @@ async def answer_here(
         return True
 
 
-async def cmd_ask(keycloak: Keycloak, http: httpx.AsyncClient, args) -> int:
+async def cmd_ask(keycloak: Keycloak, http: httpx2.AsyncClient, args) -> int:
     # At most MAX_ATTACHMENTS files, as gen9-agent's runs take: said before any call
     if len(args.attach or []) > MAX_ATTACHMENTS:
         print(
@@ -211,7 +211,7 @@ async def cmd_ask(keycloak: Keycloak, http: httpx.AsyncClient, args) -> int:
     last_id: str | None = None
     terminal: questions.Terminal | None = None
 
-    async def follow(response: httpx.Response) -> int | None:
+    async def follow(response: httpx2.Response) -> int | None:
         """Show the run's events; the exit code once it is done here, None if the stream ended
         first."""
         nonlocal run_id, last_id, terminal
@@ -280,7 +280,7 @@ async def cmd_ask(keycloak: Keycloak, http: httpx.AsyncClient, args) -> int:
                     await response.aread()
                 response.raise_for_status()
                 done = await follow(response)
-        except httpx.TransportError:
+        except httpx2.TransportError:
             if run_id is None:
                 raise
             done = None
@@ -317,7 +317,7 @@ async def cmd_ask(keycloak: Keycloak, http: httpx.AsyncClient, args) -> int:
                         await response.aread()
                     response.raise_for_status()
                     done = await follow(response)
-            except httpx.TransportError:
+            except httpx2.TransportError:
                 pass
             if last_id != seen:
                 failures = 0  # it got through: a later drop gets its tries again
@@ -375,7 +375,7 @@ def write_new(path: Path, content: bytes) -> None:
         f.write(content)
 
 
-async def cmd_files(keycloak: Keycloak, http: httpx.AsyncClient, args) -> int:
+async def cmd_files(keycloak: Keycloak, http: httpx2.AsyncClient, args) -> int:
     listed = await api_request(keycloak, http, "GET", f"/v1/threads/{args.chat}/files")
     if listed.status_code == 404:
         print("No such chat.", file=sys.stderr)
@@ -417,7 +417,7 @@ def format_hits(hits: list[dict]) -> str:
     return "\n".join(lines)
 
 
-async def cmd_search(keycloak: Keycloak, http: httpx.AsyncClient, args) -> int:
+async def cmd_search(keycloak: Keycloak, http: httpx2.AsyncClient, args) -> int:
     response = await api_request(
         keycloak,
         http,
@@ -511,7 +511,7 @@ def schedule_of(args) -> dict:
 
 
 async def _find_task(
-    keycloak: Keycloak, http: httpx.AsyncClient, which: str
+    keycloak: Keycloak, http: httpx2.AsyncClient, which: str
 ) -> dict | None:
     listed = await api_request(keycloak, http, "GET", "/v1/tasks")
     listed.raise_for_status()
@@ -521,7 +521,7 @@ async def _find_task(
     return None
 
 
-async def cmd_tasks(keycloak: Keycloak, http: httpx.AsyncClient, args) -> int:
+async def cmd_tasks(keycloak: Keycloak, http: httpx2.AsyncClient, args) -> int:
     if args.action in (None, "list"):
         listed = await api_request(keycloak, http, "GET", "/v1/tasks")
         listed.raise_for_status()
@@ -575,7 +575,7 @@ async def cmd_tasks(keycloak: Keycloak, http: httpx.AsyncClient, args) -> int:
     return 0
 
 
-async def cmd_logout(keycloak: Keycloak, _http: httpx.AsyncClient, _args) -> int:
+async def cmd_logout(keycloak: Keycloak, _http: httpx2.AsyncClient, _args) -> int:
     try:
         await keycloak.revoke(await load_tokens())
     except SignInRequired:
@@ -615,7 +615,7 @@ def _save_details(exc: BaseException) -> Path:
 
 
 async def run(args: argparse.Namespace) -> int:
-    async with httpx.AsyncClient(timeout=30) as http:
+    async with httpx2.AsyncClient(timeout=30) as http:
         try:
             keycloak = await Keycloak.discover(ISSUER, http)
             return await COMMANDS[args.command](keycloak, http, args)
@@ -626,13 +626,13 @@ async def run(args: argparse.Namespace) -> int:
             )
         except SignInFailed as exc:
             print(exc, file=sys.stderr)
-        except httpx.HTTPStatusError as exc:
+        except httpx2.HTTPStatusError as exc:
             # Gen9 answered, and refused: say why, in its words
             print(
                 f"Gen9 said no ({exc.response.status_code}): {refusal(exc.response)}",
                 file=sys.stderr,
             )
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             print(f"Couldn't reach Gen9: {exc}", file=sys.stderr)
         except Exception as exc:  # noqa: BLE001 (the last resort, below)
             # The last resort: one line in the terminal, never a raw traceback (manual-e2e.md,
@@ -652,7 +652,7 @@ async def run(args: argparse.Namespace) -> int:
         return 1
 
 
-def refusal(response: httpx.Response) -> str:
+def refusal(response: httpx2.Response) -> str:
     """Why the API refused a request: FastAPI's `detail`, a sentence or a list of what's invalid."""
     try:
         detail = response.json().get("detail")
