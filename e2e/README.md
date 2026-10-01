@@ -590,7 +590,7 @@ seeded user, with the seeded admin as another person.
 
 | Step | Checked |
 | --- | --- |
-| Asked to, the agent starts a task (its description holds an unguessable phrase) | A chat of its own, the person's, keeping the chat that started it; the step names it; the sidebar's list leaves it out; the chat lists it; its run is at priority 3 with the person as fairness key (Temporal's view) |
+| Asked to, the agent starts a task (its description holds an unguessable phrase) | A chat of its own, the person's, keeping the chat that started it; the step names it; the turn doesn't wait for its result (no `check_async_task`: an answer quoting the description is fine); the sidebar's list leaves it out; the chat lists it; its run is at priority 3 with the person as fairness key (Temporal's view) |
 | Another message meanwhile | Answered while the task works |
 | Asked to check | The answer holds the task's phrase |
 | The task's chat | `409` for a message of its own; `404` for another person |

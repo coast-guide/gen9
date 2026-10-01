@@ -214,6 +214,15 @@ something to do". Then: "looks good logo and everything".
     positives.
   - Eight in `e2e/` and gen9-learn's verifier (test code), one in a throwaway probe under
     `explore/`. Dismissed as used in tests, or won't fix, each with its reason on GitHub.
+- **`background.mjs` failed on the model's wording, twice in six runs.** The final `make e2e` from
+  the working copy stopped at "Allow in the chat lets the task go on: it wrote the memory" (the
+  check restores the memory afterwards and printed no detail, so what was written is lost); three
+  runs of the check alone then passed that step, and the third failed "the agent starts a task in
+  the background": the task was started and linked, but the answer quoted the task's
+  description, code word included, and the check read any code word in the answer as the agent
+  having done the task itself. Now it asks whether the turn called `check_async_task`, the
+  tool that fetches a task's result, and the memory step prints what the memory said when it
+  fails.
 - **Three checks deleted their chat by the menu's first item.** `runs.mjs`, `models.mjs` and
   `plugins.mjs` clicked the first `[role=menuitem]` under "Chat options". Since the menu has
   "Rename" above "Delete chat", that opened the rename field, no dialog came, and the chat stayed:
