@@ -123,7 +123,9 @@ try {
     await page.waitForFunction((c) => !document.querySelector(c), { timeout: 60_000 }, CARD);
     await untilDone(page);
     const booked = await lastAnswer(page);
-    check(/Lisbon/.test(booked) && /\b3\b|three/i.test(booked) && /business/i.test(booked), "sent, the tool's answer uses the form", booked.slice(0, 120));
+    // The class as the form sent it (`biz`) or as its option reads (Business): the tool answers
+    // with the first, and the model may quote it or put it in words
+    check(/Lisbon/.test(booked) && /\b3\b|three/i.test(booked) && /\bbiz\b|business/i.test(booked), "sent, the tool's answer uses the form", booked.slice(0, 120));
 
     // 2. Decline
     await start(page, PLAN);

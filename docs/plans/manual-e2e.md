@@ -2761,11 +2761,36 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
   every statement slower than 500 ms with its text (`log_min_duration_statement=500`, gen9-postgres'
   compose command), which can hold what people wrote: for C2. The audit module's docstring still
   named two admin actions whose routes went in PR #6; corrected.
-- [ ] C2 Personal data in the logs (CWE-532; ASVS 16.2.5). P4-D4 found no secret in any log,
+- [x] C2 Personal data in the logs (CWE-532; ASVS 16.2.5). P4-D4 found no secret in any log,
   audit row or trace; this looks for what a person wrote or is: after a full `make e2e`, every
   container's logs searched for the checks' emails, names, message texts, file names and search
   queries, each counted by service. Which are needed (an admin's sign-in log names the person),
   and which aren't. Each one that isn't is its own unit.
+  Done (2026-10-01), each fix verified live, then the scan after a full `make e2e` (every check;
+  $0.24 over its passes, by the per-key daily total), over every container's log of those hours:
+  - Found and fixed:
+    - gen9-agent's API logged each request's query: what a person searched (`/v1/search?q=`), a
+      file's name (`files?name=`), the email an admin looked up (`/v1/admin/users?search=`). Its
+      access log now masks query values but counts, cursors and filters (`main.py`,
+      `QueryValues`; tested); live, `GET /v1/search?q=…&mode=hybrid&limit=5`, the words nowhere.
+      gen9-learn's b2d checks it.
+    - OpenSandbox's server logged download paths (`files/download?path=/work/out/scores.csv`):
+      `launch.py` gives its `uvicorn.access` logger the same masking; live, `path=…`.
+    - gen9-postgres, logging statements over 500 ms, logged their bound values too (`DETAIL:
+      Parameters: $1 = '…'`, seen with a probe): `log_parameter_max_length=0`; the probe again
+      after: the statement and its time, no value.
+  - Left, with why (`docs/logging.md`, "Personal data in the logs"): Keycloak's failed sign-ins
+    (14 in the run: the account tried and the address, needed for ASVS 16.3.1); SearXNG's refused
+    searches (10: the agent's queries in the engine's address; no setting to leave them out).
+  - Not personal: the API's `agent-card.json`, `openapi.json`; Temporal UI's own status queries.
+  - The full run's other news: three checks assumed one wording or one round and were fixed or
+    found fixed: `elicitation` wanted "business" where the tool answered with the form's value,
+    "biz" (it takes either now); `background` failed on a reply quoting the task's description,
+    which PR #3 already fixes (not merged into this stack); `agui` once found the memory without the
+    bird's tag after an approved write (in the run and once alone; then it passed; the check now
+    says what the memory ends with if it fails again). Once, a run started 30 s after `elicitation` restarted
+    the worker was never picked up before the check gave up; its workflow and row went with the
+    check's cleanup, and it didn't happen again.
 - [ ] C3 Log injection (CWE-117; ASVS 16.4.1): a person's name, a chat's title, a connector's URL,
   a tool's name and a file's name carrying a newline, a forged log line, and terminal escape
   sequences. What each service's log records, and what `make logs` prints to the operator's

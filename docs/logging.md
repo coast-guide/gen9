@@ -22,19 +22,19 @@ time, `docker logs --timestamps` shows the time Docker received each line.
 
 | Stack, service | What it logs | Format |
 | --- | --- | --- |
-| gen9-agent `api` | Each request (client address, method, path, status); warnings and errors | uvicorn's plain text: `INFO:     172.24.0.1:58824 - "GET /v1/me HTTP/1.1" 200 OK`, no time |
+| gen9-agent `api` | Each request (client address, method, path, status), its query values masked but counts and cursors (`GET /v1/search?q=…&mode=hybrid&limit=5`: what was searched, a file's name, an email an admin looked up stay out); warnings and errors | uvicorn's plain text: `INFO:     172.24.0.1:58824 - "GET /v1/me HTTP/1.1" 200 OK`, no time |
 | gen9-agent `worker` | Runs (attempts, waiting, done), deletions, Schedules, search indexing, notices; a service that doesn't answer as one line a try (`transient.py`) | `2026-09-30 23:31:00,803 INFO gen9_agent.deletion: …`, no zone |
 | gen9-ui `prod` | Back-channel logouts, server errors | Plain text, no time |
 | gen9-keycloak `keycloak` | Sign-in events (Keycloak's `jboss-logging` listener: type, client, user id, IP address; failures with the email tried), warnings | `2026-09-30 23:30:50,735 WARN  [org.keycloak.events] (executor-thread-6) …`, no zone |
 | gen9-keycloak `mailpit` | Its start and errors | logfmt, `time="2026/09/30 22:49:09" level=info msg=…` |
 | gen9-temporal `temporal`, `ui` | The server's events and errors; the UI's requests | JSON, `"ts":"2026-09-30T23:34:20.611Z"` |
 | gen9-models `litellm` | Warnings and errors only (`LITELLM_LOG=WARNING`): refused keys, budgets exceeded (with the person's `sub`) | Plain text |
-| gen9-models `searxng` | Search engines' errors | `2026-09-30 22:36:14,895 WARNING:searx.engines…`, no zone |
+| gen9-models `searxng` | Search engines' errors; a request an engine refused, with its address, which holds the query the agent searched for (SearXNG has no setting to leave it out) | `2026-09-30 22:36:14,895 WARNING:searx.engines…`, no zone |
 | gen9-langfuse `langfuse-web`, `langfuse-worker` | Ingestion, trace deletions | `2026-09-30T23:30:50.264Z info …` |
 | gen9-langfuse `clickhouse` | Warnings and errors; also its own files inside the container, three of 100 MB (`config.d/gen9-disk.xml`, gen9-langfuse's README, "Disk") | ClickHouse's text log |
-| Every stack's `postgres` | Checkpoints, errors; gen9-postgres also every statement slower than 500 ms, with its text (`log_min_duration_statement`) | `2026-09-30 23:34:22.608 UTC [31] LOG: …` |
+| Every stack's `postgres` | Checkpoints, errors; gen9-postgres also every statement slower than 500 ms, without its values (`log_min_duration_statement`, `log_parameter_max_length=0`) | `2026-09-30 23:34:22.608 UTC [31] LOG: …` |
 | gen9-ui `valkey` | Its start and saves | `6:M 30 Sep 2026 18:10:53.246 * …`, no zone |
-| gen9-sandbox `opensandbox` | Its API's requests | uvicorn's, `2026-09-30 23:35:55+0000` |
+| gen9-sandbox `opensandbox` | Its API's requests, their query values masked (a chat's file names stay out; `launch.py`) | uvicorn's, `2026-09-30 23:35:55+0000` |
 | A chat's environment | What its commands print | As printed |
 
 ## Records kept on purpose
@@ -50,6 +50,20 @@ time, `docker logs --timestamps` shows the time Docker received each line.
 | Workflow histories | gen9-temporal's Postgres | Each workflow's steps; Gen9's inputs and outputs encrypted by its payload codec | Gen9's admins in Temporal's web UI (decrypted by gen9-agent's codec endpoint, over https only); anyone with its database sees ciphertext | 72 hours after a workflow closes (the namespace's retention) |
 | Emails | gen9-keycloak's Mailpit | Every email sent: verification, password resets, Gen9's notices | Whoever has `MAILPIT_UI_PASSWORD` | The newest 5,000 |
 
+## Personal data in the logs
+
+What a person is or wrote, in a full `make e2e`'s container logs (docs/plans/manual-e2e.md,
+P6-C2), and why each is there:
+
+- **Keycloak: a failed sign-in names the account tried and the address it came from.** Needed:
+  logging failed sign-ins is how an attack on an account is seen (ASVS 16.3.1); its database copy
+  goes after 30 days.
+- **SearXNG: a search an engine refused, with its address**, which holds the agent's query. Kept:
+  SearXNG has no setting to leave it out, and the same query went to that engine.
+- Nothing else. The API and the sandbox server mask query values (searches, file names, emails
+  an admin looked up); gen9-postgres logs slow statements without their values; the worker, the web
+  app and the other services log none of it.
+
 ## Known gaps
 
 Found while taking this inventory; each is an item of docs/plans/manual-e2e.md, phase 6:
@@ -57,5 +71,4 @@ Found while taking this inventory; each is an item of docs/plans/manual-e2e.md, 
 - Times: the API and the web app print none, and several print no zone (UTC, as their clocks are)
   (P6-C4, ASVS 16.2.2).
 - Plain text: a newline in a logged value starts a line of its own (P6-C3, log injection).
-- gen9-postgres logs slow statements with their text, which can hold what people wrote (P6-C2).
 - No log leaves the host for a separate system (P6-C5, P6-C6; ASVS 16.4.3).
