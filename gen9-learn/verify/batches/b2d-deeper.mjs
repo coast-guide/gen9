@@ -179,9 +179,13 @@ export default async function deeper(ctx) {
     check(/^success\|/.test(obs.outageAfter ?? "") && /input\.requested,input\.provided/.test(obs.outageEvents), "the router back, Retry goes on from the checkpoint: the same run finishes", `${obs.outageAfter}; ${obs.outageEvents}`);
   }
 
-  // ---- context: a worker with a small budget, three long messages, the summary, the note
+  // ---- context: a worker with a small budget, three long messages, the summary, the note. The
+  // person's memory and past-chat search are off meanwhile, so only the summary can carry the code
+  // word: the agent saves "a long note to keep" to memory (docs/plans/manual-e2e.md, P6-E3)
   const code = `osprey-${randomBytes(3).toString("hex")}`;
   const filler = Array.from({ length: 150 }, (_, i) => `Line ${i}: the tide came in and went out.`).join(" ");
+  const controls = appdb(`select remember || '|' || search_past_chats from users where sub = '${user.sub}'`);
+  appdb(`update users set remember = false, search_past_chats = false where sub = '${user.sub}'`);
   try {
     sh(`docker stop ${WORKER}; docker rm -f ${SMALL}`);
     const small = sh(`docker compose -f gen9-agent/compose.yaml run -d --no-deps --name ${SMALL} -e CONTEXT_BUDGET_TOKENS=12000 worker`, { timeout: 120_000 });
@@ -208,6 +212,8 @@ export default async function deeper(ctx) {
       `${obs.contextEvents?.slice(0, 160)}; notes: ${obs.contextNotes.join(" | ")}; ${obs.contextMessages} messages`,
     );
   } finally {
+    const [remember, pastChats] = controls.split("|");
+    appdb(`update users set remember = ${remember === "t"}, search_past_chats = ${pastChats === "t"} where sub = '${user.sub}'`);
     sh(`docker rm -f ${SMALL}; docker start ${WORKER}`);
     check(await until(() => health(WORKER) === "healthy", 120), "the worker is back, as it was");
   }
