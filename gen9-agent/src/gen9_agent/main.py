@@ -9,7 +9,7 @@ from urllib.parse import unquote_plus
 import uvicorn
 from uvicorn.config import LOGGING_CONFIG
 
-from .log_safety import ControlCharacters
+from .log_safety import ControlCharacters, UTCAccess, UTCDefault
 
 HEALTH_PATHS = frozenset({"/healthz", "/readyz"})
 
@@ -73,6 +73,13 @@ def log_config() -> dict[str, Any]:
         handler["filters"] = ["control_characters"]
     # Gen9's own warnings through the same handler, which Python's last resort printed bare
     config["root"] = {"handlers": ["default"], "level": "WARNING"}
+    # Each line says when, in UTC (log_safety.py)
+    config["formatters"]["default"]["()"] = UTCDefault
+    config["formatters"]["default"]["fmt"] = "%(asctime)s %(levelprefix)s %(message)s"
+    config["formatters"]["access"]["()"] = UTCAccess
+    config["formatters"]["access"]["fmt"] = (
+        '%(asctime)s %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
+    )
     return config
 
 

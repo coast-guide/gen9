@@ -99,6 +99,10 @@ export function whatHappened(event: AuditEvent): string {
       return "Tried to open someone else’s chat";
     case "run.access":
       return "Tried to reach someone else’s answer";
+    case "run.answer":
+      return d.why === "not waiting"
+        ? "Answered a question its run no longer asked"
+        : "Answered a question already answered (an approval sent again, say)";
     case "file.access":
       return "Tried to open someone else’s file";
     case "task.access":

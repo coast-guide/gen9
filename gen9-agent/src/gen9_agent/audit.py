@@ -8,6 +8,7 @@ service account, not the admin who clicked, so only Gen9 can say who acted. Reco
   plugin sources and plugins;
 - people's security actions: deleting their account, adding and removing a connector, an
   environment secret or a task's trigger;
+- an answer sent again to a run's question (a replayed approval), or to a run no longer asking;
 - access refused: every 403, and one person's ids tried by another (answered 404, so the ids'
   existence isn't revealed to them).
 

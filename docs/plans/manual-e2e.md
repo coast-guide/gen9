@@ -2818,10 +2818,39 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
     only for mawk; live, a request shows as it happens.
   - Other services write their own lines; values from people reach them only through Keycloak
     (above) and gen9-agent, now covered.
-- [ ] C4 The security events logged (ASVS 16.3.1-16.3.4, with when, where, who and what in UTC,
+- [x] C4 The security events logged (ASVS 16.3.1-16.3.4, with when, where, who and what in UTC,
   16.2.1-16.2.2): sign-ins that succeed and fail, refused authorization (another person's chat,
   an admin route), attempts around controls (a replayed approval, a cross-site request refused,
   a budget exceeded), and backend TLS failures (the egress). What's missing, added.
+  Done (2026-10-01), each live:
+  - Sign-ins, both ways: Keycloak's events (103 types, user, client, address, time; 30 days),
+    and failed ones in its log too. Refused authorization: Gen9's audit record (`thread.access`,
+    `task.access`, `connector.access`, `environment_secret.access`, `access.refused`: who, what,
+    the route, when in UTC). A budget exceeded: the router's log names the person's `sub`, and the
+    run's row and the worker's line say so. A cross-site request: the browser never sends the
+    session (SameSite, no CORS: `cross-site.mjs`), so no server sees one to refuse; what a page
+    loads against the CSP is reported and logged by gen9-ui.
+  - Added: an answer sent again to a run's question (a replayed approval), or to a run no longer
+    asking, answered 409 and left no trace. Now an audit event, `run.answer` denied, with the
+    input and why (`api/runs.py`; tested, 2 of 3 failing on the old code), in words in the Audit
+    log; `questions.mjs` checks it: "<sub> denied already answered".
+  - Added: a connector server's TLS failing. FastMCP raises it as "Client failed to connect: [SSL:
+    CERTIFICATE_VERIFY_FAILED] …", which the "couldn't reach" test (case-sensitive) missed, so
+    the person was told "That doesn't look like an MCP server" and nothing was logged. Seen with
+    badssl.com's expired, wrong-host, self-signed and untrusted-root servers. Now a warning with
+    why ("connector …: TLS failed: …") and, to the person, "That server's certificate isn't valid,
+    so Gen9 didn't connect." (`connectors.py`, `tls_failed`; tested).
+  - Times with their zone (16.2.2): gen9-agent's worker printed none, its API no time at all, and
+    Keycloak no zone. Now `2026-10-01T01:00:05.645Z …` on all three (`log_safety.py`'s UTC
+    formatters; Keycloak's `KC_LOG_CONSOLE_FORMAT`), live.
+  - Not added here: an environment's lookup of a host its policy denies isn't logged by
+    OpenSandbox's egress v1.1.7 (the latest release; upstream's main logs it, `dnsproxy`), seen
+    with `expired.badssl.com` from a chat's environment. Its TLS failures to allowed hosts
+    couldn't be provoked (none of them serves a bad certificate). C7 below.
+- [ ] C7 (from C4) Denied egress recorded: OpenSandbox's egress posts each denied hostname to a
+  webhook (#406, egress 1.0.3+); point it at gen9-agent and record an audit event (`environment
+  .egress` denied, the chat's person as actor, the host), or take upstream's log line when an
+  egress release carries it. Check whether a denial flood needs bounding.
 - [ ] C5 Alerting (A09: "alerting use cases", thresholds, no alert fatigue): what reaches a person
   or the operator, and when. Someone trying a person's password (the lockout after 5), their
   password or passkey changed, an admin role granted, the shared daily key nearly spent, a

@@ -31,6 +31,7 @@ import hashlib
 import json
 import logging
 import re
+import ssl
 import time
 import uuid
 import warnings
@@ -196,6 +197,25 @@ def asks(policy: str, tool: BaseTool) -> bool:
     return policy == "ask" or (policy == "changes" and not read_only(tool))
 
 
+TLS_FAILED = "That server's certificate isn't valid, so Gen9 didn't connect."
+
+
+def tls_failed(url: str | None, e: BaseException) -> bool:
+    """Whether the server's TLS failed (a certificate expired, for another name, or not trusted),
+    logged with why when it did. It reaches the person as a plain sentence, and a backend TLS
+    failure is a security event (ASVS 5.0 16.3.4; manual-e2e.md, P6-C4). FastMCP raises it as
+    "Client failed to connect: [SSL: CERTIFICATE_VERIFY_FAILED] …", which "couldn't reach" missed
+    (lower case) and "doesn't look like an MCP server" answered."""
+    chain: list[BaseException] = [e]
+    while (cause := chain[-1].__cause__ or chain[-1].__context__) and len(chain) < 6:
+        chain.append(cause)
+    for x in chain:
+        if isinstance(x, ssl.SSLError) or "[SSL" in str(x):
+            log.warning("connector %s: TLS failed: %s", url or "call", str(x)[:300])
+            return True
+    return False
+
+
 async def discover(
     url: str, header: str | None, token: str | None, reach: "Reach | bool"
 ) -> list[BaseTool]:
@@ -208,6 +228,8 @@ async def discover(
         raise ConnectorError("The server didn't answer in time.") from e
     except Exception as e:
         text = f"{type(e).__name__}: {e}"
+        if tls_failed(url, e):
+            raise ConnectorError(TLS_FAILED) from e
         if "401" in text or "403" in text or "nauthorized" in text:
             raise ConnectorError("The server refused the token.") from e
         if "Connect" in text or "resolve" in text:
@@ -225,6 +247,8 @@ def failed(e: Exception) -> ConnectorError:
         return ConnectorError("The server didn't answer in time.")
     if isinstance(e, MCPError):
         return ConnectorError(f"The server refused: {e.message[:200]}")
+    if tls_failed(None, e):
+        return ConnectorError(TLS_FAILED)
     # With its causes: FastMCP says "Client failed to connect" over httpx's ConnectError
     chain: list[BaseException] = [e]
     while (cause := chain[-1].__cause__) is not None and len(chain) < 5:

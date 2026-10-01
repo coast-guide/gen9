@@ -10,12 +10,18 @@ server). OWASP's Logging Cheat Sheet: sanitize event data for "carriage return (
 A filter on the handlers writes every control character of a record's message and arguments as
 its escape (`\\n`, `\\x1b`): one record, one line, and nothing a terminal acts on. A traceback
 (`exc_info`) keeps its lines; it is Gen9's own.
+
+Each line also says when, in UTC with its zone (`2026-10-01T00:46:24.364Z`; ASVS 5.0 16.2.2): the
+worker's said no zone, the API's no time at all (P6-C4).
 """
 
 import logging
 import re
+import time
 from collections.abc import Mapping
 from typing import Any
+
+from uvicorn.logging import AccessFormatter, DefaultFormatter
 
 # C0 and C1 controls, DEL, and the Unicode line and paragraph separators
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
@@ -52,3 +58,22 @@ def guard(handlers: list[logging.Handler]) -> None:
     for handler in handlers:
         if not any(isinstance(f, ControlCharacters) for f in handler.filters):
             handler.addFilter(ControlCharacters())
+
+
+class UTC(logging.Formatter):
+    """`%(asctime)s` as ISO 8601 in UTC, to the millisecond, with its Z."""
+
+    @staticmethod
+    def converter(seconds: float | None = None) -> time.struct_time:
+        return time.gmtime(seconds)
+
+    default_time_format = "%Y-%m-%dT%H:%M:%S"
+    default_msec_format = "%s.%03dZ"
+
+
+class UTCDefault(UTC, DefaultFormatter):
+    """uvicorn's own lines, with the time first."""
+
+
+class UTCAccess(UTC, AccessFormatter):
+    """uvicorn's access lines, with the time first."""

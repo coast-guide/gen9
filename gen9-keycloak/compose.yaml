@@ -41,6 +41,9 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?run ./init-env.sh first}
       KC_LOG_LEVEL: info
+      # Each line says when with its zone (Z, UTC), as an event's time must (ASVS 5.0 16.2.2;
+      # docs/logging.md): Keycloak's default has no zone
+      KC_LOG_CONSOLE_FORMAT: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5p [%c] (%t) %s%e%n"
       # Read by realm/gen9-realm.json placeholders on first import only
       GEN9_UI_CLIENT_SECRET: ${GEN9_UI_CLIENT_SECRET:?run ./init-env.sh first}
       GEN9_AGENT_CLIENT_SECRET: ${GEN9_AGENT_CLIENT_SECRET:?run ./init-env.sh first}
