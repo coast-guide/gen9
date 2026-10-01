@@ -2561,6 +2561,9 @@ start a model run are kept out of any fuzzing.
   what merged since (upstream-proxy chaining for egress among it); rc images, not a release, so
   nothing to rerun yet. No execd after v1.1.0. The project's links now read
   `opensandbox-group/OpenSandbox`.
+  (2026-10-01, later) The egress had a release after all: the project tags images per release
+  now, and `release-1.1.0` (2026-09-21) is the egress of the server Gen9 runs. Taken in C7, with
+  E4 and E4b's checks rerun on it.
 - [ ] A6 (from P5-A6) Watches, each session: deepagents #6122 and guidepup #143 (both open).
   (2026-10-01) Both still open: #6122's last activity 2026-09-23 (5 comments), #143's 2026-09-25
   (none).
@@ -2847,10 +2850,31 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
     OpenSandbox's egress v1.1.7 (the latest release; upstream's main logs it, `dnsproxy`), seen
     with `expired.badssl.com` from a chat's environment. Its TLS failures to allowed hosts
     couldn't be provoked (none of them serves a bad certificate). C7 below.
-- [ ] C7 (from C4) Denied egress recorded: OpenSandbox's egress posts each denied hostname to a
+- [x] C7 (from C4) Denied egress recorded: OpenSandbox's egress posts each denied hostname to a
   webhook (#406, egress 1.0.3+); point it at gen9-agent and record an audit event (`environment
   .egress` denied, the chat's person as actor, the host), or take upstream's log line when an
   egress release carries it. Check whether a denial flood needs bounding.
+  Done (2026-10-01), by the second path: OpenSandbox now tags its images per release, and
+  `opensandbox/egress:release-1.1.0` (2026-09-21) carries #1807 ("log warn on DNS deny", merged
+  2026-09-11); Gen9 ran the server at release-1.1.0 with the egress still at v1.1.7. The webhook
+  wasn't taken: it fires from inside the sandbox's network namespace, so it would open a path from
+  environments to gen9-agent. Upgraded (A5's trigger), as gen9-sandbox's README says: the digest,
+  `system.py`'s checksum after reading the new file (its no-SNI passthrough and SNI-aware ignore
+  hosts are new; `sni-binding.py`'s anchors are still there once, and the patched file parses),
+  the image tag in `config.toml` and `compose.yaml`, then a restart of the server (it reads its
+  config at start). Live:
+  - a denied lookup: `[dns] denied by policy (remote=… question="expired.badssl.com")`, warn,
+    UTC, with the sandbox's id;
+  - through Gen9's own sandbox code on the live server (`environments.create`, `apply_secrets`):
+    a secret reaches its host (`Authorization: Bearer …`); a request to that host with another
+    secret's host in its `Host` header gets 403 "request endpoint identity does not match
+    credential binding" (E4b, the carried fix still in force); a host closed by removing its
+    secret stays closed after the egress process is killed and restarted (P4-E4's policy file);
+  - `e2e/environments.mjs`: all 24 checks (secrets read-only by default, closing on removal, the
+    disk limit, another person's environment, deletion).
+  The first probe said no secret reached its host: it had used the path `/`, which matches only
+  `/`; Gen9's secrets default to `/*`. Bounding: each denial is one warn line in the sidecar's
+  log, bounded like every container's (3 × 10 MB), and the sidecar goes with its environment.
 - [ ] C5 Alerting (A09: "alerting use cases", thresholds, no alert fatigue): what reaches a person
   or the operator, and when. Someone trying a person's password (the lockout after 5), their
   password or passkey changed, an admin role granted, the shared daily key nearly spent, a

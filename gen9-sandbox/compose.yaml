@@ -61,7 +61,7 @@ services:
   egress-image:
     logging: *logging
     build: egress
-    image: gen9-sandbox-egress:1.1.7
+    image: gen9-sandbox-egress:release-1.1.0
     entrypoint: ["true"]
     restart: "no"
 

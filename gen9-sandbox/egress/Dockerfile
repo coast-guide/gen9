@@ -1,12 +1,12 @@
 # OpenSandbox's egress sidecar (Apache-2.0), pinned by digest, with a baseline no sandbox's policy
 # can lift: deny.always. To upgrade: this digest and config.toml's [egress] image together.
-FROM opensandbox/egress:v1.1.7@sha256:db7345d567b0970f384b8e3fa7a93a71b7f43d4b16bb2009de34096e9a87b3b5
+FROM opensandbox/egress:release-1.1.0@sha256:56429c89b7175c2a24af62ca93a99776f03ea67a0beb74d63c8ddb34ff16fd97
 COPY deny.always /var/egress/rules/deny.always
 # A secret goes only to a TLS peer its binding trusts, not to wherever the Host header points:
 # OpenSandbox #1758, its fix PR #1759 carried until a release has it (sni-binding.py). The check
-# fails the build if system.py isn't v1.1.7's
+# fails the build if system.py isn't release-1.1.0's
 COPY sni-binding.py /tmp/sni-binding.py
-RUN echo "8c00c314cf45e97ae1b6c2151b114fedeb4c407c8c184d2b19904c8a540cb098  /var/egress/mitmscripts/system.py" | sha256sum -c - \
+RUN echo "b8930ed48d1903413cdc3b7d0bf49dac7a8bff4f6c1a470868881eb38e215413  /var/egress/mitmscripts/system.py" | sha256sum -c - \
     && python3 /tmp/sni-binding.py /var/egress/mitmscripts/system.py \
     && rm /tmp/sni-binding.py
 # Each change to the sandbox's rules is written here too, and a restarted egress process reads it

@@ -41,6 +41,7 @@ UTC.
 | gen9-ui `valkey` | Its start and saves | `6:M 30 Sep 2026 18:10:53.246 * …`, no zone |
 | gen9-sandbox `opensandbox` | Its API's requests, their query values masked (a chat's file names stay out; `launch.py`) | uvicorn's, `2026-09-30 23:35:55+0000` |
 | A chat's environment | What its commands print | As printed |
+| A chat's environment's egress sidecar | Its policy as applied; a lookup the policy denies, with the host (`[dns] denied by policy`); a request the credential proxy refuses | JSON, `"ts":"2026-10-01T01:08:45.278Z"`, with the sandbox's id |
 
 ## Records kept on purpose
 
@@ -82,6 +83,4 @@ P6-C2), and why each is there:
 
 Found while taking this inventory; each is an item of docs/plans/manual-e2e.md, phase 6:
 
-- An environment's lookup of a host its policy denies isn't logged: OpenSandbox's egress v1.1.7, the
-  latest, doesn't say (P6-C7).
 - No log leaves the host for a separate system (P6-C5, P6-C6; ASVS 16.4.3).

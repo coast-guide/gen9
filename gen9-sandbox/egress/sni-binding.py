@@ -4,9 +4,9 @@ request's Host header, which the sandbox's code writes: code sending `Host: <one
 over a session to another allowed host had that secret added and delivered there. Found in Gen9,
 a host that echoes requests handed the code another host's secret (docs/plans/manual-e2e.md,
 P4-E4b). OpenSandbox issue #1758; the code below is its fix, PR #1759 (Apache-2.0, unmerged),
-carried until an egress release has it. The Dockerfile checks system.py is v1.1.7's first, and
-each anchor here must occur exactly once, so an upgrade fails the build rather than patching a
-file it doesn't know.
+carried until an egress release has it. The Dockerfile checks system.py is the pinned release's
+first, and each anchor here must occur exactly once, so an upgrade fails the build rather than
+patching a file it doesn't know.
 
 Usage: python3 sni-binding.py /var/egress/mitmscripts/system.py
 """

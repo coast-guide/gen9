@@ -21,7 +21,7 @@ execd_image = "opensandbox/execd:v1.1.0@sha256:6cf7dba2f21f0b536e100563d841ac58a
 [egress]
 # A network policy per sandbox (default deny) and the credential vault need the sidecar in dns+nft.
 # The sidecar is OpenSandbox's, pinned, with Gen9's deny.always baseline (egress/, built by compose)
-image = "gen9-sandbox-egress:1.1.7"
+image = "gen9-sandbox-egress:release-1.1.0"
 mode = "dns+nft"
 readiness_timeout_seconds = 30.0
 
