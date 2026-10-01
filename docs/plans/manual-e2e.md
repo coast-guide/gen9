@@ -3120,6 +3120,32 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
         closed after a restart); a denied lookup logged (`[dns] denied by policy`, C7); nothing in
         the sidecar's log but its IPv6 loopback note. The first live check read an older sidecar:
         environments live 30 minutes after use, so pick a sidecar by its image ID.
+        - **Patched instead of accepted (2026-10-01, after phase 7; the owner: "fix the issues, ci
+          should pass"):**
+          - **Why:** with the stack merged, `main`'s Dependabot security updates failed on every
+            push: 15 open alerts on `egress/requirements.txt`, each `security_update_not_possible`,
+            as mitmproxy 12.2.3, still its latest release, pins `h2==4.3.0`, `tornado<=6.5.5`,
+            `cryptography<=48.1`, `msgpack<=1.1.2`, and through `pyOpenSSL<=26.2` cryptography
+            below 49. Two alerts were new since this item: h2's GHSA-6hr6-w5qg-qmwg (a duplicate
+            `Host` header passed on) and cryptography's GHSA-m2h6-j472-rp4c.
+          - **The fix:** the lock overrides those caps (`overrides.txt`: h2 4.4.1, tornado
+            6.5.10, cryptography 50.0.1, msgpack 1.2.2, pyOpenSSL 26.4.0, each past the 7-day
+            cooldown, P6-D2; werkzeug kept at 3.1.9, a security release, by
+            `--exclude-newer-package`). It's installed as it is (`pip --no-deps`), since pip
+            refuses overrides against mitmproxy's own requirements.
+          - The build also takes Debian's updates (`apt-get upgrade`): with the ignores gone, the
+            scan found the pinned base's `libpcre2-8-0` 10.46-1~deb13u2 (CVE-2026-103111, High),
+            fixed in deb13u3.
+          - **Live:**
+            - mitmproxy 12.2.3 starts with them.
+            - `e2e/environments.mjs` 24 of 24 on that image (secrets through mitmproxy over
+              HTTPS, hosts opened and closed), and 24 of 24 again on the final one, with Debian's
+              updates ($0.0127 each).
+            - A probe sandbox's sidecar ran the image just built (its ID), with h2 4.4.1,
+              tornado 6.5.10, cryptography 50.0.1, msgpack 1.2.2 and pyOpenSSL 26.4.0, its log
+              clean.
+            - Grype on the egress image, with this item's ignore rules removed from
+              `scripts/sbom/grype.yaml`: "No vulnerabilities found".
       - [x] D1c5c execd the same way: its Dockerfile pins `golang:1.25.9` (and Alpine's OpenSSL
         3.5.7-r0); config.toml would point at a Gen9 build. First, how the server takes it in: it
         copies `/execd` and others out of the image into each sandbox.

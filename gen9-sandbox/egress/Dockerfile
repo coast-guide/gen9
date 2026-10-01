@@ -5,8 +5,11 @@
 # (h11's is Critical), on main too; mitmproxy 12 needs Python 3.12, which Debian 12 hasn't. So this
 # is upstream's image (components/egress/Dockerfile) on Debian 13, with a supported Go and
 # mitmproxy 12, from a lock with hashes (requirements.txt; docs/plans/manual-e2e.md, P6-D1c5).
+# mitmproxy 12.2.3 caps h2, tornado, cryptography, msgpack and pyOpenSSL below their security
+# fixes too: the lock overrides those caps (overrides.txt), and the lock is installed as it is
+# (--no-deps), as pip would refuse the overrides against mitmproxy's own requirements.
 # To upgrade: the upstream image's digest, its release's COMMIT, the Go and Debian images, then
-# the lock (`uv pip compile requirements.in --universal --python-version 3.13 --generate-hashes`).
+# the lock, its command at its head (`uv pip compile requirements.in --override overrides.txt …`).
 
 # Its two Go binaries, from the release's commit, with a supported Go (1.25 left support when 1.27
 # came out). The commit pins the source; Go checks each module against go.sum. Upstream's flags.
@@ -27,8 +30,10 @@ FROM opensandbox/egress:release-1.1.0@sha256:56429c89b7175c2a24af62ca93a99776f03
 
 FROM debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
 # Upstream's packages: iptables and nftables for the DNS redirect and the policy, ca-certificates
-# for TLS upstream, Python for mitmproxy, and its tools for looking inside a sidecar
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+# for TLS upstream, Python for mitmproxy, and its tools for looking inside a sidecar; and Debian's
+# security updates to what the pinned base has (its libpcre2 had a fixed High one)
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         iptables iproute2 nftables ca-certificates sudo curl wget net-tools dnsutils netcat-openbsd \
         iputils-ping traceroute telnet tcpdump nmap htop procps strace lsof python3 python3-pip \
     && rm -rf /var/lib/apt/lists/*
@@ -38,7 +43,7 @@ COPY requirements.txt /tmp/requirements.txt
 RUN useradd -r -u 10042 -d /var/lib/mitmproxy -s /usr/sbin/nologin mitmproxy \
     && mkdir -p /var/lib/mitmproxy/.mitmproxy /var/egress \
     && chown -R mitmproxy:mitmproxy /var/lib/mitmproxy \
-    && pip3 install --no-cache-dir --break-system-packages --require-hashes -r /tmp/requirements.txt \
+    && pip3 install --no-cache-dir --break-system-packages --require-hashes --no-deps -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt && mitmdump --version \
     && apt-get purge -y python3-pip && apt-get autoremove -y --purge && rm -rf /var/lib/apt/lists/*
 COPY --from=upstream --chown=mitmproxy:mitmproxy /var/lib/mitmproxy/.mitmproxy/config.yaml /var/lib/mitmproxy/.mitmproxy/config.yaml
