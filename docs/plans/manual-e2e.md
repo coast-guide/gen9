@@ -3639,12 +3639,43 @@ Settled before: the payload key's and the signing keys' rotations, tried live (P
 
 ### P7-D. Communication between services (ASVS 5.0 V12, V13.2)
 
-- [ ] D1 Every connection between stacks and to the outside listed (13.1.1), with whether it's
+- [x] D1 Every connection between stacks and to the outside listed (13.1.1), with whether it's
   encrypted and how each side is authenticated (12.3.1, 12.3.3, 12.3.5, 13.2.1 to 13.2.3): what
   one host's Docker networks justify, and what an operator spreading stacks over hosts must add.
-- [ ] D2 Every TLS client Gen9 runs validates certificates (12.3.2): the router to providers, the
+  - **docs/development.md, "Connections, and what each side shows":** 19 connections, from the
+    compose files (each service's networks), the settings each stack shares (by key name) and the
+    code.
+    - Only Temporal's own services (mTLS) and the connections out of the machine are encrypted.
+    - Every connection between stacks is authenticated: a token, a client secret, a key or a
+      password. The exceptions are the router's SearXNG and each stack's own parts, which stay on
+      that stack's own network.
+  - **What spreading over hosts must add:** TLS or an encrypted network on each link that
+    crosses hosts; the sandbox host kept to itself (the Docker socket, execd's ports); SMTP over
+    TLS. gen9-keycloak's README said only to swap Mailpit for a real server.
+  - SECURITY.md links it, and `docs/cryptography.md` (P7-C1).
+- [x] D2 Every TLS client Gen9 runs validates certificates (12.3.2): the router to providers, the
   worker to connectors, MCP servers and plugin sources, Keycloak to SMTP, the egress upstream.
   Tried live against a server with a bad certificate.
+  - **Test servers:** badssl.com didn't answer from this machine (curl exit 35, from the host
+    too). Instead a throwaway https server on the host's `127.0.0.1:18443`, its certificate
+    self-signed for `host.docker.internal`, and example.com's address (`23.192.228.80`), whose
+    certificate doesn't name it.
+  - **Results:**
+    - gen9-agent's connector client (address pinned, name kept for TLS): "self-signed
+      certificate" and "IP address mismatch", both refused.
+    - The router's container: the same two refused, example.com 200. LiteLLM's `ssl_verify` is
+      `True`, with the system's CA bundle.
+    - The web app's Node: `DEPTH_ZERO_SELF_SIGNED_CERT` and `ERR_TLS_CERT_ALTNAME_INVALID`,
+      example.com 200.
+    - Keycloak, fetching a self-registering client's document from the self-signed server:
+      "PKIX path building failed", the request refused (400).
+  - **The egress sidecar** turns verification off only with
+    `OPENSANDBOX_EGRESS_MITMPROXY_SSL_INSECURE` (`launch.go` at release-1.1.0's commit), which Gen9
+    never sets.
+  - Nothing in `gen9-*`, `scripts` or `e2e` turns a check off (`verify=False`,
+    `rejectUnauthorized: false`, `NODE_TLS_REJECT_UNAUTHORIZED`, `curl -k`: none).
+  - Keycloak to SMTP: Mailpit in development, plaintext; a real server's TLS is the operator's
+    setting (D1).
 
 ### P7-E. Configuration and data protection (ASVS 5.0 V13, V14)
 
