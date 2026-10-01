@@ -2564,9 +2564,17 @@ start a model run are kept out of any fuzzing.
   (2026-10-01, later) The egress had a release after all: the project tags images per release
   now, and `release-1.1.0` (2026-09-21) is the egress of the server Gen9 runs. Taken in C7, with
   E4 and E4b's checks rerun on it.
+  (2026-10-01, the session's second look) #1594 and #1366 unchanged. #1759 has a second commit
+  (`dc8f345e`, 2026-09-30, still in review): no-SNI HTTPS fails closed before credential
+  injection, a gap a reviewer found that applies only with `OPENSANDBOX_EGRESS_MITMPROXY_SSL_INSECURE`
+  on, when `tls_clienthello` keeps no-SNI TLS under interception. Gen9 doesn't set it, and in
+  release-1.1.0's `system.py` a no-SNI connection is passed through uninspected unless it is set,
+  so `sni-binding.py` (the first commit) holds as it is; the whole fix comes with the release that
+  has it. Since D1c5, Gen9 builds egress itself from the release's commit, `system.py` included.
 - [ ] A6 (from P5-A6) Watches, each session: deepagents #6122 and guidepup #143 (both open).
   (2026-10-01) Both still open: #6122's last activity 2026-09-23 (5 comments), #143's 2026-09-25
   (none).
+  (2026-10-01, the second look) Unchanged.
 
 ### P6-B. Exceptional conditions (OWASP A10:2025; ASVS 5.0 V16.5)
 
