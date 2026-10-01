@@ -127,6 +127,7 @@ Only then implement. The same applies to design and UX work, and to any change o
 | Operating Gen9: upgrade, back up and restore, stop every agent, start over, disk | `docs/operations.md` |
 | Architecture: identity and tokens                                  | `docs/auth-architecture.md`                              |
 | Secrets: each one, where it lives, how to replace it              | `docs/secrets.md`                                        |
+| Cryptography: each key and algorithm, and what uses it            | `docs/cryptography.md`                                   |
 | Logs: what each part logs and records, where, who reads or erases it, how long, sending them elsewhere | `docs/logging.md` |
 | UI/UX: principles, design system, screens                          | `docs/design/` and `gen9-design/` (tokens, font, logo) |
 | Temporal: where Gen9 uses it, the rules, what is held back and why | `docs/temporal.md`                                       |

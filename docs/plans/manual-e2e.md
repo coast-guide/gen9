@@ -3595,11 +3595,27 @@ Console (10.7.3).
 
 Settled before: the payload key's and the signing keys' rotations, tried live (P3-C2, C3; P6-B).
 
-- [ ] C1 An inventory (11.1.2 to 11.1.4), kept in `docs/secrets.md` or beside it: every key and
+- [x] C1 An inventory (11.1.2 to 11.1.4), kept in `docs/secrets.md` or beside it: every key and
   algorithm, where it's made, kept and used: Temporal's payload codec, the session cookie, the
   sealed connector and environment secrets, Keycloak's signing keys and password hashing, the
   generated `.env` secrets (`init-env.sh`), the TLS certificates Gen9 makes. With a line on
   moving to post-quantum algorithms (11.1.4).
+  - **`docs/cryptography.md`**, beside `secrets.md` (which says how to replace each secret, and
+    now links it), and in AGENTS.md's map. Read from the code and the running stacks:
+    - **Encryption:** AES-256-GCM with random 96-bit nonces for the vault (bound to owner and
+      connector), Temporal's payloads and web sessions. Temporal's own TLS: EC P-256, SHA-256.
+    - **Keycloak (Admin API):** signs with RS256 (RSA 2048) and HS512.
+    - **Hashes:** passwords Argon2id, 5 passes, 7 MiB, 1 lane (`credential_data`, never
+      `secret_data`): one of OWASP's Password Storage settings. Authenticator apps are TOTP with
+      HMAC-SHA1. Postgres passwords SCRAM-SHA-256, with `trust` only on each container's own Unix
+      socket. Trigger tokens, connector `state`s, session ids and router keys are kept as SHA-256
+      (the router's 64-hex tokens).
+  - **Post-quantum:** OpenSSL 3.5.7 in gen9-agent's image and Node 24.21.0's 3.5.8 in gen9-ui's
+    both negotiated X25519MLKEM768 with a server that offers it (`openssl s_client`,
+    `getEphemeralKeyInfo`). Signatures move when Keycloak can sign with ML-DSA, as a key rotation.
+  - **Found, for C2:** the web app's CSP nonce is `crypto.randomUUID()`, 122 random bits, under
+    11.5.1's 128. Web sessions were sealed without associated data, unlike the vault, so a record
+    copied under another session's key in Valkey opens there.
 - [ ] C2 Each against 11.2 to 11.6: authenticated encryption and nonces (11.3.2 to 11.3.4),
   128-bit strength (11.2.3), constant-time comparisons of tokens and secrets (11.2.4), password
   hashing's parameters against OWASP's Password Storage Cheat Sheet (11.4.2), and every generator
