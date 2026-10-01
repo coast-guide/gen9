@@ -36,9 +36,11 @@ services:
       - "127.0.0.1:${GEN9_POSTGRES_PORT:-16000}:5432"
     # pgvector: --shm-size must be at least maintenance_work_mem, or parallel HNSW index builds fail
     shm_size: 1g
-    # pg_textsearch must be preloaded, or CREATE EXTENSION fails ("library not loaded")
+    # pg_textsearch must be preloaded, or CREATE EXTENSION fails ("library not loaded"). A statement
+    # slower than 500 ms is logged without its values, which hold what people wrote
+    # (log_parameter_max_length=0; docs/logging.md)
     command: ["postgres", "-c", "maintenance_work_mem=512MB", "-c", "log_min_duration_statement=500",
-              "-c", "shared_preload_libraries=pg_textsearch"]
+              "-c", "log_parameter_max_length=0", "-c", "shared_preload_libraries=pg_textsearch"]
     networks:
       default: {}
       gen9-postgres:

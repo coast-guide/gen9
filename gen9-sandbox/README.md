@@ -46,7 +46,7 @@ can still reach a sandbox's execd: the same trust as the Docker socket the serve
 | --- | --- |
 | `compose.yaml` | `opensandbox` (built here) |
 | `Dockerfile` | OpenSandbox's server image, pinned by digest, with `launch.py` |
-| `launch.py` | Starts the server with sandboxes' ports on `SANDBOX_PUBLISH_HOST`; bounds each sandbox (disk, logs, no swap) and removes one over its disk (`SANDBOX_DISK_GB`, checked every `SANDBOX_DISK_CHECK_S`) |
+| `launch.py` | Starts the server with sandboxes' ports on `SANDBOX_PUBLISH_HOST`; bounds each sandbox (disk, logs, no swap) and removes one over its disk (`SANDBOX_DISK_GB`, checked every `SANDBOX_DISK_CHECK_S`); masks the query values in its access log, so a chat's file names stay out |
 | `ruff.toml` | Lint rules for this stack's Python (as gen9-agent's: async-first); checked from gen9-agent, as CI does |
 | `config.toml` | The server's settings (runtime, execd image pinned by digest, the egress image, limits, store); no secrets. Read at start: after changing it, `docker compose restart opensandbox` |
 | `egress/` | The egress sidecar every sandbox gets: OpenSandbox's image pinned by digest, with `deny.always`. Compose builds it (`egress-image`, which runs `true` and exits) before the server starts. The sidecars inherit the image's Compose labels (`com.docker.compose.project=gen9-sandbox`), not `com.docker.compose.oneoff`: `make ps`, `down` and `wipe` leave them out of the stack's own containers, and `wipe` removes them with the environments |

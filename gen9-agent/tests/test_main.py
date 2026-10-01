@@ -1,11 +1,12 @@
 """The API's access log (main.py): health checks that passed are left out, so `make logs` shows
-real requests; a failing health check and every other request still show."""
+real requests; a failing health check and every other request still show. What a person typed
+into a query (a search, a file's name, an email looked up) is masked; counts and cursors stay."""
 
 import logging
 
 import pytest
 
-from gen9_agent.main import HealthChecks, log_config
+from gen9_agent.main import HealthChecks, QueryValues, log_config
 
 pytestmark = pytest.mark.asyncio
 
@@ -44,9 +45,44 @@ async def test_a_failing_health_check_and_real_requests_show() -> None:
 
 async def test_uvicorns_own_settings_carry_the_filter() -> None:
     config = log_config()
-    assert config["loggers"]["uvicorn.access"]["filters"] == ["health_checks"]
+    assert config["loggers"]["uvicorn.access"]["filters"] == [
+        "health_checks",
+        "query_values",
+    ]
     assert config["filters"]["health_checks"]["()"] is HealthChecks
+    assert config["filters"]["query_values"]["()"] is QueryValues
     # uvicorn's module-level default is left as it was
     from uvicorn.config import LOGGING_CONFIG
 
     assert "filters" not in LOGGING_CONFIG["loggers"]["uvicorn.access"]
+
+
+@pytest.mark.parametrize(
+    ("path", "logged"),
+    [
+        (
+            "/v1/search?q=my+divorce+lawyer&mode=keyword&limit=20",
+            "/v1/search?q=…&mode=keyword&limit=20",
+        ),
+        (
+            "/v1/threads/4c2a/files?name=tax-return-2025.pdf",
+            "/v1/threads/4c2a/files?name=…",
+        ),
+        (
+            "/v1/admin/users?max=50&search=mary%40example.com",
+            "/v1/admin/users?max=50&search=…",
+        ),
+        (
+            "/v1/threads/4c2a/runs/9b1e/stream?after=12",
+            "/v1/threads/4c2a/runs/9b1e/stream?after=12",
+        ),
+        ("/v1/me", "/v1/me"),
+    ],
+)
+async def test_what_a_person_typed_is_masked_in_the_access_line(
+    path: str, logged: str
+) -> None:
+    record = access(path, 200)
+    assert QueryValues().filter(record)
+    assert record.args[2] == logged  # ty: ignore[not-subscriptable]
+    assert "divorce" not in record.getMessage() and "mary" not in record.getMessage()

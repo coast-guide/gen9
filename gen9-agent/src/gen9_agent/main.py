@@ -4,6 +4,7 @@ import copy
 import logging
 import os
 from typing import Any
+from urllib.parse import unquote_plus
 
 import uvicorn
 from uvicorn.config import LOGGING_CONFIG
@@ -26,11 +27,43 @@ class HealthChecks(logging.Filter):
         return True
 
 
+# Query parameters whose values say nothing about a person: counts, cursors, filters by kind
+PLAIN_QUERY = frozenset(
+    {"limit", "max", "first", "before", "after", "outcome", "mode", "kind", "status"}
+    | {"preserveStorageRefs"}
+)
+
+
+class QueryValues(logging.Filter):
+    """Masks the query values of an access line but the plain ones: what a person searched
+    (`/v1/search?q=`), a file's name (`files?name=`), an email an admin looked up
+    (`/v1/admin/users?search=`) never reach the log, while the path, its ids and the names of
+    the parameters stay (docs/plans/manual-e2e.md, P6-C2; ASVS 5.0 16.2.5)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) == 5 and isinstance(args[2], str):
+            path, _, query = args[2].partition("?")
+            if query:
+                masked = "&".join(
+                    pair
+                    if unquote_plus(pair.partition("=")[0]) in PLAIN_QUERY
+                    else f"{pair.partition('=')[0]}=…"
+                    for pair in query.split("&")
+                )
+                record.args = (*args[:2], f"{path}?{masked}", *args[3:])
+        return True
+
+
 def log_config() -> dict[str, Any]:
-    """uvicorn's own logging settings, with health checks that passed left out of the access log."""
+    """uvicorn's own logging settings: health checks that passed left out of the access log, and
+    what people typed masked in it."""
     config = copy.deepcopy(LOGGING_CONFIG)
-    config["filters"] = {"health_checks": {"()": HealthChecks}}
-    config["loggers"]["uvicorn.access"]["filters"] = ["health_checks"]
+    config["filters"] = {
+        "health_checks": {"()": HealthChecks},
+        "query_values": {"()": QueryValues},
+    }
+    config["loggers"]["uvicorn.access"]["filters"] = ["health_checks", "query_values"]
     return config
 
 

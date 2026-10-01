@@ -45,7 +45,7 @@ From another stack's container, join the `gen9-postgres` network and use `gen9-p
 Cluster settings:
 - `initdb --data-checksums --auth-host=scram-sha-256`
 - `maintenance_work_mem=512MB`, with `shm_size: 1g`. pgvector says `--shm-size` must be at least `maintenance_work_mem`, or parallel HNSW index builds fail.
-- Statements slower than 500 ms are logged.
+- Statements slower than 500 ms are logged, without their values (`log_parameter_max_length=0`), which hold what people wrote ([docs/logging.md](../docs/logging.md)).
 - `shared_preload_libraries=pg_textsearch`: without it, `CREATE EXTENSION pg_textsearch` fails
   ("library not loaded").
 

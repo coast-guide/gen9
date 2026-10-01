@@ -19,6 +19,9 @@ manual-e2e.md, P4-B and P5-C5).
   SANDBOX_DISK_GB through the server's own API, which removes its container, egress sidecar and
   volume, so the disk comes back at once (a kill, if that fails). gen9-agent finds it gone and
   gives the chat a fresh environment on its next command. Nothing inside a sandbox can reach it.
+- **No file names in the access log.** The server logs each request's path with its query, so a
+  chat's file names (`files/download?path=/work/out/…`) reached `make logs`. Query values are
+  masked there, as gen9-agent's API does (manual-e2e.md, P6-C2; ASVS 5.0 16.2.5).
 """
 
 import logging
@@ -109,9 +112,27 @@ def watch_disk() -> None:
             log.warning("disk check failed: %s", e)
 
 
+class QueryValues(logging.Filter):
+    """Masks the query values of uvicorn's access line (client, method, path, HTTP version,
+    status); the path, its ids and the names of the parameters stay."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) == 5 and isinstance(args[2], str):
+            path, _, query = args[2].partition("?")
+            if query:
+                masked = "&".join(
+                    f"{pair.partition('=')[0]}=…" for pair in query.split("&")
+                )
+                record.args = (*args[:2], f"{path}?{masked}", *args[3:])
+        return True
+
+
 containers.convert_port_bindings = one_address
 containers.HostConfig.__init__ = bounded
 threading.Thread(target=watch_disk, name="gen9-disk-watch", daemon=True).start()
+# On the logger itself: uvicorn's logging settings, applied at start, add handlers and keep it
+logging.getLogger("uvicorn.access").addFilter(QueryValues())
 
 # Imported only now, after the patches above
 from opensandbox_server.cli import main

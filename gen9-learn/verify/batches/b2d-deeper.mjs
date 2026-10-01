@@ -95,7 +95,9 @@ export default async function deeper(ctx) {
   await page.waitForFunction(() => /More by meaning|unavailable right now/.test(document.querySelector("main section")?.textContent ?? ""), { timeout: 120_000 }).catch(() => {});
   obs.all = { url: page.url().replace(APP, ""), status: await statusText(), headings: await headings(), first: (await results())[0] };
   check(obs.all.first?.href === `/chat/${first}` && obs.all.headings.includes("More by meaning"), "All: the matches by words first, then more by meaning under them", `${obs.all.status}; ${obs.all.headings.join(" | ")}`);
-  obs.searchApi = sh(`docker logs --since 5m gen9-agent-api-1 2>&1 | grep -E '"GET /v1/search' | tail -4`).out.replace(/q=[^& ]+/g, "q=…");
+  obs.searchApi = sh(`docker logs --since 5m gen9-agent-api-1 2>&1 | grep -E '"GET /v1/search' | tail -4`).out;
+  // What a person searched stays out of the agent's log: the query's value is masked (main.py)
+  check(/GET \/v1\/search\?q=…/.test(obs.searchApi) && !/lighthouse/i.test(obs.searchApi), "the agent's access log shows the search without what was searched", obs.searchApi.split("\n").at(-1)?.replace(/^.*"(GET [^"]*)".*$/, "$1"));
 
   // ---- subagent: the fact checker
   await newChat();

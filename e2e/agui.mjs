@@ -98,7 +98,7 @@ try {
     resumed = await run(alan, asking, { resume: open.map((i) => ({ interruptId: i.id, status: "resolved", payload: { decisions: [{ type: "approve" }] } })) });
   }
   const memory = (await (await fetch(`${API}/v1/me/memory`, { headers: { Authorization: `Bearer ${await token(alan)}` } })).json()).content ?? "";
-  check(resumed.at(-1).type === "RUN_FINISHED" && resumed.at(-1).outcome?.type === "success" && memory.includes(BIRD) && new Set(answered).size === answered.length, "resuming it with an approve lets the run go on and finish; the memory has it", `${answered.length} approval(s), each a new interrupt; ${resumed.at(-1).outcome?.type}`);
+  check(resumed.at(-1).type === "RUN_FINISHED" && resumed.at(-1).outcome?.type === "success" && memory.includes(BIRD) && new Set(answered).size === answered.length, "resuming it with an approve lets the run go on and finish; the memory has it", `${answered.length} approval(s), each a new interrupt; ${resumed.at(-1).outcome?.type}; memory ${memory === memoryBefore ? "unchanged" : `now ends: ${memory.trim().split("\n").at(-1)?.slice(0, 80)}`}`);
 
   // 3b. Resuming with cancelled stops the run, and says so (it once answered with the interrupt it
   // had just cancelled: the run still read as waiting until its workflow recorded the stop)
