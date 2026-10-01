@@ -113,6 +113,9 @@ jobs:
         run: |
           uv export --frozen --no-hashes --no-emit-project --color never > "$RUNNER_TEMP/requirements.txt"
           uvx pip-audit -r "$RUNNER_TEMP/requirements.txt" --disable-pip --no-deps --progress-spinner off
+      - name: PyPI provenance of both projects' locked packages, against their pinned repositories
+        if: matrix.project == 'gen9-agent'
+        run: uv run -q ../scripts/provenance.py
 
   learn-page:
     # gen9-learn/index.html renders at phone, laptop and desktop widths, light and dark, with no

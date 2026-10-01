@@ -3215,9 +3215,20 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
     `pypi-attestations` (0.0.30) verified six against their repositories (cryptography, mcp,
     openai, pyjwt, temporalio, urllib3), and refused cryptography for any other repository
     ("provenance was signed by repository "pyca/cryptography"").
-  - [ ] D4b Langfuse's images, once Docker Hub's limit resets; and a check of every locked Python
+  - [x] D4b Langfuse's images, once Docker Hub's limit resets; and a check of every locked Python
     package with provenance against the repository it names, from the lock's hashes without
     downloading (pypi-attestations as a library), if it can run in `make audit`.
+    Done (2026-10-01). Langfuse's two images (4.48.0): "no signatures found", the limit past.
+    `scripts/provenance.py` (uv's inline script, locked with `uv lock --script`, a 7-day
+    cooldown; async, httpx2): for each registry package in both locks, PyPI's Integrity API, then
+    every attestation of the bundle verified against its publisher and the lock's SHA-256 of the
+    file (`pypi_attestations.Attestation.verify`), one at a time (eight at once failed refreshing
+    Sigstore's trust root, "Failed to refresh TUF metadata"). 160 packages, 68 verified, each
+    one's repository pinned in `scripts/provenance.json`; about 70 s. It fails on a pin naming
+    another repository (tried: "published from pyca/cryptography, pinned evil/cryptography") and
+    on a lock hash that isn't the attested file's (tried: "subject does not match distribution
+    digest"), and when provenance a package had is gone. In `make audit` and in CI (gen9-agent's
+    job runs it for both locks).
 - [x] D5 The repository's own chain: the workflow's actions are pinned by SHA; `main` has no
   protection (GitHub's API answers 403 for a private repository on the free plan). What that
   leaves (A03's "separation of duties"), and what the owner can turn on for free.
