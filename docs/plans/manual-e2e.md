@@ -2743,13 +2743,24 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
 
 ### P6-C. Logging and alerting (OWASP A09:2025; ASVS 5.0 V16.1-16.4)
 
-- [ ] C1 A log inventory (ASVS 16.1.1: what each layer logs, its format, where it's kept, who can
+- [x] C1 A log inventory (ASVS 16.1.1: what each layer logs, its format, where it's kept, who can
   read it, how long): every stack's services, Docker's log driver (the `local` driver with
   `max-size` since P4-E5, sandboxes' through `launch.py`), Keycloak's events (30 days), the audit
   table, Langfuse. Written where the operator reads it.
   (while listing) gen9-agent's API logs with uvicorn's plain format, which has no
   time (only Docker's driver adds one); its worker with `%(asctime)s`, which has no time zone.
   Both are plain text, so a newline in a message makes a second line (for C3).
+  Done (2026-10-01): `docs/logging.md`, linked from AGENTS.md, SECURITY.md and
+  `docs/operations.md`. Read from the running stacks: every one of the 26 containers logs through
+  Docker's `local` driver (3 × 10 MB, `docker inspect`), and chats' environments too
+  (`launch.py`); each service's line format from its own log (the containers' clock is UTC);
+  ClickHouse's own files, bounded to 3 × 100 MB (`config.d/gen9-disk.xml`); Keycloak's events
+  config (103 event types, 30 days, admin events with details, the `jboss-logging` listener); the
+  audit table's two triggers; the router's spend log holding no prompts or answers (0 of 2,036
+  rows); Temporal's 72-hour retention; Mailpit's 5,000. New while listing: gen9-postgres logs
+  every statement slower than 500 ms with its text (`log_min_duration_statement=500`, gen9-postgres'
+  compose command), which can hold what people wrote: for C2. The audit module's docstring still
+  named two admin actions whose routes went in PR #6; corrected.
 - [ ] C2 Personal data in the logs (CWE-532; ASVS 16.2.5). P4-D4 found no secret in any log,
   audit row or trace; this looks for what a person wrote or is: after a full `make e2e`, every
   container's logs searched for the checks' emails, names, message texts, file names and search

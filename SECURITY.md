@@ -28,6 +28,7 @@ configuration makes one easier to exploit.
 
 - Identity, tokens and who may call what: [docs/auth-architecture.md](docs/auth-architecture.md)
 - Every secret, where it lives and how to replace it: [docs/secrets.md](docs/secrets.md)
+- What is logged and recorded, where, who can read it and for how long: [docs/logging.md](docs/logging.md)
 - Where the agent runs commands, and what it can reach: [gen9-sandbox/README.md](gen9-sandbox/README.md)
 - The model router's hardening: [gen9-models/README.md](gen9-models/README.md)
 - Stopping every agent at once: [docs/operations.md, "Stop every agent at once"](docs/operations.md#stop-every-agent-at-once)

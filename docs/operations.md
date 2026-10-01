@@ -45,6 +45,8 @@ make config STACKS=agent          # validate its Compose file
 
 Each stack labels the services you open (`gen9.name`, `gen9.url` in its Compose file), from the same settings the stack itself uses, so the list stays right when you change a port. `make up` also notes when a stack it starts calls another that isn't running, and restarts a container failing its health check, unhealthy or on its way there (the agent's API after its database was wiped, say), before waiting for it: Compose's `--wait` fails at once on an unhealthy container it doesn't replace (docker/compose#9092), while a restarted one gets its start period again.
 
+What each service logs, and the records kept on purpose (sign-in events, the audit record, traces), who can read them and for how long: [docs/logging.md](logging.md).
+
 Each stack's own setup (its `init-env.sh` options, such as other ports) is in its README; `make setup` runs them with the defaults. `make up` refuses to start a stack whose files are missing and says which `make setup` writes them.
 
 ## Upgrade
