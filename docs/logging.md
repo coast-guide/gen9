@@ -17,6 +17,10 @@ lines going first (`x-logging` in each Compose file). They go when the container
 which is as much as root there. They are for operating and debugging: nothing reads them
 automatically, and none leaves the host.
 
+`make logs` prints them as text: colours dropped, any other terminal escape shown as `^[` and other
+control characters as `?`, so nothing in a log acts on your terminal (a username typed at a sign-in
+can carry one). `docker logs` prints them as they are.
+
 The containers' clock is UTC. Where a format prints no zone, the time is UTC; where it prints no
 time, `docker logs --timestamps` shows the time Docker received each line.
 
@@ -50,6 +54,15 @@ time, `docker logs --timestamps` shows the time Docker received each line.
 | Workflow histories | gen9-temporal's Postgres | Each workflow's steps; Gen9's inputs and outputs encrypted by its payload codec | Gen9's admins in Temporal's web UI (decrypted by gen9-agent's codec endpoint, over https only); anyone with its database sees ciphertext | 72 hours after a workflow closes (the namespace's retention) |
 | Emails | gen9-keycloak's Mailpit | Every email sent: verification, password resets, Gen9's notices | Whoever has `MAILPIT_UI_PASSWORD` | The newest 5,000 |
 
+## One record, one line
+
+gen9-agent's API and worker write every control character of a message and its values as its
+escape (`\n`, `\x1b`), so a value from outside (a connector server's refusal, a provider's error)
+can't add a line of its own or reach the terminal (`log_safety.py`; ASVS 16.4.1). Their tracebacks
+keep their lines. Keycloak keeps a value's line breaks out of its event lines (a username typed
+with one shows a space) but passes other control characters, which `make logs` shows as text.
+The other services write their own lines as they do.
+
 ## Personal data in the logs
 
 What a person is or wrote, in a full `make e2e`'s container logs (docs/plans/manual-e2e.md,
@@ -70,5 +83,4 @@ Found while taking this inventory; each is an item of docs/plans/manual-e2e.md, 
 
 - Times: the API and the web app print none, and several print no zone (UTC, as their clocks are)
   (P6-C4, ASVS 16.2.2).
-- Plain text: a newline in a logged value starts a line of its own (P6-C3, log injection).
 - No log leaves the host for a separate system (P6-C5, P6-C6; ASVS 16.4.3).

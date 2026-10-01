@@ -9,6 +9,8 @@ from urllib.parse import unquote_plus
 import uvicorn
 from uvicorn.config import LOGGING_CONFIG
 
+from .log_safety import ControlCharacters
+
 HEALTH_PATHS = frozenset({"/healthz", "/readyz"})
 
 
@@ -56,14 +58,21 @@ class QueryValues(logging.Filter):
 
 
 def log_config() -> dict[str, Any]:
-    """uvicorn's own logging settings: health checks that passed left out of the access log, and
-    what people typed masked in it."""
+    """uvicorn's own logging settings: health checks that passed left out of the access log, what
+    people typed masked in it, control characters escaped in every line, and Gen9's own warnings
+    formatted as uvicorn's."""
     config = copy.deepcopy(LOGGING_CONFIG)
     config["filters"] = {
         "health_checks": {"()": HealthChecks},
         "query_values": {"()": QueryValues},
+        "control_characters": {"()": ControlCharacters},
     }
     config["loggers"]["uvicorn.access"]["filters"] = ["health_checks", "query_values"]
+    # Every line one line, without terminal escapes (log_safety.py)
+    for handler in config["handlers"].values():
+        handler["filters"] = ["control_characters"]
+    # Gen9's own warnings through the same handler, which Python's last resort printed bare
+    config["root"] = {"handlers": ["default"], "level": "WARNING"}
     return config
 
 
