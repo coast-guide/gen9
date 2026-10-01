@@ -110,12 +110,16 @@ What the owner asked, restated before starting (they went on to "start the loop"
   a workflow that builds them for linux/amd64 and linux/arm64, pushes them to
   `ghcr.io/coast-guide/gen9-*`, and attests provenance and SBOM; the digests written down as a
   lock. `make up` keeps building locally for development.
-  - [ ] `docker-bake.hcl`; `scripts/check-images.py` in `make config` (bake and Compose agree).
-  - [ ] `.github/workflows/images.yml`: Docker's bake workflow per image; on `main`, push and
+  - [x] `docker-bake.hcl`; `scripts/check-images.py` in `make config` (bake and Compose agree).
+  - [x] `.github/workflows/images.yml`: Docker's bake workflow per image; on `main`, push and
     attest; the lock as the run's artifact.
-  - [ ] Verified here: `docker buildx bake --print`; all 7 built for linux/amd64 and two for
-    linux/arm64 (emulated); `make config`.
-  - [ ] Verified in CI: the pull request builds all 7 for both platforms on native runners.
+  - [x] Verified here: `docker buildx bake --print`; all 7 built for linux/amd64 (24 s, 57 steps
+    from the Compose builds' cache), and gen9-postgres, the egress and execd images for
+    linux/arm64 under emulation (318 s; gen9-postgres took `pg-textsearch-…-arm64.zip` by
+    `TARGETARCH`); `make config` passes, and fails on a context changed on purpose.
+  - [x] Verified in CI: the pull request built all 7 for both platforms on native runners, 14
+    jobs, 36 to 115 s each, the run 3 min (run 36871230604 failed first: Surprises, "a Dockerfile
+    frontend that knows `source.git.checksum`"; then run 36871669043).
   - [ ] After the owner merges: the run on `main` pushes, signs and attests;
     `gh attestation verify` on each.
 - [ ] U1b Langfuse's S3 store: MinIO's repository is archived ("THIS REPOSITORY IS NO LONGER
