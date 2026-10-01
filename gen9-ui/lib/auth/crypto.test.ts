@@ -21,26 +21,34 @@ describe("session record sealing (AES-256-GCM)", () => {
   it("round-trips a record", async () => {
     const { seal, unseal } = await load(SECRET_A);
     const record = { sub: "user-1", refreshToken: "secret-refresh-token" };
-    const sealed = seal(record);
+    const sealed = seal(record, "gen9:session:a");
     expect(sealed).not.toContain("secret-refresh-token");
-    expect(unseal(sealed)).toEqual(record);
+    expect(unseal(sealed, "gen9:session:a")).toEqual(record);
   });
 
   it("uses a fresh IV every time", async () => {
     const { seal } = await load(SECRET_A);
-    expect(seal({ a: 1 })).not.toBe(seal({ a: 1 }));
+    expect(seal({ a: 1 }, "k")).not.toBe(seal({ a: 1 }, "k"));
   });
 
   it("rejects a tampered record", async () => {
     const { seal, unseal } = await load(SECRET_A);
-    const raw = Buffer.from(seal({ sub: "user-1" }), "base64url");
+    const raw = Buffer.from(seal({ sub: "user-1" }, "k"), "base64url");
     raw[raw.length - 1] ^= 0x01;
-    expect(unseal(raw.toString("base64url"))).toBeNull();
+    expect(unseal(raw.toString("base64url"), "k")).toBeNull();
+  });
+
+  // P7-C2: someone who can write to Valkey can't take over a session by copying its record
+  it("rejects a record copied under another key", async () => {
+    const { seal, unseal } = await load(SECRET_A);
+    const sealed = seal({ sub: "user-1" }, "gen9:session:victim");
+    expect(unseal(sealed, "gen9:session:attacker")).toBeNull();
+    expect(unseal(sealed, "gen9:session:victim")).toEqual({ sub: "user-1" });
   });
 
   it("rejects records sealed with another secret (rotation signs everyone out)", async () => {
-    const sealed = (await load(SECRET_A)).seal({ sub: "user-1" });
-    expect((await load(SECRET_B)).unseal(sealed)).toBeNull();
+    const sealed = (await load(SECRET_A)).seal({ sub: "user-1" }, "k");
+    expect((await load(SECRET_B)).unseal(sealed, "k")).toBeNull();
   });
 });
 
