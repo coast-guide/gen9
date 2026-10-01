@@ -3754,8 +3754,30 @@ M5).
     would also wipe the theme the person picked.
   - **Kept as a check:** `cross-site.mjs`, step 5. It plants a draft, signs out through the real
     menu, and finds `no-store`, nothing left, and Back at Keycloak's sign-in: 11 of 11.
-- [ ] E4 Personal data in addresses and to third parties (14.2.1, 14.2.3): query strings in the
+- [x] E4 Personal data in addresses and to third parties (14.2.1, 14.2.3): query strings in the
   access logs, the router's and Langfuse's copies.
+  - **No credential travels in an address:** a task's trigger token comes in `Authorization`
+    (`api/tasks.py`), tokens and session ids in headers and cookies. The exceptions are OAuth's:
+    a code and its `state` on a redirect, and Keycloak's one-time links in its emails.
+  - **What a person types in an address:** a search's words (`/search?q=`) and a file's name
+    (`files?name=`).
+    - The logs mask them: gen9-agent's and OpenSandbox's access logs keep query values out
+      (P6-C2), and the web app keeps no access log.
+    - Another site gets only the origin (`Referrer-Policy: strict-origin-when-cross-origin`).
+    - On the network, TLS hides the path.
+    - The browser's history keeps them, as for any search page; a URL that holds its search is
+      also what makes Back and a shared link work.
+    Held.
+  - **Third parties (14.2.3):**
+    - the web app loads nothing from another site: no tracker, fonts its own, CSP
+      `connect-src 'self'`, `img-src 'self' blob: data:` (an answer's image from elsewhere shows
+      as a link, P3-E2);
+    - what a chat says goes to the model provider the operator chose, through OpenRouter under
+      `data_collection: deny` by default (`gen9-models/config.yaml`);
+    - the agent's web searches go to SearXNG's engines (P5);
+    - traces go only to the self-hosted Langfuse.
+    Each by design, and documented where it's set (gen9-models/README.md); the operator's privacy
+    notice says so (`PRIVACY_NOTICE_URL`).
 
 ### P7-F. Files (ASVS 5.0 V5)
 
