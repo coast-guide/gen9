@@ -2791,10 +2791,33 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
     says what the memory ends with if it fails again). Once, a run started 30 s after `elicitation` restarted
     the worker was never picked up before the check gave up; its workflow and row went with the
     check's cleanup, and it didn't happen again.
-- [ ] C3 Log injection (CWE-117; ASVS 16.4.1): a person's name, a chat's title, a connector's URL,
+- [x] C3 Log injection (CWE-117; ASVS 16.4.1): a person's name, a chat's title, a connector's URL,
   a tool's name and a file's name carrying a newline, a forged log line, and terminal escape
   sequences. What each service's log records, and what `make logs` prints to the operator's
   terminal.
+  Done (2026-10-01), each seen live before and after:
+  - gen9-agent's worker logs what connector servers say. A server of mine on an allowed fixture
+    port (17803) answered `initialize` with an error whose message held a newline, a whole
+    forged line ("2026-10-01 00:00:00,000 WARNING gen9_agent.audit: FORGED admin.user.delete by
+    ada") and colour escapes: the worker's log showed the forged line as a line of its own, and
+    the raw escapes (`cat -v`: `^[[31m`). The connector's name can't carry it (32 characters, a
+    pattern). Now a logging filter (`log_safety.py`, OWASP's Logging Cheat Sheet: sanitize CR,
+    LF and delimiters) on the worker's and the API's handlers writes every C0, C1 and line
+    separator character as its escape, in the message and its values; tracebacks keep their
+    lines. The API's own warnings, which went to Python's last resort unformatted, now go
+    through uvicorn's handler. After: the server's text on its one line (`boom\n2026-…\x1b[31m
+    RED\x1b[0m`), no line starting with the forged date, no raw escape. Tested
+    (`test_log_safety.py`).
+  - Keycloak, a username posted to its sign-in form with a newline, a forged event line and an
+    escape: its event line holds it on one line (the newline as a space, quotes escaped:
+    Keycloak's `jboss-logging` listener sanitizes line breaks) but the escape came through raw.
+  - `make logs` piped every line through POSIX awk: colours dropped, other escapes shown as `^[`,
+    other control characters as `?`; checked with mawk, BusyBox and bwk's awk (macOS's,
+    20250116), and live: Keycloak's forged escape no longer reaches the terminal. mawk reads a
+    pipe in blocks, so `FOLLOW=1` showed nothing until `-W interactive`, which the Makefile adds
+    only for mawk; live, a request shows as it happens.
+  - Other services write their own lines; values from people reach them only through Keycloak
+    (above) and gen9-agent, now covered.
 - [ ] C4 The security events logged (ASVS 16.3.1-16.3.4, with when, where, who and what in UTC,
   16.2.1-16.2.2): sign-ins that succeed and fail, refused authorization (another person's chat,
   an admin route), attempts around controls (a replayed approval, a cross-site request refused,

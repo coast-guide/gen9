@@ -64,6 +64,12 @@ OUTSIDE = $(foreach s,$(SELECTED),$(foreach u,$(filter-out $(SELECTED),$(USES_$(
 # down, logs and ps go by the project name Compose labels everything with, so they work whatever
 # the setup state. Run from / so Compose finds no compose file in a parent folder instead.
 by_name = (cd / && docker compose -p gen9-$$s $(1))
+# What the logs hold reaches your terminal as text: colours dropped, any other escape sequence shown
+# (^[) and other control characters as ?, never acted on: a value from outside, such as the
+# username typed at a sign-in, can carry them (docs/logging.md). POSIX awk: macOS's, mawk, BusyBox
+# mawk (Debian's and Ubuntu's awk) reads a pipe in blocks, so FOLLOW=1 showed nothing: -W interactive
+AWK_LINES := $(if $(findstring mawk,$(shell awk -W version </dev/null 2>/dev/null)),awk -W interactive,awk)
+as_text = $(AWK_LINES) '{ gsub(/\033\[[0-9;]*m/, ""); gsub(/\033/, "^["); gsub(/[\001-\010\013-\037\177]/, "?"); print; fflush() }'
 # A stack's own containers, as Compose counts them: its project label and a oneoff one. Containers
 # of an image Compose built carry the project label too (OpenSandbox's egress sidecars, from
 # gen9-sandbox's egress image), but not oneoff.
@@ -184,7 +190,7 @@ logs:
 	  echo "FOLLOW=1 follows one stack: make logs STACKS=ui FOLLOW=1" >&2; exit 1; fi
 	@for s in $(SELECTED); do \
 	  [ -n "$$(docker ps -aq $(OWN))" ] || { echo "== gen9-$$s: no containers"; continue; }; \
-	  echo "== gen9-$$s"; $(call by_name,logs --tail=$(TAIL) $(if $(FOLLOW),-f)) || exit 1; \
+	  echo "== gen9-$$s"; $(call by_name,logs --tail=$(TAIL) $(if $(FOLLOW),-f)) 2>&1 | $(as_text) || exit 1; \
 	done
 
 # Every profile, so opt-in services are checked too. Then, across all stacks: no stack may reach
