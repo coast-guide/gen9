@@ -22,6 +22,12 @@ manual-e2e.md, P4-B and P5-C5).
 - **No file names in the access log.** The server logs each request's path with its query, so a
   chat's file names (`files/download?path=/work/out/…`) reached `make logs`. Query values are
   masked there, as gen9-agent's API does (manual-e2e.md, P6-C2; ASVS 5.0 16.2.5).
+- **The execd and egress images Compose pulled or built.** OpenSandbox reads them only from its
+  config file, which takes no environment override for them; a release names them by digest
+  (`make up IMAGES=…`, docs/plans/deploy.md, U2). The server gets a copy of config.toml with
+  `[runtime] execd_image` and `[egress] image` set from GEN9_SANDBOX_EXECD_IMAGE and
+  GEN9_SANDBOX_EGRESS_IMAGE, which compose.yaml sets to the images of its execd-image and
+  egress-image.
 """
 
 import logging
@@ -128,6 +134,46 @@ class QueryValues(logging.Filter):
         return True
 
 
+def with_images(text: str, images: dict[tuple[str, str], str]) -> str:
+    """config.toml's text with each (section, key) in images set to its value, other lines as they
+    are."""
+    section, lines = "", []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped.strip("[]").strip()
+        key = stripped.split("=", 1)[0].strip()
+        if "=" in stripped and (section, key) in images:
+            line = f'{key} = "{images[(section, key)]}"'
+        lines.append(line)
+    return "\n".join(lines) + "\n"
+
+
+images = {
+    (section, key): os.environ[name]
+    for section, key, name in [
+        ("runtime", "execd_image", "GEN9_SANDBOX_EXECD_IMAGE"),
+        ("egress", "image", "GEN9_SANDBOX_EGRESS_IMAGE"),
+    ]
+    if os.environ.get(name)
+}
+# The config file the server reads: --config (the image's CMD), which wins over SANDBOX_CONFIG_PATH
+args = sys.argv[1:]
+at = args.index("--config") + 1 if "--config" in args else -1
+config_path = args[at] if at > 0 else os.environ["SANDBOX_CONFIG_PATH"]
+if images:
+    with open(config_path) as source:
+        config = with_images(source.read(), images)
+    with open("/tmp/gen9-config.toml", "w") as copy:
+        copy.write(config)
+    os.environ["SANDBOX_CONFIG_PATH"] = "/tmp/gen9-config.toml"
+    if at > 0:
+        args[at] = "/tmp/gen9-config.toml"
+    # Logging isn't set up yet: the server's own settings come with it
+    print(
+        f"gen9: execd and egress images: {', '.join(images.values())}", file=sys.stderr
+    )
+
 containers.convert_port_bindings = one_address
 containers.HostConfig.__init__ = bounded
 threading.Thread(target=watch_disk, name="gen9-disk-watch", daemon=True).start()
@@ -137,5 +183,5 @@ logging.getLogger("uvicorn.access").addFilter(QueryValues())
 # Imported only now, after the patches above
 from opensandbox_server.cli import main
 
-sys.argv = ["opensandbox-server", *sys.argv[1:]]
+sys.argv = ["opensandbox-server", *args]
 sys.exit(main())

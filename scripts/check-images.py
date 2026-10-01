@@ -13,6 +13,7 @@ builds. A service only in the `dev` profile (gen9-ui's dev server) is developmen
 import asyncio
 import json
 import os
+import re
 import sys
 from pathlib import PurePath
 
@@ -43,7 +44,8 @@ async def compose_builds(stack: str) -> dict[str, tuple[str, str]] | None:
     for service in json.loads(out)["services"].values():
         if "build" not in service or "dev" in (service.get("profiles") or []):
             continue
-        name = service["image"].split(":")[0]
+        # gen9-agent:dev here, or <registry>/gen9-agent@sha256:… from a lock (scripts/images.sh)
+        name = re.split(r"[:@]", service["image"].rsplit("/", 1)[-1])[0]
         context = PurePath(service["build"]["context"]).relative_to(ROOT).as_posix()
         builds[name] = (context, service["build"].get("dockerfile", "Dockerfile"))
     return builds

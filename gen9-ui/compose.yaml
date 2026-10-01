@@ -39,7 +39,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: gen9-ui:prod
+    image: ${GEN9_UI_IMAGE:-gen9-ui:prod}
     labels:  # where to open it; the root Makefile lists these after make up
       gen9.name: Gen9
       gen9.url: ${GEN9_UI_URL:-http://localhost:14000}
@@ -74,7 +74,7 @@ services:
   # the web app's. Each server gets its own host name under it (MCP_APPS_SANDBOX_URL).
   sandbox:
     logging: *logging
-    image: gen9-ui:prod
+    image: ${GEN9_UI_IMAGE:-gen9-ui:prod}
     command: ["node", "sandbox/server.ts"]
     environment:
       PORT: "3001"

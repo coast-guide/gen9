@@ -18,7 +18,7 @@ services:
     # pgvector's official image (pinned by digest in the Dockerfile) plus pg_textsearch for BM25;
     # `make up` builds it. To upgrade either: the Dockerfile.
     build: .
-    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    image: ${GEN9_POSTGRES_IMAGE:-gen9-postgres:18-pgvector0.8.6-textsearch1.4.0}
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
@@ -57,7 +57,7 @@ services:
     logging: *logging
     # Every start: the extensions only the superuser may create, in each app database
     # (scripts/ensure-extensions.sh), so a database made before one joined the image gets it too
-    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    image: ${GEN9_POSTGRES_IMAGE:-gen9-postgres:18-pgvector0.8.6-textsearch1.4.0}
     entrypoint: ["/bin/sh", "/scripts/ensure-extensions.sh"]
     tmpfs: [/var/lib/postgresql]  # the image's VOLUME: no anonymous volume per run
     environment:
@@ -75,7 +75,7 @@ services:
     logging: *logging
     # Every start: the role gen9-agent's services connect as, and its password
     # (scripts/ensure-roles.sh). It owns nothing; gen9-agent's migrations grant it the tables
-    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    image: ${GEN9_POSTGRES_IMAGE:-gen9-postgres:18-pgvector0.8.6-textsearch1.4.0}
     entrypoint: ["/bin/sh", "/scripts/ensure-roles.sh"]
     tmpfs: [/var/lib/postgresql]  # the image's VOLUME: no anonymous volume per run
     environment:
@@ -94,7 +94,7 @@ services:
     logging: *logging
     # Holds `docker compose up --wait` (and make up) until extensions and roles have succeeded:
     # Compose doesn't wait for a one-shot job that nothing depends on (docker/compose#9273)
-    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    image: ${GEN9_POSTGRES_IMAGE:-gen9-postgres:18-pgvector0.8.6-textsearch1.4.0}
     entrypoint: ["sleep", "infinity"]
     init: true
     # The image's VOLUME, covered so it makes no anonymous volume that every recreate leaves behind

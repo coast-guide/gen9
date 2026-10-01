@@ -142,3 +142,60 @@ What differs from Gen9's Docker sandboxes, for U6 (the pod's spec):
 - The pod template comes from `/etc/opensandbox/example.batchsandbox-template.yaml` in the server
   image (`restartPolicy: Never`, tolerating every taint); `[kubernetes] batchsandbox_template_file`
   can point at Gen9's own.
+
+## A Gen9 image from a variable: built here, or pulled by digest (U2)
+
+A throwaway project (`~/.cache/gen9-probes/u2`) with one service that has both `build: app` and
+`image: ${WEB_IMAGE:-u2-web:dev}`, and its image pushed to `registry:3` on 127.0.0.1:25000:
+
+| `WEB_IMAGE` | Command | What Compose did |
+| --- | --- | --- |
+| unset | `up -d --build` | built `u2-web:dev`, as `make up` does today |
+| `127.0.0.1:25000/u2/web@sha256:a7fbd7dc…` | `up -d --no-build` | "Pulling", "Pulled"; the container's image is the digest reference |
+| the same | `up -d --build` | "failed to solve: build tag cannot contain a digest" |
+
+So a stack keeps its `build:` for development, takes its image from a variable, and `make up`
+switches from `--build` to `--no-build` when it has a lock. OpenSandbox's server reads the execd
+and egress images only from its TOML (`opensandbox_server/config.py` overrides only the API key,
+the Postgres DSN and the secure-access keys from the environment), so `launch.py` writes it a copy
+of `config.toml` with the two images set from the environment.
+
+## Stacks as namespaces: the names they call and who may call them (U3)
+
+On `kind-r2c` (kind v0.33.0, kindnet), three namespaces: `u3b` runs a web server behind Service
+`web`; `u3a` has Service `gen9-web` of `type: ExternalName`, `externalName:
+web.u3b.svc.cluster.local`; `u3c` has nothing.
+
+- From `u3a`, `wget http://gen9-web` answered `hello-from-b`: a short name in the caller's
+  namespace reaches another namespace's Service, as a `gen9-<stack>` alias does on a Compose network.
+- With a NetworkPolicy in `u3b` allowing ingress only from namespace `u3a`
+  (`kubernetes.io/metadata.name`), `u3a` still got through and `u3c` timed out: kindnet enforces
+  NetworkPolicy.
+
+## A chart in the stack's folder, with the files Compose mounts (U3)
+
+Helm v4.3.0, a chart at `stack/chart/` with `chart/initdb -> ../initdb` (a symlink) and a
+ConfigMap template ranging over `.Files.Glob "initdb/*"`:
+
+- `helm template p chart` put `01.sql` in the ConfigMap, read through the link.
+- `helm package chart` logged "found symbolic link in path. Contents of linked file included and
+  used" and the archive held `probe/initdb/01.sql` as a file; `helm template` of the archive gave
+  the same ConfigMap.
+
+So each stack's chart can sit in its own folder and link to the configuration Compose bind-mounts
+(Keycloak's realm, the initdb scripts, `config.toml`, the router's `config.yaml`…): one copy of
+each file in git, carried inside the chart a release publishes.
+
+## A chart that reads its stack's compose.yaml (U3)
+
+Helm v4.3.0, `.Files.Get "compose.yaml" | fromYaml` on a link to `gen9-keycloak/compose.yaml`,
+then `gen9-ui/compose.yaml`: parsed whole, YAML anchors and merge keys resolved (gen9-ui's `prod`
+got the eleven variables of `<<: *app-env` plus its own, and its `env_file`); image pins, logging
+options and literal values such as `KC_LOG_CONSOLE_FORMAT` came through as written.
+
+A helper over a service's `environment` (`~/.cache/gen9-probes/u3-compose/templates/_env.tpl`):
+`${X:?…}` (a secret `make setup` writes to `.env`) became `valueFrom: secretKeyRef` on the Secret
+`env`; `${X:-default}` became the setting `X` (`--set settings.KC_HOSTNAME=https://auth.example.com`
+gave `KC_HOSTNAME` that) or else the default; literals stayed; a secret inside a longer value is
+defined first and referred to as `$(X)`, which Kubernetes expands from the container's earlier
+variables. For Keycloak: 6 secrets and 17 values, each as Compose would give it.

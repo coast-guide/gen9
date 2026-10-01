@@ -103,6 +103,8 @@ help:
 	@echo "  make setup           generate what is missing: secrets, seeded users, app settings;"
 	@echo "                       asks for provider keys (or OPENROUTER_API_KEY=… OPENAI_API_KEY=…)"
 	@echo "  make up              start the stacks, wait until healthy"
+	@echo "                       IMAGES=<lock file or URL>: Gen9's images by digest from it, built nowhere;"
+	@echo "                       IMAGES=local: built here again (the default)"
 	@echo "  make down            stop them (keeps data)"
 	@echo "  make stop-agents     stop every agent now: runs cancelled, scheduled tasks paused, worker stopped"
 	@echo "  make resume-agents   start the worker again and unpause what stop-agents paused"
@@ -146,8 +148,11 @@ doctor:
 admin-code:
 	@scripts/admin-code.sh
 
+# Gen9's own images: by digest from images.env when it exists (IMAGES=<lock> writes it, IMAGES=local
+# removes it: scripts/images.sh), so nothing is built; else built here from each stack's folder
 up:
 	@scripts/doctor.sh --preflight $(SELECTED)
+	@$(if $(IMAGES),scripts/images.sh $(IMAGES))
 	@$(if $(MISSING),printf 'Not set up yet. Missing:%b\nRun: make setup STACKS="%s"\n' \
 	  "$(foreach f,$(MISSING),\n  $(f))" "$(call writers,$(MISSING))" >&2; exit 1)
 	@case " $(SELECTED) " in *" models "*) \
@@ -162,13 +167,16 @@ up:
 	@# so its checks start over: Compose's --wait fails at once on an unhealthy container it doesn't
 	@# replace. Failing, not only unhealthy yet: one a failure short of it turned unhealthy during the
 	@# wait and failed make up (gen9-learn's b7, manual-e2e.md P4-E5)
-	@for s in $(SELECTED); do \
+	@if [ -f images.env ]; then set -a; . ./images.env; set +a; how=--no-build; \
+	  echo "Gen9's images: by digest (images.env; make up IMAGES=local builds them here)"; \
+	else how=--build; fi; \
+	for s in $(SELECTED); do \
 	  echo "== gen9-$$s"; \
 	  sick=$$(for c in $$(docker ps -q $(OWN)); do \
 	    [ "$$(docker inspect -f '{{if .State.Health}}{{.State.Health.FailingStreak}}{{else}}0{{end}}' $$c)" = 0 ] || echo $$c; done); \
 	  [ -z "$$sick" ] || { echo "restarting $$(docker inspect -f '{{.Name}}' $$sick | tr -d / | tr '\n' ' ')(failing its health check), so its checks start over"; \
 	    docker restart $$sick >/dev/null; }; \
-	  (cd gen9-$$s && docker compose up -d --build --wait) || \
+	  (cd gen9-$$s && docker compose up -d $$how --wait) || \
 	  { echo "gen9-$$s didn't start. Its logs: make logs STACKS=$$s" >&2; exit 1; }; \
 	done
 	@$(list_urls)
@@ -245,8 +253,10 @@ design-sync:
 design-check:
 	@gen9-design/sync.sh --check
 
+# With images.env, the lock's images too: context and fairness start a worker with docker compose run
 e2e:
-	@cd e2e && npm ci --silent && npm run -s stacks && npm run -s temporal && npm run -s runs && npm run -s models && npm run -s search && npm run -s memory && npm run -s skills && npm run -s agents && npm run -s questions && npm run -s approvals && npm run -s retry && npm run -s connectors && npm run -s connectors-oauth && npm run -s connectors-keycloak && npm run -s directory && npm run -s elicitation && npm run -s apps && npm run -s tool-changes && npm run -s environments && npm run -s scheduled && npm run -s triggers && npm run -s notifications && npm run -s outcomes && npm run -s background && npm run -s mcp-server && npm run -s agui && npm run -s a2a && npm run -s context && npm run -s past-chats && npm run -s memory-controls && npm run -s authz && npm run -s standing && npm run -s stop && npm run -s database && npm run -s audit && npm run -s admin-api && npm run -s demotion && npm run -s export && npm run -s cross-site && npm run -s fairness && npm run -s plugins && npm run -s plugins-conformance && npm run -s recovery && npm run -s lockout && npm run -s oauth && npm run -s passkeys && npm run -s keyboard && npm run -s focus && npm run -s a11y
+	@if [ -f images.env ]; then set -a; . ./images.env; set +a; fi; \
+	cd e2e && npm ci --silent && npm run -s stacks && npm run -s temporal && npm run -s runs && npm run -s models && npm run -s search && npm run -s memory && npm run -s skills && npm run -s agents && npm run -s questions && npm run -s approvals && npm run -s retry && npm run -s connectors && npm run -s connectors-oauth && npm run -s connectors-keycloak && npm run -s directory && npm run -s elicitation && npm run -s apps && npm run -s tool-changes && npm run -s environments && npm run -s scheduled && npm run -s triggers && npm run -s notifications && npm run -s outcomes && npm run -s background && npm run -s mcp-server && npm run -s agui && npm run -s a2a && npm run -s context && npm run -s past-chats && npm run -s memory-controls && npm run -s authz && npm run -s standing && npm run -s stop && npm run -s database && npm run -s audit && npm run -s admin-api && npm run -s demotion && npm run -s export && npm run -s cross-site && npm run -s fairness && npm run -s plugins && npm run -s plugins-conformance && npm run -s recovery && npm run -s lockout && npm run -s oauth && npm run -s passkeys && npm run -s keyboard && npm run -s focus && npm run -s a11y
 
 # The evals (gen9-agent/README.md, "Evals"): the seeded user signs in to a temporary config
 # directory (e2e/token.mjs), and a suite runs through the API, each task TRIALS times, as a
