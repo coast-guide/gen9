@@ -16,6 +16,21 @@ Two rules hold throughout:
 - **A secret that two stacks share changes in both.** The owning stack's `.env` holds it, and
   `init-env.sh --from-env --force` writes it again into the other stack's `*.local.env`.
 
+## How often to replace them
+
+A schedule, as OWASP ASVS 5.0 (13.1.4) asks, from NIST SP 800-57 Part 1 Rev. 5's suggested
+cryptoperiods (Table 1) for each kind of key. Replace sooner when a secret may have leaked, or when
+someone who held it leaves. Each row's "To replace" below says how.
+
+| Kind | Secrets | At least every | NIST's suggestion |
+| --- | --- | --- | --- |
+| Keys that encrypt data | `GEN9_SECRET_KEYS`, `TEMPORAL_PAYLOAD_KEYS` | 2 years for the key that seals; an old one stays only while something sealed with it is left | Symmetric data encryption: up to 2 years to encrypt, 3 more to decrypt |
+| A key that keys are derived from | `SESSION_SECRET` | Year | Master or key-derivation key: about 1 year |
+| Keys that sign | Keycloak's realm signing key (RS256); Temporal's internode CA and certificate, made together by `init-tls.sh` (its certificate lasts 825 days) | 2 years | Private signature key: 1 to 3 years |
+| Secrets that prove who's calling | Client secrets, the router's keys, `SANDBOX_API_KEY`, database and Valkey passwords, Langfuse's project keys, `MAILPIT_UI_PASSWORD`, Keycloak's HS512 key | Year | Symmetric authentication key: under 2 years |
+| Other people's keys | Provider keys | As the provider says, and when someone who held one leaves | |
+| Never | `LITELLM_SALT_KEY` | A new one can't read what's stored (its row below) | |
+
 ## Key rings
 
 | Secret | Where | Used by | To replace |
