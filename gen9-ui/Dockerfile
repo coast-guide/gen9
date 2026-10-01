@@ -14,7 +14,7 @@ FROM ${NODE_IMAGE} AS dependencies
 WORKDIR /app
 
 # Copy only the manifests first so this layer is cached until dependencies change
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --no-fund
