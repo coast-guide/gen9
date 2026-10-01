@@ -81,10 +81,11 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Pages only: not route handlers (/api, /auth), static assets or metadata files
+  // Pages only: not route handlers (/api, /auth but its error page), static assets or metadata
+  // files. /auth/error is a page: without this it was served with no CSP (manual-e2e.md, P7-E2)
   matcher: [
     {
-      source: "/((?!api/|auth/|_next/static|_next/image|brand/|favicon.ico|icon.svg|apple-icon.png|manifest.webmanifest).*)",
+      source: "/((?!api/|auth/(?!error)|_next/static|_next/image|brand/|favicon.ico|icon.svg|apple-icon.png|manifest.webmanifest).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

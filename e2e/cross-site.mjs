@@ -9,8 +9,9 @@
 //      verdict, over CDP)
 //   3. a chat's HTML and SVG files, whose scripts would mark Gen9's origin, download when opened
 //      (attachment, nosniff, a sandbox CSP) and never run: not opened, nor the SVG as an image
-//   4. the CSP reports what it blocks (report-uri; report-to too over https): the app's screens
-//      trip nothing, an injected image is reported, and gen9-ui logs it without its query
+//   4. the CSP reports what it blocks (report-uri; report-to too over https): the app's screens,
+//      the sign-in error page among them, have it and trip nothing, an injected image is
+//      reported, and gen9-ui logs it without its query
 // It deletes the chat it makes. No model call.
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
@@ -178,11 +179,15 @@ try {
     const b = JSON.parse(r.postData() ?? "{}")["csp-report"] ?? {};
     reports.push(`${b["effective-directive"]} ${b["blocked-uri"]} (${new URL(b["document-uri"] ?? APP).pathname})`);
   });
-  for (const path of ["/chat", "/search?q=reply", "/scheduled", "/settings"]) {
-    await page.goto(`${APP}${path}`, { waitUntil: "networkidle0" });
+  const policies = [];
+  for (const path of ["/chat", "/search?q=reply", "/scheduled", "/settings", "/auth/error?reason=state"]) {
+    const response = await page.goto(`${APP}${path}`, { waitUntil: "networkidle0" });
+    policies.push(`${path.split("?")[0]} ${response.headers()["content-security-policy"] ? "has a CSP" : "has no CSP"}`);
     await new Promise((resolve) => setTimeout(resolve, 800));
   }
-  check(reports.length === 0, "the app's screens trip nothing in the CSP (chat, search, scheduled, settings)", reports.join(", ") || "no reports");
+  check(reports.length === 0, "the app's screens trip nothing in the CSP (chat, search, scheduled, settings, the sign-in error page)", reports.join(", ") || "no reports");
+  // P7-E2: the sign-in error page is a page among route handlers, and was served with no CSP
+  check(policies.every((p) => p.endsWith("has a CSP")), "every screen has the CSP, the sign-in error page too", policies.join("; "));
   const since = new Date().toISOString();
   const tag = `card-${Date.now()}`;
   await page.goto(`${APP}/chat`, { waitUntil: "networkidle0" });

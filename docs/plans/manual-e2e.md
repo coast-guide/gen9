@@ -3708,9 +3708,34 @@ M5).
     in each stack's `.env` and `*.local.env`, readable only by their owner (mode 600 here;
     `setup.sh` makes gen9-agent's so). A manager (OpenBao, Docker's secrets) is a larger change,
     left for a later phase. 13.3.3 (an HSM) is L3.
-- [ ] E2 Leakage (13.4), on every port Gen9 opens: `.git` (13.4.1), debug modes (13.4.2),
+- [x] E2 Leakage (13.4), on every port Gen9 opens: `.git` (13.4.1), debug modes (13.4.2),
   directory listings (13.4.3), `TRACE` (13.4.4), monitoring endpoints (13.4.5), version headers
   and pages (13.4.6), the web app's source maps (13.4.7).
+  - **The ports:** each of the 22 published ports binds 127.0.0.1 only (`docker ps`). On every
+    HTTP one: `GET /`, `TRACE /` and `/.git/HEAD`, reading the headers and bodies.
+  - **Held:**
+    - no `.git` anywhere in gen9-ui's or gen9-agent's image; MinIO's console and Temporal's UI
+      answer `/.git/HEAD` with their own app page;
+    - Keycloak runs `start --optimized`, production mode;
+    - Next.js's `X-Powered-By` is off;
+    - `server: uvicorn` and `Server: MinIO` name no version, and the router's readiness says only
+      "healthy";
+    - the web app serves no source maps (each chunk's `.map` 404, no `sourceMappingURL`);
+    - static paths redirect, with no listing;
+    - Keycloak's management port lists `/health` and `/metrics`, but is private
+      (gen9-keycloak/README.md);
+    - the API's `/docs` is readable by design (phase 1's M5).
+  - **Fixed:** the sign-in error page (`/auth/error`) was served with no CSP. The proxy's matcher
+    left out all of `auth/` as route handlers, and that one is a page. Now `auth/(?!error)`.
+    Before, `curl` showed no CSP on it. After, `cross-site.mjs` passes 10 of 10 with a new check
+    that every screen has the CSP, that page among them, and none reports anything.
+  - **Kept, Next.js's:** `TRACE` to the web app answers 500 "Internal Server Error", with no
+    detail, and logs a stack trace ("'TRACE' HTTP method is unsupported": Next 16.3.6 builds a web
+    `Request` for the proxy, which refuses it). No issue for it on vercel/next.js. Every port is
+    on 127.0.0.1, so in production a `TRACE` meets the operator's TLS proxy first, which can
+    refuse it.
+  - `e2e/README.md`'s list of scripts lacked `admin-api`, `lockout` and `oauth`: now as the
+    Makefile has them.
 - [ ] E3 The browser after sign-out (14.3.1) and on a shared computer: `Cache-Control: no-store` on
   pages and answers with personal data (14.3.2; the back button after sign-out), what
   localStorage, IndexedDB and the cache still hold (14.3.3), `Clear-Site-Data`.

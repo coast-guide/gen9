@@ -467,7 +467,7 @@ gen9-ui is the only browser client; gen9-agent allows no origin but Temporal's w
 | In Chrome, signed in as the seeded user | The app reads their chats; Chrome sends the session cookie (its own verdict, over CDP) |
 | A page on another site (`127.0.0.1` is not `localhost`'s site) fetching the chats, the export, a new chat and the API with credentials | Each blocked, and Chrome withholds the session cookie from each (`SchemefulSameSiteLax`) |
 | An HTML and an SVG file attached to a chat, whose scripts would mark Gen9's `localStorage`, opened signed in, and the SVG shown as an image | Each answered `attachment`, `nosniff`, `Content-Security-Policy: sandbox`; opening them downloads them (the page stays put); no script ran as Gen9. It deletes the chat |
-| The CSP's reports | None from the chat, search, scheduled and settings screens; an image injected on `/chat` is blocked, reported, and gen9-ui logs `[csp] img-src blocked https://httpbin.org/image/png on /chat`, its query nowhere in the log |
+| The CSP's reports | Every screen has the CSP, the sign-in error page (`/auth/error`) too, and none of chat, search, scheduled, settings and that page reports anything; an image injected on `/chat` is blocked, reported, and gen9-ui logs `[csp] img-src blocked https://httpbin.org/image/png on /chat`, its query nowhere in the log |
 
 ## An admin whose access is removed (`demotion.mjs`)
 
@@ -819,7 +819,7 @@ The harness bypasses gen9-ui's CSP to inject axe. A page with known problems (im
 
 ```bash
 make up                     # every stack; passkeys and a11y need gen9-keycloak, gen9-ui and gen9-agent
-make e2e                    # every check below; or: cd e2e && npm ci && npm run stacks / temporal / runs / models / search / memory / skills / agents / questions / approvals / retry / connectors / connectors-oauth / connectors-keycloak / directory / elicitation / apps / tool-changes / environments / scheduled / triggers / notifications / outcomes / background / mcp-server / agui / a2a / context / past-chats / memory-controls / authz / standing / stop / database / audit / demotion / export / cross-site / fairness / plugins / plugins-conformance / recovery / passkeys / keyboard / focus / a11y
+make e2e                    # every check below; or: cd e2e && npm ci && npm run stacks / temporal / runs / models / search / memory / skills / agents / questions / approvals / retry / connectors / connectors-oauth / connectors-keycloak / directory / elicitation / apps / tool-changes / environments / scheduled / triggers / notifications / outcomes / background / mcp-server / agui / a2a / context / past-chats / memory-controls / authz / standing / stop / database / audit / admin-api / demotion / export / cross-site / fairness / plugins / plugins-conformance / recovery / lockout / oauth / passkeys / keyboard / focus / a11y
 ```
 
 `HEADED=1` shows the browser. Chrome is taken from where macOS and Linux install it
