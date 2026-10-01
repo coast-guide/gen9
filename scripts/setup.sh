@@ -111,6 +111,11 @@ if selected keycloak; then
       set_env gen9-keycloak/.env GEN9_TEMPORAL_UI_CLIENT_SECRET "$(openssl rand -hex 32)"
       echo "  added the temporal-ui client secret to gen9-keycloak/.env"
     fi
+    # Admins need a second step: the seeded admin's authenticator app (configure.sh gives it to them)
+    if ! grep -Eq '^GEN9_SEED_ADMIN_OTP_SECRET=.+' gen9-keycloak/.env; then
+      set_env gen9-keycloak/.env GEN9_SEED_ADMIN_OTP_SECRET "$(openssl rand -hex 20)"
+      echo "  added the seeded admin's authenticator secret to gen9-keycloak/.env"
+    fi
     # Mailpit's web UI and API ask for a password (user gen9)
     if ! grep -Eq '^MAILPIT_UI_PASSWORD=.+' gen9-keycloak/.env; then
       set_env gen9-keycloak/.env MAILPIT_UI_PASSWORD "$(openssl rand -hex 16)"

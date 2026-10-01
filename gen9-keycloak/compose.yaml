@@ -100,6 +100,9 @@ services:
       GEN9_MCP_CLIENT_DOMAINS: ${GEN9_MCP_CLIENT_DOMAINS:-claude.ai,vscode.dev,code.visualstudio.com,localhost,127.0.0.1,host.docker.internal}
       GEN9_MCP_CLIENT_ALLOW_HTTP: ${GEN9_MCP_CLIENT_ALLOW_HTTP:-true}
       GEN9_TEMPORAL_UI_CLIENT_SECRET: ${GEN9_TEMPORAL_UI_CLIENT_SECRET:?run make setup STACKS=keycloak}
+      # The seeded admin's authenticator app: admins need a second step, and the checks answer it
+      GEN9_SEED_ADMIN_EMAIL: ${GEN9_SEED_ADMIN_EMAIL:-ada@gen9.test}
+      GEN9_SEED_ADMIN_OTP_SECRET: ${GEN9_SEED_ADMIN_OTP_SECRET:?run make setup STACKS=keycloak}
     volumes:
       - ./config:/opt/gen9:ro
     restart: "no"

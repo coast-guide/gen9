@@ -1,15 +1,18 @@
 // Sign a user in on the terminal client, as a person would: `gen9 login` (gen9-cli, OAuth device
-// grant) prints a code, and headless Chrome confirms it with the user's password and consent. The
-// tokens land in $GEN9_CONFIG_DIR/credentials.json (mode 600, written by gen9-cli). Used by
-// token.mjs (the seeded users) and search.mjs (a throwaway user). Never prints a token.
+// grant) prints a code, and headless Chrome confirms it with the user's password, the second step
+// if Keycloak asks for one (second-step.mjs: an admin's), and consent. The tokens land in
+// $GEN9_CONFIG_DIR/credentials.json (mode 600, written by gen9-cli). Used by token.mjs (the seeded
+// users) and search.mjs (a throwaway user). Never prints a token.
 import { spawn } from "node:child_process";
 import puppeteer from "puppeteer-core";
 import { CHROME } from "./browser.mjs";
+import { secondStep } from "./second-step.mjs";
 
 export const ROOT = new URL("..", import.meta.url).pathname;
 
-// Resolves to gen9 login's "Signed in as …" line, or null when it didn't finish
-export async function signInTerminal({ email, password, configDir }) {
+// Resolves to gen9 login's "Signed in as …" line, or null when it didn't finish. `otpSecret`: the
+// person's authenticator app, when not the seeded admin's
+export async function signInTerminal({ email, password, configDir, otpSecret }) {
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: true });
   async function confirm(url) {
     const page = await browser.newPage();
@@ -20,6 +23,8 @@ export async function signInTerminal({ email, password, configDir }) {
         await page.type("#username", email);
         await page.type("#password", password);
         await page.click("#kc-login");
+      } else if ((await page.$("#otp")) || (await page.$("#totpSecret"))) {
+        await secondStep(page, otpSecret);
       } else if (await page.$('button[name="accept"]')) {
         await page.click('button[name="accept"]');
       } else break;

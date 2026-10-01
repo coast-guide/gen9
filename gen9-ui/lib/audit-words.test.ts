@@ -24,6 +24,9 @@ const event = (over: Partial<AuditEvent>): AuditEvent => ({
 describe("audit words", () => {
   it("says what an admin did to whom, never an action code", () => {
     expect(whatHappened(event({ detail: { admin: true } }))).toBe("Made mary@gen9.test an admin");
+    expect(whatHappened(event({ detail: { admin: true, signed_out: true } }))).toBe(
+      "Made mary@gen9.test an admin, and signed them out: admins need a second step, and they had none",
+    );
     expect(whatHappened(event({ detail: { admin: false } }))).toBe("Removed admin access from mary@gen9.test");
     expect(whatHappened(event({ detail: { enabled: false } }))).toBe("Disabled mary@gen9.test");
     expect(whatHappened(event({ action: "admin.user.delete", target_email: null }))).toBe("Deleted a person");

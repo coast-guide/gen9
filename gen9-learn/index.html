@@ -1513,14 +1513,14 @@ after Ada agrees: research-brief · Gen9’s own   <mark>gen9-learn-greeting</ma
 (toast) Authenticator app set up. Recovery codes saved.</div>
         <p>Sign-in is now two POSTs to <code>…/login-actions/authenticate</code>: the first answers 200 (the code page), the second 302 to the callback. <em>Try another way</em> is a small form posting <code>tryAnotherWay=on</code>.</p>
         <div class="where store">In the Keycloak DB</div>
-        <p>A <code>recovery-authn-codes</code> credential. The browser flow's second step lists both, which <code>configure.sh</code> turned on:</p>
-        <div class="cmd"><pre><code data-check="run">docker logs gen9-keycloak-configure-1 2>&amp;1 | tail -4</code></pre></div>
+        <p>A <code>recovery-authn-codes</code> credential. The second step of Gen9's browser flow lists both. The flow is Gen9's own, <code>gen9-browser</code>, which <code>configure.sh</code> builds (Keycloak's built-in one takes no new step): after the second step, an admin who has none sets up an authenticator app before the sign-in ends.</p>
+        <div class="cmd"><pre><code data-check="run">docker logs gen9-keycloak-configure-1 2>&amp;1 | grep -E '^(sign-in|seeded admin|admins):'</code></pre></div>
       </div>
     </li>
 
     <li class="step" id="b3-3" data-watch="browser kc ui agent" data-focus="kc">
       <h3>Lock yourself out; Ada unlocks <label><input type="checkbox" data-done> Done</label></h3>
-      <p class="do">Sign out. Sign in with a wrong password 5 times, then the right one. In another browser, sign in as Ada (<code>grep ^GEN9_SEED_ gen9-keycloak/.env</code>), open <em>Users</em>, and on your row choose <em>⋯</em>, <em>Unlock sign-in</em>.</p>
+      <p class="do">Sign out. Sign in with a wrong password 5 times, then the right one. In another browser, sign in as Ada (her password: <code>grep ^GEN9_SEED_ADMIN_PASSWORD gen9-keycloak/.env</code>; admins need a second step, and <code>make admin-code</code> prints her authenticator's code), open <em>Users</em>, and on your row choose <em>⋯</em>, <em>Unlock sign-in</em>.</p>
       <details class="predict"><summary>Predict: which table in the Keycloak DB records the lockout?</summary>
         <p>None. Keycloak 26 keeps brute-force state in its in-memory cache; <code>login_failure</code> stays empty. Ask Keycloak instead:</p>
       </details>
@@ -1632,13 +1632,13 @@ your sign-in: "<mark>This account is disabled. Contact your Gen9 admin.</mark>" 
     </li>
     <li class="step deeper" id="b4-admin" data-watch="browser ui agent kc kcdb appdb" data-focus="agent">
       <h3>Admin rights, given and taken back <span class="depth">Deeper</span> <label><input type="checkbox" data-done> Done</label></h3>
-      <p class="do">As Ada: <em>Users</em>, your row, <em>⋯</em>, <em>Make admin…</em>, and confirm. Sign in again as you: <em>Users</em>, <em>Plugins</em> and <em>Audit log</em> appear. While you're signed in, Ada chooses <em>Remove admin access…</em>. Open <em>Audit log</em> in your browser.</p>
+      <p class="do">As Ada: <em>Users</em>, your row, <em>⋯</em>, <em>Make admin…</em>, and confirm. Admins need a second step: someone made admin without an authenticator app or a passkey is signed out, and sets one up at their next sign-in; you set up an app earlier, so you keep your session. Sign in again as you: <em>Users</em>, <em>Plugins</em> and <em>Audit log</em> appear. While you're signed in, Ada chooses <em>Remove admin access…</em>. Open <em>Audit log</em> in your browser.</p>
       <details class="predict"><summary>Predict: your access token was issued with <code>gen9-admin</code> and lives five more minutes. Does it still open the admin pages?</summary>
         <p>No. Admin access is checked when it's used: gen9-ui asks gen9-agent, and gen9-agent asks Keycloak for the person's roles now, not what the token said when it was issued (docs/auth-architecture.md, decision 14). The links go, and the next admin page says you need admin access.</p>
       </details>
       <div class="notice">
         <div class="where browser">As Ada, then as you</div>
-        <div class="out"><span class="cap">verified</span>Ada: <mark>Make &lt;you&gt; an admin?</mark> They can manage everyone’s accounts and the plugins, and read the audit log, as you can.  [Make admin]
+        <div class="out"><span class="cap">verified</span>Ada: <mark>Make &lt;you&gt; an admin?</mark> They can manage everyone’s accounts and the plugins, and read the audit log, as you can. Admins need a second step: without an authenticator app or a passkey, they’re signed out and set one up at their next sign-in.  [Make admin]
 you, signed in again: <mark>Users, Plugins, Audit log</mark>
 Ada: <mark>Remove admin access for &lt;you&gt;?</mark> They keep their account and chats, and lose Users, Plugins and the audit log at once.  [Remove admin access]
 you, opening Audit log: <mark>You need admin access</mark> · Ask a Gen9 admin to add you to the admins group.      (and no admin links)</div>
@@ -2036,10 +2036,10 @@ gen9-ui: [auth/backchannel-logout] sid logged out, 1 session(s) removed</div>
       <details class="predict"><summary>Predict: does the realm file get imported again? Are users signed out?</summary>
         <p>No and no. The realm exists, so the import is skipped; <code>configure</code> re-applies Gen9's settings; <code>ready</code> starts only after <code>configure</code> succeeds, so <code>make up</code> waits for it. Login sessions survive: Keycloak 26 keeps them in its database.</p>
       </details>
-      <div class="cmd"><pre><code data-check="run">docker logs gen9-keycloak-keycloak-1 2>&amp;1 | grep -i 'import' | tail -1; docker logs gen9-keycloak-configure-1 2>&amp;1 | tail -3</code></pre></div>
+      <div class="cmd"><pre><code data-check="run">docker logs gen9-keycloak-keycloak-1 2>&amp;1 | grep -i 'import' | tail -1; docker logs gen9-keycloak-configure-1 2>&amp;1 | grep '^sign-in:'</code></pre></div>
       <div class="out">Realm 'gen9' <mark>already exists. Import skipped</mark>
-forgot password: gen9-reset-credentials in place
-forgot password: bound to gen9-reset-credentials</div>
+sign-in: gen9-browser in place
+sign-in: bound to gen9-browser</div>
     </li>
 
     <li class="step" id="b7-2" data-watch="agent appdb" data-focus="appdb">
@@ -2840,7 +2840,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
     <thead><tr><th>File</th><th>Keys</th></tr></thead>
     <tbody>
       <tr><td><code>gen9-postgres/.env</code></td><td><code>GEN9_POSTGRES_PORT</code>; <code>POSTGRES_PASSWORD</code> (the superuser), <code>GEN9_AGENT_DB_PASSWORD</code> (the owner <code>gen9_agent</code>), <code>GEN9_AGENT_APP_DB_PASSWORD</code> (<code>gen9_agent_app</code>)</td></tr>
-      <tr><td><code>gen9-keycloak/.env</code></td><td><code>KEYCLOAK_PORT</code>, <code>KC_HOSTNAME</code> (the issuer's address, the same for browsers and containers); <code>KC_DB_PASSWORD</code>; <code>KC_BOOTSTRAP_ADMIN_USERNAME</code>, <code>KC_BOOTSTRAP_ADMIN_PASSWORD</code> (the master realm's admin); <code>MAILPIT_UI_PASSWORD</code>; <code>GEN9_UI_URL</code>, <code>GEN9_UI_DEV_URL</code>, <code>GEN9_UI_BACKCHANNEL_LOGOUT_URL</code>, <code>GEN9_UI_CLIENT_SECRET</code> (the web app's client); <code>GEN9_AGENT_CLIENT_SECRET</code> (the agent's service account); <code>GEN9_TEMPORAL_UI_URL</code>, <code>GEN9_TEMPORAL_UI_CLIENT_SECRET</code> (Temporal's web UI's client); <code>GEN9_SEED_ADMIN_EMAIL</code>, <code>GEN9_SEED_ADMIN_PASSWORD</code>, <code>GEN9_SEED_USER_EMAIL</code>, <code>GEN9_SEED_USER_PASSWORD</code> (Ada and Alan)</td></tr>
+      <tr><td><code>gen9-keycloak/.env</code></td><td><code>KEYCLOAK_PORT</code>, <code>KC_HOSTNAME</code> (the issuer's address, the same for browsers and containers); <code>KC_DB_PASSWORD</code>; <code>KC_BOOTSTRAP_ADMIN_USERNAME</code>, <code>KC_BOOTSTRAP_ADMIN_PASSWORD</code> (the master realm's admin); <code>MAILPIT_UI_PASSWORD</code>; <code>GEN9_UI_URL</code>, <code>GEN9_UI_DEV_URL</code>, <code>GEN9_UI_BACKCHANNEL_LOGOUT_URL</code>, <code>GEN9_UI_CLIENT_SECRET</code> (the web app's client); <code>GEN9_AGENT_CLIENT_SECRET</code> (the agent's service account); <code>GEN9_TEMPORAL_UI_URL</code>, <code>GEN9_TEMPORAL_UI_CLIENT_SECRET</code> (Temporal's web UI's client); <code>GEN9_SEED_ADMIN_EMAIL</code>, <code>GEN9_SEED_ADMIN_PASSWORD</code>, <code>GEN9_SEED_USER_EMAIL</code>, <code>GEN9_SEED_USER_PASSWORD</code> (Ada and Alan); <code>GEN9_SEED_ADMIN_OTP_SECRET</code> (Ada's authenticator app, which <code>configure.sh</code> gives her: admins need a second step; <code>make admin-code</code> prints its code)</td></tr>
       <tr><td><code>gen9-langfuse/.env</code></td><td><code>COMPOSE_FILE</code>; ports <code>LANGFUSE_PORT</code>, <code>LANGFUSE_MEDIA_PORT</code>, <code>LANGFUSE_MINIO_CONSOLE_PORT</code>, <code>LANGFUSE_WORKER_PORT</code>, <code>LANGFUSE_POSTGRES_PORT</code>, <code>LANGFUSE_REDIS_PORT</code>, <code>LANGFUSE_CLICKHOUSE_HTTP_PORT</code>, <code>LANGFUSE_CLICKHOUSE_NATIVE_PORT</code>; addresses <code>NEXTAUTH_URL</code>, <code>LANGFUSE_MEDIA_PUBLIC_URL</code>, <code>LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT</code>; switches <code>LANGFUSE_S3_BATCH_EXPORT_ENABLED</code>, <code>TELEMETRY_ENABLED</code>, <code>LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES</code>; its stores' secrets <code>POSTGRES_PASSWORD</code>, <code>DATABASE_URL</code>, <code>CLICKHOUSE_PASSWORD</code>, <code>REDIS_AUTH</code>, <code>MINIO_ROOT_PASSWORD</code>, <code>LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY</code>, <code>LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY</code>, <code>LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY</code>; its own keys <code>SALT</code>, <code>ENCRYPTION_KEY</code>, <code>NEXTAUTH_SECRET</code>; the first organization, project and user <code>LANGFUSE_INIT_ORG_ID</code>, <code>LANGFUSE_INIT_ORG_NAME</code>, <code>LANGFUSE_INIT_PROJECT_ID</code>, <code>LANGFUSE_INIT_PROJECT_NAME</code>, <code>LANGFUSE_INIT_PROJECT_PUBLIC_KEY</code>, <code>LANGFUSE_INIT_PROJECT_SECRET_KEY</code>, <code>LANGFUSE_INIT_USER_EMAIL</code>, <code>LANGFUSE_INIT_USER_NAME</code>, <code>LANGFUSE_INIT_USER_PASSWORD</code></td></tr>
       <tr><td><code>gen9-temporal/.env</code></td><td><code>GEN9_TEMPORAL_PORT</code>, <code>GEN9_TEMPORAL_UI_PORT</code>; <code>POSTGRES_PASSWORD</code>, <code>TEMPORAL_DB_PASSWORD</code></td></tr>
       <tr><td><code>gen9-temporal/keycloak.local.env</code></td><td><code>TEMPORAL_AUTH_ISSUER_URL</code>, <code>TEMPORAL_AUTH_CLIENT_ID</code>, <code>TEMPORAL_AUTH_CLIENT_SECRET</code>: the web UI's sign-in</td></tr>
@@ -2884,6 +2884,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>make ps</code></td><td>Their containers, and where to open each</td><td><a href="#b0-2">Terminal</a></td></tr>
       <tr><td><code>make logs</code></td><td>The last 50 lines of each (<code>TAIL=n</code>; <code>FOLLOW=1</code> with one stack)</td><td><a href="#b0-5">Logs</a></td></tr>
       <tr><td><code>make config</code></td><td>Validates the Compose files, and fails if a network change would let a stack reach another under a service name it uses itself</td><td><a href="#b7-3">Who can reach whom</a></td></tr>
+      <tr><td><code>make admin-code</code></td><td>The seeded admin's authenticator code now, for signing in as Ada: admins need a second step, and her app's secret in <code>gen9-keycloak/.env</code> isn't in the form an authenticator app takes</td><td><a href="#b3-3">Lock yourself out</a></td></tr>
       <tr><td><code>make stop-agents</code></td><td>Cancels every run not yet over, pauses every scheduled task, stops the worker; people can still read their chats</td><td><a href="#b7-6">Restore it</a></td></tr>
       <tr><td><code>make resume-agents</code></td><td>Starts the worker and unpauses what the stop paused</td><td><a href="#b7-6">Restore it</a></td></tr>
       <tr><th colspan="3" scope="colgroup">Data (these ask you to type <code>yes</code>; <code>YES=1</code> skips)</th></tr>
@@ -2932,6 +2933,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td>A recent sign-in (5 minutes) before deleting an account (RFC 9470)</td><td>Someone at an unlocked session deleting it</td><td><a href="#b6-2">Step-up first</a></td></tr>
       <tr><td>Lockout after 5 wrong passwords; a second step before a password reset; recovery codes; passkeys</td><td>Guessing; taking an account over from its email alone; a lost phone locking someone out</td><td><a href="#b3-3">Lock yourself out</a>, <a href="#b3-4">Forgot password</a></td></tr>
       <tr><td>Back-channel logout, signed, each notice used once</td><td>A web session outliving its Keycloak session</td><td><a href="#b4-2">Sign the other browser out</a></td></tr>
+      <tr><td>Admins need a second step: an authenticator app or a passkey, set up at the sign-in that finds none; someone made admin without one is signed out</td><td>Taking over an admin account with its password alone</td><td><a href="#b4-admin">Admin rights</a></td></tr>
       <tr><td>Admin rights checked with Keycloak when used</td><td>A demoted admin acting on an old token</td><td><a href="#b4-admin">Admin rights</a></td></tr>
       <tr><td>Each stack on its own network, joining only those it calls</td><td>The web app reaching the database; any stack reaching the router</td><td><a href="#b7-3">Who can reach whom</a></td></tr>
       <tr><td>Each container holds only its secrets; the services' database role owns nothing</td><td>One compromised service leaking every key, or rewriting the schema</td><td><a href="#b7-3b">What each container holds</a></td></tr>
@@ -3024,7 +3026,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
 </section>
 
 <footer>
-  <p>Every "verified" output comes from a live run of <code>gen9-learn/verify</code> against the stacks, which also re-runs each command here that is safe to run unattended; interactive and destructive ones are exercised by its batch scripts instead. To re-verify: <code>cd gen9-learn/verify &amp;&amp; npm ci &amp;&amp; node run.mjs</code> (see <code>gen9-learn/README.md</code>). Last verified: every batch, deeper ones included (246 checks), every runnable command, and the Reference against the running system.</p>
+  <p>Every "verified" output comes from a live run of <code>gen9-learn/verify</code> against the stacks, which also re-runs each command here that is safe to run unattended; interactive and destructive ones are exercised by its batch scripts instead. To re-verify: <code>cd gen9-learn/verify &amp;&amp; npm ci &amp;&amp; node run.mjs</code> (see <code>gen9-learn/README.md</code>). Last verified: every batch, deeper ones included (257 checks), every runnable command, and the Reference against the running system.</p>
 </footer>
 
 </div>

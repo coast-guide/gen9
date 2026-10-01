@@ -228,8 +228,23 @@ try {
   const pending = (await api(alan, "GET", `/v1/threads/${asking.id}/tasks`)).body[0];
   const theirAnswer = await api(ada, "POST", `/v1/threads/${askingTask}/runs/${pending.run_id}/inputs/${pending.requests[0]?.id}`, { decisions: [{ type: "approve" }] });
   check(theirAnswer.status === 404 && pending.requests[0]?.kind === "approval", "another person can't answer it", `${theirAnswer.status}`);
-  for (const b of await card.$$("button")) if ((await b.evaluate((e) => e.textContent.trim())) === "Allow") await b.click();
-  await until("the task to finish", () => latest(askingTask) === "success", 180);
+  // In Ask before acting a task may ask more than once (the model's next call needs Allow too):
+  // the person allows each request in the chat, as they would, up to three
+  let asked = pending.requests[0]?.id;
+  let allowCard = card;
+  for (let round = 0; round < 3 && latest(askingTask) !== "success"; round++) {
+    for (const b of await allowCard.$$("button")) if ((await b.evaluate((e) => e.textContent.trim())) === "Allow") await b.click();
+    const next = await until("the task to finish or ask again", async () => {
+      if (latest(askingTask) === "success") return "done";
+      const now = (await api(alan, "GET", `/v1/threads/${asking.id}/tasks`)).body[0]?.requests?.[0]?.id;
+      return latest(askingTask) === "waiting" && now && now !== asked ? now : null;
+    }, 180);
+    if (next === "done") break;
+    asked = next;
+    await page.goto(`${APP}/chat/${asking.id}`, { waitUntil: "networkidle0" });
+    allowCard = await page.waitForSelector('section[aria-label="In the background"] section[aria-label="Gen9 needs your approval"]', { timeout: 20_000 });
+  }
+  await until("the task to finish", () => latest(askingTask) === "success", 60);
   const remembered = (await api(alan, "GET", "/v1/me/memory")).body?.content ?? "";
   await until("its notice", () => psql(`select count(*) from runs where thread_id = '${asking.id}' and input ? 'notice_of'`) === "1", 180);
   const said = remembered.split("\n").find((line) => /kingfisher|bird/i.test(line)) ?? `no bird in its memory (${remembered.length} characters)`;

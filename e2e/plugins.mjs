@@ -39,6 +39,7 @@ import { createRequire } from "node:module";
 import { launch } from "./browser.mjs";
 import { serveGit } from "./fixtures/git-server.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { secondStep } from "./second-step.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -211,6 +212,7 @@ try {
   await page.type("#username", env.GEN9_SEED_ADMIN_EMAIL);
   await page.type("#password", env.GEN9_SEED_ADMIN_PASSWORD);
   await Promise.all([page.waitForNavigation({ waitUntil: "networkidle0" }), page.click("#kc-login")]);
+  await secondStep(page); // admins need a second step: the seeded admin's code
   check((await text("h1")) === "Plugins", "the seeded admin opens Admin > Plugins", await text("h1"));
   check(Boolean(await signInTerminal({ email: env.GEN9_SEED_USER_EMAIL, password: env.GEN9_SEED_USER_PASSWORD, configDir: alan })), "the seeded user signs in on the terminal");
   await signInTerminal({ email: env.GEN9_SEED_ADMIN_EMAIL, password: env.GEN9_SEED_ADMIN_PASSWORD, configDir: ada });

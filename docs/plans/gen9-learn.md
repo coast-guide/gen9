@@ -704,7 +704,7 @@ Picked up in this order. Each is its own verified unit, as M9's were.
 7. Housekeeping: `lib/audit-words.test.ts` and `lib/app-scopes.test.ts` read gen9-agent's and
    gen9-keycloak's files from gen9-ui's tests; keep them if CI stays a monorepo checkout.
 
-- [ ] M10 A second step for admins (from M9's F10). Every member of `admins` must have an
+- [x] M10 A second step for admins (from M9's F10). Every member of `admins` must have an
   authenticator app or a passkey: asked to set one up when made admin (a required action, from
   Gen9's admin API and `configure.sh` for existing admins), the seeded admin's set up by `make
   setup` with its secret kept for the checks, and every check that signs the admin in (e2e and
@@ -732,9 +732,87 @@ Picked up in this order. Each is its own verified unit, as M9's were.
     from admins (unaffected). The seeded admin then needs a second step: `make setup` gives Ada an
     authenticator whose secret it keeps in gen9-keycloak/.env for the checks (e2e and gen9-learn
     sign Ada in, and the owner's demo page). Not before the owner's demo: it changes how Ada
-    signs in.
+    signs in. (The demo is past: 4c-3's fix, held for it, was deployed after it.)
+  - Probed (2026-10-01), in a throwaway Keycloak 26.7.4 (`exp-kc-2fa`: its own project, port and
+    database, the Gen9 image, realm file and `configure.sh`, 2 CPUs; never the running stack),
+    driven by Puppeteer (gen9-agent/explore/auth/NOTES.md, "Admins need a second step"). Keycloak
+    refuses to change its built-in `browser` flow ("It is illegal to add sub-flow to a built in
+    flow", `AuthenticationManagementResource`), so the realm gets a flow of Gen9's own,
+    `gen9-browser`, with the built-in's steps (without Kerberos and organizations) and the new
+    sub-flow; its conditions: role `gen9-admin`, no passkey used (`Condition - credential`), and
+    the second step not run (`Condition - sub-flow executed`, `not-executed`). What it showed:
+    the seeded admin, given an authenticator by `configure.sh` through the Admin API (`PUT
+    /users/{id}` with an `otp` credential: the secret's raw bytes key the HMAC), is asked for the
+    code and signs in with one made from `.env`; a member is asked nothing; an admin with no
+    second step sets up an authenticator app at that sign-in (the `otp` credential stored); a
+    passkey admin signs in by passkey with nothing more (and one who types the password instead
+    sets up an app too); Temporal UI's flow asks the same, and still turns a member away in Gen9's
+    words without asking them to set anything up; step-up (`prompt=login`, `max_age=0`) asks for
+    the password and a code again. Two things shape the rest: someone made admin while signed in
+    keeps that session without a second step until it ends (so they are signed out, and asked at
+    the next sign-in), and Keycloak refuses a code used in the last 90 s (it keeps used codes by
+    value; its look-ahead takes the next window's code early), so the checks use each window
+    once. Leading self-hosted products do the same: GitLab's "Enforce two-factor authentication
+    for administrators" (16.8+, a grace period of 0 enforces it at the next sign-in) and
+    Nextcloud's enforcement for chosen groups.
+  - [x] a. Keycloak: `gen9-browser` bound as the realm's browser flow, and the same sub-flow in
+    Temporal UI's flow; the seeded admin's authenticator from `GEN9_SEED_ADMIN_OTP_SECRET`
+    (`init-env.sh` for a new `.env`, `make setup` for an older one); admins with no second step
+    signed out at each start. Probed, the upgrade path too (a realm configured by the previous
+    `configure.sh`, then this one, then again: rebuilt, bound, then "in place"); live on the
+    running stack after `make setup STACKS=keycloak` and `make up STACKS=keycloak`: `verify.sh`
+    34/34.
+  - [x] b. gen9-agent: `PATCH /v1/admin/users/{id}` with `is_admin: true` signs out someone with
+    no second step (the audit event says so); the web app's dialog says it will, and the audit
+    log's words too. Tested (`test_admin_second_step.py`: 5 of 6 fail on the old code;
+    `audit-words.test.ts`); live in `e2e/audit.mjs`.
+  - [x] c. The checks answer it: `e2e/second-step.mjs` (the code, or setting an app up), used by
+    `signInTerminal` and every web sign-in of the seeded admin, in e2e and gen9-learn; the admins'
+    second step checked end to end, in the checks that already make admins (`stacks.mjs`: the
+    seeded admin asked for the code; `demotion.mjs`: a new admin sets an app up, then is asked
+    for its code; `audit.mjs`: made admin with none, signed out everywhere, recorded); `make
+    admin-code` for a person signing in as Ada (the same code as the checks', under bash 5 and
+    3.2). Live: every e2e check (e).
+  - [x] d. Docs and the guide in step: `docs/auth-architecture.md` (admins need a second step, its
+    rationale moved from "offered, not required"), `docs/secrets.md`, `docs/operations.md`, the
+    READMEs' sign-in lines, `e2e/README.md`, gen9-learn's page (Ada's code, the flow, Make admin,
+    the security table, the make and settings tables) and verifier (b3, b4d and b7 check it;
+    `page.mjs` and `reference.mjs` pass).
+  - [x] e. Closing: `make e2e` as one command and gen9-learn's full run. `make e2e` (2026-10-01)
+    passed its first 23 checks (313 assertions, one skip: rerank, off) and stopped in
+    `background.mjs`: after the person's Allow the task asked again (the model's next call needed
+    Allow too) and the check allowed only once. A check that assumed one request; it now allows
+    each, up to three, as a person would (its own pull request). `background.mjs` then passed
+    alone, and the other 23 checks, from `mcp-server` to `a11y`, passed in order (354
+    assertions). Spend: $0.22 over the three, by the per-key daily total. gen9-learn's full run:
+    the first stopped in b6 on a wait for the network to go quiet (Surprises), with b1 to b6d
+    passed, b3 and b4d's new checks included; with b6 waiting for what a person sees, the second
+    passed 255 checks and failed only this install's 2 stand-ins (b2d's similarity floor, b7's
+    lowered caps), b4d's dialog and b7's `gen9-browser` checks among the 255. `page.mjs` and
+    `reference.mjs` pass. $0.09 for the two.
 
 ## Surprises & Discoveries
+
+- M10's closing guide run failed b6 at its first question: the answer was on the page ("Hi
+  there!", the failure's screenshot), and Puppeteer waited 30 s for the page's network to go quiet,
+  as b4 once did in M9's closing run. A probe as the seeded member (few chats) found nothing open 1,
+  5, 15 and 35 s after an answer, and the chat page polls only while busy (every 3 s), so the
+  cause, something the run's person has (27 chats, background tasks, connectors), is still not
+  pinned down. b6 now waits for what a person sees, the chat at its own address and, deleted, the
+  page leaving it, as b4 does.
+- M10's closing `make e2e` stopped in `background.mjs`: a background task in "Ask before
+  acting" asked for Allow a second time after the person allowed it once (its worker log: waiting,
+  resumed, waiting again 4 s later), and the check waited 180 s for it to finish. Nothing about
+  M10: the model's next call needed Allow too. The check now allows each request, as a person
+  would.
+- M10's first start on the running stack failed in `configure.sh`: rebuilding `gen9-temporal-ui`
+  (its shape changed for the first time since it was written) unbinds it from its client first,
+  with `authenticationFlowBindingOverrides={}`, and Keycloak then refused to delete it ("Cannot
+  remove authentication flow, it is currently in use"). An update skips an empty map; it removes
+  an override only for a key sent empty (`RepresentationToModel.updateClient`, 26.7.4), so the
+  rebuild path had never worked. Now `authenticationFlowBindingOverrides.browser=`. The probe
+  hadn't caught it, its realm being new: a change to `configure.sh` is probed on a realm the
+  previous `configure.sh` set up, then twice with the new one.
 
 - Measuring a run's model spend by the router's `LiteLLM_SpendLogs` undercounts any run that
   deletes its person: the account's deletion erases their spend logs and daily totals by design
@@ -801,6 +879,22 @@ Picked up in this order. Each is its own verified unit, as M9's were.
   running SearXNG's `/config` (11 general engines), not from the file.
 
 ## Decision Log
+
+- Decision: admins need a second step, required by Keycloak's sign-in flow (M10, F10). A flow of
+  Gen9's own (`gen9-browser`) asks an admin who signed in with a password and passed no second
+  step for an authenticator code, which has one set up at that sign-in; a passkey counts as a
+  second step. Chosen over a check in gen9-agent (the token's `amr`), which would need the web
+  app to step up and every admin route to know it, and over `forceOtpRole` on Keycloak's
+  conditional OTP authenticator, which asks for the app's code even after a passkey. A new admin
+  with no second step is signed out, by Gen9's admin API when it makes them admin and by
+  `configure.sh` for admins made elsewhere, as their session asked for none. The seeded admin gets
+  an authenticator whose secret `.env` keeps, so checks and `make admin-code` can answer it.
+  Sources: Keycloak 26.7.4's `conditions.adoc` ("Conditional 2FA sub-flow with OTP default") and
+  its source (`ConditionalSubFlowExecutedAuthenticator`, `ConditionalCredentialAuthenticator`,
+  `AuthenticationManagementResource`: built-in flows take no new step, `OTPCredentialProvider`:
+  used codes kept by value for period × (2 × look-ahead + 1)); OWASP ASVS 5.0 6.3.3 (L2); GitLab's
+  "Enforce two-factor authentication for administrators" and Nextcloud's group enforcement; the
+  probe in M10.
 
 - Decision: a deletion never gives up (M9, F22). Its steps keep Temporal's default,
   no schedule-to-close limit and no limit on attempts, each attempt still bounded by its

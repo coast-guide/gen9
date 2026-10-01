@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { launch } from "./browser.mjs";
 import { chatOf, deleteChats } from "./chats.mjs";
 import { signInTerminal } from "./signin.mjs";
+import { secondStep } from "./second-step.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const readEnv = (file) =>
@@ -90,6 +91,7 @@ async function signIn(email, password) {
   await page.locator("#username").fill(email);
   await page.type("#password", password);
   await Promise.all([page.waitForNavigation({ waitUntil: "networkidle0" }), page.click("#kc-login")]);
+  await secondStep(page); // admins need a second step: the seeded admin's code
   // What Keycloak answered: a code for the UI, or its refusal (gen9-keycloak's gen9-temporal-ui flow)
   const answered = await page.evaluate(() => document.body.innerText);
   const heading = await page.$eval("h1", (h) => h.textContent.trim()).catch(() => "");

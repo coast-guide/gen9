@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { launch } from "./browser.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { secondStep } from "./second-step.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -131,6 +132,7 @@ try {
     await page.type("#username", env.GEN9_SEED_ADMIN_EMAIL);
     await page.type("#password", env.GEN9_SEED_ADMIN_PASSWORD);
     await Promise.all([page.waitForNavigation({ waitUntil: "networkidle0" }), page.click("#kc-login")]);
+    await secondStep(page); // admins need a second step: the seeded admin's code
     if (!page.url().includes("/admin/users")) await page.goto(`${APP}/admin/users?q=${encodeURIComponent(EMAIL)}`, { waitUntil: "networkidle0" });
     await page.waitForSelector('button[aria-label^="Actions for"]');
     await page.click('button[aria-label^="Actions for"]');

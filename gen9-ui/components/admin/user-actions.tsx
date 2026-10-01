@@ -59,7 +59,8 @@ export function UserActions({ user, isSelf, deleting: reopen = false }: { user: 
       }
     : {
         title: `Make ${who} an admin?`,
-        description: "They can manage everyone’s accounts and the plugins, and read the audit log, as you can.",
+        description:
+          "They can manage everyone’s accounts and the plugins, and read the audit log, as you can. Admins need a second step: without an authenticator app or a passkey, they’re signed out and set one up at their next sign-in.",
         confirm: "Make admin",
         destructive: false,
         action: () => setAdmin(user.id, true),

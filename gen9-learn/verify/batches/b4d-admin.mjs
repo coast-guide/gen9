@@ -10,7 +10,7 @@ const menu = async (page, email, label) => {
   await page.waitForSelector("[role=menuitem]");
   for (const item of await page.$$("[role=menuitem]")) if ((await item.evaluate((el) => el.textContent.trim())) === `${label}…`) await item.click();
   await page.waitForSelector("[role=alertdialog]");
-  const asked = await page.$eval("[role=alertdialog]", (d) => d.innerText.replace(/\s+/g, " ").slice(0, 200));
+  const asked = await page.$eval("[role=alertdialog]", (d) => d.innerText.replace(/\s+/g, " ").slice(0, 320));
   for (const button of await page.$$("[role=alertdialog] button")) if ((await button.evaluate((el) => el.textContent.trim())) === label) await button.click();
   await page.waitForNetworkIdle({ idleTime: 500 });
   return asked;
@@ -30,6 +30,9 @@ export default async function admin(ctx) {
   obs.makeAsked = await menu(ada, user.email, "Make admin");
   obs.groupsAfterMake = groupsOf(user.sub);
   check(obs.groupsAfterMake.split(",").includes("admins"), "Make admin puts the person in Keycloak's admins group, which holds gen9-admin", `${obs.makeAsked}; groups: ${obs.groupsAfterMake}`);
+  // Admins need a second step (M10): the dialog says so, and the person, who set up an authenticator
+  // app in b3, keeps their session: only someone without one is signed out
+  check(/Admins need a second step/.test(obs.makeAsked), "the dialog says admins need a second step, and what happens without one", obs.makeAsked);
 
   // The person signs in: their token has the role, the admin pages are theirs
   await signInWithPassword(page, user.email, user.password);

@@ -17,7 +17,7 @@ Gen9 is an agent platform you host yourself: a general-purpose AI agent your tea
 - **Shaped to your work.** [Skills](gen9-agent/README.md#skills), [connectors](gen9-agent/README.md#connectors) (remote MCP servers, with their apps), [memory](gen9-agent/README.md#memory), [search over past chats](gen9-agent/README.md#search) and [plugins](gen9-agent/README.md#plugins) an admin chooses who may use.
 - **Works on its own when you want it to.** [Scheduled tasks](gen9-agent/README.md#scheduled-tasks) and [background tasks](gen9-agent/README.md#background-tasks), fired on a schedule or over HTTP, with an email when one is done or needs someone.
 - **Any model, one router.** Every model by alias through LiteLLM, with a budget per person ([gen9-models](gen9-models/README.md)).
-- **Your team's accounts.** Sign-in with Keycloak, passkeys and two-factor, admins and members ([docs/auth-architecture.md](docs/auth-architecture.md)).
+- **Your team's accounts.** Sign-in with Keycloak, passkeys and two-factor (required of admins), admins and members ([docs/auth-architecture.md](docs/auth-architecture.md)).
 - **Seen and measured.** Every run traced in Langfuse, [evals](gen9-agent/README.md#evals) of real tasks, and an audit record nobody can change.
 - **Talks to other programs.** Gen9 is also an [MCP server](gen9-agent/README.md#mcp-server), an [AG-UI](gen9-agent/README.md#ag-ui) and an [A2A](gen9-agent/README.md#a2a) agent, and has a terminal client ([gen9-cli](gen9-cli/README.md)).
 
@@ -30,7 +30,7 @@ make setup     # generates every secret and setting; asks for your model provide
 make up        # starts every stack and waits until each is healthy
 ```
 
-Open http://localhost:14000 and sign in as `ada@gen9.test` (admin) or `alan@gen9.test`, with the passwords from `grep ^GEN9_SEED_ gen9-keycloak/.env`, or create an account. What `make setup` asks for, and why: [docs/operations.md, "First-time setup"](docs/operations.md#first-time-setup).
+Open http://localhost:14000 and sign in as `ada@gen9.test` (admin) or `alan@gen9.test`, with the passwords from `grep ^GEN9_SEED_ gen9-keycloak/.env` (Ada's code: `make admin-code`), or create an account. What `make setup` asks for, and why: [docs/operations.md, "First-time setup"](docs/operations.md#first-time-setup).
 
 ## How it is built
 

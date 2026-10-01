@@ -17,6 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { launch } from "./browser.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { secondStep } from "./second-step.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -96,6 +97,7 @@ try {
   await ada.type("#username", env.GEN9_SEED_ADMIN_EMAIL);
   await ada.type("#password", env.GEN9_SEED_ADMIN_PASSWORD);
   await Promise.all([ada.waitForNavigation({ waitUntil: "networkidle0" }), ada.click("#kc-login")]);
+  await secondStep(ada); // admins need a second step: the seeded admin's code
   const toast = (pattern) => ada.waitForFunction((source) => [...document.querySelectorAll("[data-sonner-toast]")].map((t) => t.textContent.trim()).find((t) => new RegExp(source).test(t)) || false, { timeout: 60_000 }, pattern.source).then((h) => h.jsonValue(), () => "");
 
   // 1. A password reset, from the person's row

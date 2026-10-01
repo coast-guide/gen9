@@ -55,6 +55,11 @@ class UserPatch(BaseModel):
     is_admin: bool | None = None
 
 
+# What passes the second step of Gen9's sign-in (gen9-keycloak/config/configure.sh): an
+# authenticator app, recovery codes, or a passkey
+SECOND_STEPS = {"otp", "recovery-authn-codes", "webauthn-passwordless"}
+
+
 def _raise(exc: KeycloakAdminError) -> NoReturn:
     raise HTTPException(exc.status_code, str(exc)) from exc
 
@@ -93,7 +98,7 @@ async def patch_user(
             status.HTTP_409_CONFLICT, "You cannot disable or demote your own account"
         )
     try:
-        stopped = None
+        stopped = signed_out = None
         if patch.enabled is not None:
             await keycloak.set_enabled(user_id, patch.enabled)
             request.app.state.runtime.standing.tell(user_id, patch.enabled)
@@ -106,12 +111,22 @@ async def patch_user(
                 )
         if patch.is_admin is not None:
             await keycloak.set_admin(user_id, patch.is_admin)
+            # Admins need a second step, which Keycloak asks for when they sign in. A session from
+            # before asked for none: someone without one is signed out, and sets one up at their
+            # next sign-in (gen9-learn plan, M10)
+            if patch.is_admin and not any(
+                c.get("type") in SECOND_STEPS
+                for c in await keycloak.credentials(user_id)
+            ):
+                await keycloak.logout(user_id)
+                signed_out = True
     except KeycloakAdminError as exc:
         _raise(exc)
     changed = {
         "enabled": patch.enabled,
         "admin": patch.is_admin,
         "runs_stopped": stopped,
+        "signed_out": signed_out,
     }
     await audit.record(
         request,

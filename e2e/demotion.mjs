@@ -7,10 +7,13 @@
 //      "You need admin access", and no admin links, then or after a reload
 //   3. made an admin again and signed in again, with "Make … an admin?" open; removed, then
 //      confirming: "You need admin access.", the links gone in that response, nobody promoted
+// Admins need a second step (gen9-keycloak/config/configure.sh): as an admin with none, their first
+// sign-in sets up an authenticator app, and the next asks for its code.
 // It deletes what it made, and costs no model call.
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { launch } from "./browser.mjs";
+import { secondStep } from "./second-step.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const env = Object.fromEntries(
@@ -54,6 +57,9 @@ const revoke = () => admin("DELETE", `/users/${id}/groups/${group.id}`);
 
 const browser = await launch({ headless: !process.env.HEADED, defaultViewport: { width: 1280, height: 900 } });
 const adminLinks = (page) => page.$$eval('a[href^="/admin/"]', (as) => as.map((a) => a.getAttribute("href")));
+// Admins need a second step: the person sets up an authenticator app at their first sign-in as
+// one, and answers its code after (second-step.mjs)
+let otpSecret;
 async function signIn() {
   const context = await browser.createBrowserContext();
   const page = await context.newPage();
@@ -61,12 +67,15 @@ async function signIn() {
   await page.type("#username", EMAIL);
   await page.type("#password", PASSWORD);
   await Promise.all([page.waitForNavigation({ waitUntil: "networkidle0" }), page.click("#kc-login")]);
-  return { context, page };
+  const second = await secondStep(page, otpSecret);
+  if (second?.did === "set up") otpSecret = second.secret;
+  return { context, page, second };
 }
 try {
   // 1-2. Removed while reading Users; then the audit log, from the sidebar
   await grant();
-  let { context, page } = await signIn();
+  let { context, page, second } = await signIn();
+  check(second?.did === "set up", "an admin with no second step sets up an authenticator app at that sign-in", JSON.stringify(second?.did ?? null));
   const links = await adminLinks(page);
   check(links.length === 3 && (await page.$eval("h1", (h) => h.textContent.trim())) === "Users", "an admin sees Users and the three admin links", links.join(", "));
   await revoke();
@@ -81,7 +90,8 @@ try {
 
   // 3. Removed with "Make … an admin?" open; then confirmed
   await grant();
-  ({ context, page } = await signIn());
+  ({ context, page, second } = await signIn());
+  check(second?.did === "code", "signed in again, the admin is asked for their authenticator code", JSON.stringify(second?.did ?? null));
   await page.goto(`${APP}/admin/users?q=${encodeURIComponent(TARGET)}`, { waitUntil: "networkidle0" });
   await page.click(`button[aria-label="Actions for ${TARGET}"]`);
   await page.waitForSelector("[role=menuitem]");

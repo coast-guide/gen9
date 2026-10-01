@@ -30,7 +30,9 @@ export default async function death(ctx) {
     await page.type("#composer", text);
     await page.click('button[aria-label="Send"]');
     await page.waitForFunction(() => !document.querySelector('button[aria-label="Stop"]') && document.querySelectorAll("ol[aria-live] > li").length >= 2 && !document.querySelector("ol[aria-live] .animate-pulse"), { timeout: 180_000, polling: 500 });
-    await page.waitForNetworkIdle({ idleTime: 500 });
+    // What a person sees: the chat at its own address. Not the network going quiet, which for the
+    // run's person, with many chats, twice never came (gen9-learn plan, Surprises)
+    await page.waitForFunction(() => /^\/chat\/[0-9a-f-]{36}$/.test(location.pathname), { timeout: 30_000 });
     return page.url().split("/").pop();
   };
   const everything = () => ({
@@ -64,7 +66,8 @@ export default async function death(ctx) {
   if (confirmButton) {
     for (const b of await page.$$('[role="alertdialog"] button')) if (/delete/i.test(await b.evaluate((el) => el.textContent))) await b.click();
   }
-  await page.waitForNetworkIdle({ idleTime: 800 });
+  // Deleted, the app leaves the chat's page
+  await page.waitForFunction((id) => !location.pathname.endsWith(id), { timeout: 30_000 }, doomed);
   // Langfuse deletes asynchronously too: allow 3 minutes
   for (let i = 0; i < 90 && traces() !== "0"; i++) await new Promise((resolve) => setTimeout(resolve, 2000));
   obs.deleteChat = {

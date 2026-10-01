@@ -2,7 +2,8 @@
 // ASVS 5.0 V16):
 //   1. the seeded admin makes a throwaway person an admin and takes it back, in Chrome on Users:
 //      Gen9 records both with the admin as the actor, while Keycloak's own admin events name
-//      gen9-agent's service account (why Gen9 keeps its own record)
+//      gen9-agent's service account (why Gen9 keeps its own record). The person, with no second
+//      step, is signed out when made admin, and the record says so (admins need a second step)
 //   2. the seeded user adds and removes an environment secret, a connector and a task's trigger:
 //      each recorded with them as the actor, and no secret's value anywhere in the record
 //   3. the throwaway person tries the seeded user's chat (404) and an admin route (403): both
@@ -21,6 +22,7 @@ import { spawn } from "node:child_process";
 import { launch } from "./browser.mjs";
 import { deleteChats } from "./chats.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { secondStep } from "./second-step.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -132,6 +134,7 @@ try {
   await page.type("#username", env.GEN9_SEED_ADMIN_EMAIL);
   await page.type("#password", env.GEN9_SEED_ADMIN_PASSWORD);
   await Promise.all([page.waitForNavigation({ waitUntil: "networkidle0" }), page.click("#kc-login")]);
+  await secondStep(page); // admins need a second step: the seeded admin's code
   if (!page.url().includes("/admin/users")) await page.goto(`${APP}/admin/users?q=${encodeURIComponent(EMAIL)}`, { waitUntil: "networkidle0" });
   const menu = async (item) => {
     await page.waitForSelector('button[aria-label^="Actions for"]');
@@ -152,13 +155,17 @@ try {
   await menu("Make admin");
   const promoted = async () => (await admin(`/users/${otherId}/groups`)).some((g) => g.name === "admins");
   for (let i = 0; i < 20 && !(await promoted()); i++) await sleep(500);
+  // Admins need a second step, and the person has none: made admin, they are signed out
+  const sessions = async () => (await admin(`/users/${otherId}/sessions`)).length;
+  for (let i = 0; i < 20 && (await sessions()) > 0; i++) await sleep(500);
+  check((await sessions()) === 0, "made admin with no second step, the person is signed out everywhere (their terminal too)");
   await page.reload({ waitUntil: "networkidle0" });
   await menu("Remove admin access");
   for (let i = 0; i < 20 && (await promoted()); i++) await sleep(500);
   const ada = subOf(env.GEN9_SEED_ADMIN_EMAIL);
   const updates = events(`action = 'admin.user.update' and target = '${otherId}'`);
   check(
-    updates.length === 2 && updates.every((e) => e.startsWith(`${ada}|admin.user.update|success|${otherId}|PATCH /v1/admin/users/{user_id}|`)) && updates[0].endsWith('{"admin": true}') && updates[1].endsWith('{"admin": false}'),
+    updates.length === 2 && updates.every((e) => e.startsWith(`${ada}|admin.user.update|success|${otherId}|PATCH /v1/admin/users/{user_id}|`)) && updates[0].endsWith('{"admin": true, "signed_out": true}') && updates[1].endsWith('{"admin": false}'),
     "the admin's two role changes are recorded with the admin as the actor",
     updates.map((e) => e.split("|").slice(1, 4).concat(e.split("|").at(-1)).join(" ")).join("; "),
   );
@@ -167,6 +174,9 @@ try {
   const actors = [...new Set(kcEvents.map((e) => e.authDetails?.userId))];
   const actor = actors.length === 1 ? await admin(`/users/${actors[0]}`) : null;
   check(kcEvents.length === 2 && actors[0] !== ada && /^service-account-/.test(actor?.username ?? ""), "Keycloak's own admin events for the same changes name gen9-agent's service account, not the admin", `${kcEvents.length} event(s) by ${actor?.username ?? actors.join(", ")}`);
+
+  // Back to a member, they sign in on the terminal again for step 3
+  check(Boolean(await signInTerminal({ email: EMAIL, password: PASSWORD, configDir: other })), "no longer an admin, the person signs in on the terminal again");
 
   // 2. The seeded user's security actions
   const secret = (await api(alan, "POST", "/v1/me/environment-secrets", { name: `audit-${TAG}`, host: "httpbin.org", value: SECRET_VALUE })).body;

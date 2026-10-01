@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { serveGit } from "../../e2e/fixtures/git-server.mjs";
 import { APP, appdb, kcEnv } from "./lib.mjs";
+import { secondStep } from "../../e2e/second-step.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const SOURCE = "http://host.docker.internal:17805/gen9-learn-plugins.git";
@@ -45,6 +46,7 @@ export async function market(browser, phrase) {
   await ada.type("#username", kcEnv.GEN9_SEED_ADMIN_EMAIL);
   await ada.type("#password", kcEnv.GEN9_SEED_ADMIN_PASSWORD);
   await Promise.all([ada.waitForNavigation({ waitUntil: "networkidle0" }), ada.click("#kc-login")]);
+  await secondStep(ada); // admins need a second step: the seeded admin's code
   if (!ada.url().endsWith("/admin/plugins")) await ada.goto(`${APP}/admin/plugins`, { waitUntil: "networkidle0" });
 
   const menu = async (item) => {

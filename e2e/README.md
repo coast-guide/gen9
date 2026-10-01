@@ -9,7 +9,7 @@ Every call one stack makes to another, set off the way a user does. Containers r
 | Step | Checked (the call it proves) |
 | --- | --- |
 | Open the home page, signed out | The headline "Get any task done with autonomous agents.", "Give it something to do.", one example task, and the two actions to `/auth/login` (`docs/design/screens/home.md`) |
-| Sign in with the seed admin's password | Lands in the app (gen9-ui exchanges the code at `gen9-keycloak:8080`) |
+| Sign in with the seed admin's password | Asked for the authenticator code, as admins need a second step; with it, lands in the app (gen9-ui exchanges the code at `gen9-keycloak:8080`) |
 | New chat, ask "Reply with one word: pong" | The answer streams in (gen9-ui → gen9-agent, which checks the token against Keycloak's keys and calls the model) |
 | Reload the chat | Question and answer are still there (gen9-agent → gen9-postgres) |
 | Langfuse, v2 Observations API | The run is traced under the user's id within a minute (gen9-agent → gen9-langfuse) |
@@ -416,7 +416,7 @@ gen9-agent's record of admin actions, people's security actions and refused acce
 
 | Step | Checked |
 | --- | --- |
-| An admin, in Chrome | *Make admin*, then *Remove admin access* for a throwaway person on Users, each confirmed in its dialog: two `admin.user.update` events with the admin as actor; Keycloak's own admin events name gen9-agent's service account instead |
+| An admin, in Chrome | *Make admin*, then *Remove admin access* for a throwaway person on Users, each confirmed in its dialog: two `admin.user.update` events with the admin as actor; Keycloak's own admin events name gen9-agent's service account instead. The person has no second step, so being made admin signs them out everywhere, their terminal too, and the first event says `signed_out` (admins need a second step); a member again, they sign in on the terminal anew |
 | The seeded user | An environment secret, a connector and a task's trigger, each added and removed, recorded as theirs; the secret's value nowhere in the record |
 | Refused | The throwaway person's try at the seeded user's chat (404) and at an admin route (403), both denied; a made-up id not recorded |
 | Append-only | `UPDATE`, `DELETE` and `TRUNCATE` on the record are refused, even to the superuser |
@@ -473,13 +473,13 @@ gen9-ui is the only browser client; gen9-agent allows no origin but Temporal's w
 A session's roles come from its token, which kept `gen9-admin` until it expired, while gen9-agent,
 asking Keycloak, refused at once: the sidebar kept its admin links. Now a refusal refreshes the
 session's tokens. As a throwaway person made an admin through Keycloak's "admins" group, in Chrome
-(no model call):
+(no model call). Admins need a second step, so the same person shows it too:
 
 | Step | Checked |
 | --- | --- |
-| Signed in as an admin | Users, and the three admin links |
+| Signed in as an admin, with no second step | Keycloak has them set up an authenticator app at that sign-in; then Users, and the three admin links |
 | Removed from the group while on Users, then the audit log from the sidebar | "You need admin access", and no admin links, then and after a reload |
-| An admin again, signed in again, "Make … an admin?" open; removed, then confirmed | "You need admin access.", the links gone in that same response, the other person not promoted |
+| An admin again, signed in again (asked for the app's code), "Make … an admin?" open; removed, then confirmed | "You need admin access.", the links gone in that same response, the other person not promoted |
 
 ## Past chats (`past-chats.mjs`)
 
@@ -613,7 +613,7 @@ seeded user, with the seeded admin as another person.
 | Chrome | "In the background" lists the task with its state; the step's "Open its chat" opens it; the task's chat shows its work, links back and has no composer; axe clean on both |
 | A task that finishes while nobody asks | Its chat gets one notice, a turn of its own, which the open Chrome page shows and follows without a reload ("From a background task", then an answer with the task's phrase); the notice is marked as Gen9's; the task counts as told; axe clean |
 | A chat busy with its own run when a task ends | The notice's run starts after that run ends |
-| A task in "Ask before acting" that saves to memory | Its approval shows under it in the chat that started it, and the sidebar says "Needs you" (axe clean); another person's answer gets `404`; Allow there lets the task write the memory and finish, and its notice follows (the memory is put back) |
+| A task in "Ask before acting" that saves to memory | Its approval shows under it in the chat that started it, and the sidebar says "Needs you" (axe clean); another person's answer gets `404`; Allow there lets the task write the memory and finish, and its notice follows (the memory is put back). A task may ask more than once (the model's next call needing Allow too): the check allows each request, up to three, as a person would |
 | Cancel, then update | The second task's run ends `cancelled`; new instructions (another phrase) run in the same task chat, which answers them |
 | Four unfinished tasks | Start refuses ("At most 4"), and no chat is made |
 | Delete the chat | Its tasks' chats are deleted too |
@@ -835,5 +835,9 @@ GEN9_CONFIG_DIR=/tmp/gen9-cli-alan node e2e/token.mjs          # alan@gen9.test;
 ```
 
 The tokens stay in `$GEN9_CONFIG_DIR/credentials.json` (mode 600, written by gen9-cli); read `access_token` from there. It prints only "Signed in as …".
+
+## Admins' second step (`second-step.mjs`)
+
+Admins need a second step (docs/auth-architecture.md): after the password, Keycloak asks an admin for their authenticator app's code, or has one with no second step set an app up. Every check that signs an admin in answers it with `secondStep(page)`, and `signInTerminal` does so on its own: the seeded admin's code comes from `GEN9_SEED_ADMIN_OTP_SECRET` in `gen9-keycloak/.env` (`configure.sh` gives them that app), and a throwaway admin sets one up from the secret on Keycloak's page. Keycloak refuses a code used in the last 90 s, so each sign-in takes a 30 s window no earlier one used, the current or the next (Keycloak takes the next early), and waits only when both are taken; the windows used are kept in a file under the system's temporary folder, so the checks of one `make e2e` don't reuse one. gen9-learn's verifier imports the same module. For signing in as Ada by hand, `make admin-code` prints her current code.
 
 `make evals` signs in the same way, into a temporary directory it removes afterwards, and its harness refreshes the tokens as gen9-cli does (gen9-agent/README.md, "Evals").
