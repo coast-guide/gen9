@@ -13,7 +13,7 @@ x-logging: &logging
 services:
   langfuse-web:
     logging: *logging
-    image: docker.langfuse.com/langfuse/langfuse:4.46.0@sha256:755b821ba8f73a20d43d90e68f2b75d2f597dd164c55890f67a05f5a8d0f0e24
+    image: docker.langfuse.com/langfuse/langfuse:4.48.0@sha256:8c1b80ed7735be587974d603af0f6e0247b33d3b56c7d5ab9d2337aec313efa0
     labels:  # where to open it; the root Makefile lists these after make up
       gen9.name: Langfuse (traces)
       gen9.url: ${NEXTAUTH_URL:-http://localhost:13000}
@@ -43,7 +43,7 @@ services:
 
   langfuse-worker:
     logging: *logging
-    image: docker.langfuse.com/langfuse/langfuse-worker:4.46.0@sha256:3568d2d1eb5dd570f4087b37972ddffa3f6ae4f872553e0b0e2eedf4896a29e9
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.48.0@sha256:9349b003a453326b3d2e2033eb94fe5ca9ee12ee237779c10984b9d3dfe0f8ed
     ports: !override
       - "127.0.0.1:${LANGFUSE_WORKER_PORT:-13003}:3030"  # worker health check
     environment:
@@ -66,7 +66,7 @@ services:
     # Chainguard's free tier only publishes :latest, so the digest is the only real pin. MinIO's own
     # repository is archived; Chainguard builds its fork (chainguard-forks/minio), which still takes
     # fixes: this digest is its RELEASE.2026-09-22T19-25-18Z (`minio --version` in the image)
-    image: cgr.dev/chainguard/minio:latest@sha256:6a1d0b45c8669726bba580ced0bfa4cb9fdeed1ed636dfabd81d1577beb6937b
+    image: cgr.dev/chainguard/minio:latest@sha256:4692462f35d97d7e82c30371d82f057703c5d9489bcae726010594c812f2d285
     ports: !override
       - "127.0.0.1:${LANGFUSE_MEDIA_PORT:-13001}:9000"           # S3 API: media uploads/downloads
       - "127.0.0.1:${LANGFUSE_MINIO_CONSOLE_PORT:-13002}:9001"   # MinIO web console
@@ -85,7 +85,7 @@ services:
     # here (docs/plans/manual-e2e.md, P4-E5). Langfuse re-reads them only to retry ingestion, and
     # OpenTelemetry's needs nothing older (its blob storage guide recommends an expiry rule). S3
     # rounds an expiry to the next midnight UTC, so a file goes within two days.
-    image: cgr.dev/chainguard/minio:latest@sha256:6a1d0b45c8669726bba580ced0bfa4cb9fdeed1ed636dfabd81d1577beb6937b
+    image: cgr.dev/chainguard/minio:latest@sha256:4692462f35d97d7e82c30371d82f057703c5d9489bcae726010594c812f2d285
     entrypoint: ["sh", "-c"]
     command:
       - >-

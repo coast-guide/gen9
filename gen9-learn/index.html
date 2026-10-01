@@ -2224,7 +2224,7 @@ gen9_agent_app on audit_events: SELECT <mark>t</mark>, INSERT <mark>t</mark>, UP
     <li class="step deeper" id="b7-langfuse" data-watch="agent langfuse clickhouse lfdb" data-focus="langfuse">
       <h3>Langfuse, inside <span class="depth">Deeper</span> <label><input type="checkbox" data-done> Done</label></h3>
       <div class="cmd"><pre><code data-check="run">curl -s localhost:13000/api/public/health; echo; curl -s -o /dev/null -w 'worker %{http_code}\n' localhost:13003/api/health; docker exec gen9-langfuse-clickhouse-1 clickhouse-client -q "select name from system.tables where database = 'default' order by name"</code></pre></div>
-      <div class="out"><span class="cap">verified</span>{"status":"OK","version":"<mark>4.46.0</mark>"}
+      <div class="out"><span class="cap">verified</span>{"status":"OK","version":"<mark>4.48.0</mark>"}
 worker <mark>200</mark>
 analytics_observations, analytics_scores, analytics_traces, blob_storage_file_log, dataset_run_items_rmt, <mark>events_core</mark>, events_core_mv, events_full, observations, observations_batch_staging, observations_pid_tid_sorting, schema_migrations, scores, traces</div>
       <div class="notice">
@@ -2405,7 +2405,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
   <div class="table"><table>
     <thead><tr><th>Service</th><th>What it does</th><th>Ports, volume</th><th>Seen in</th></tr></thead>
     <tbody>
-      <tr data-service="gen9-models/litellm"><td><code>litellm</code></td><td>LiteLLM Proxy v1.103.0: every model by alias (<code>config.yaml</code>), fallbacks, virtual keys, budgets, per-minute limits, the spend log. The only holder of provider keys</td><td>19000 → 4000</td><td><a href="#b2-1">Ask a question</a>, <a href="#b7-router">The router, inside</a></td></tr>
+      <tr data-service="gen9-models/litellm"><td><code>litellm</code></td><td>LiteLLM Proxy v1.103.1: every model by alias (<code>config.yaml</code>), fallbacks, virtual keys, budgets, per-minute limits, the spend log. The only holder of provider keys</td><td>19000 → 4000</td><td><a href="#b2-1">Ask a question</a>, <a href="#b7-router">The router, inside</a></td></tr>
       <tr data-service="gen9-models/admin"><td><code>admin</code></td><td>Gen9's own admin API for the router (<code>admin/app.py</code>): a person's usage and reset date, erasing a person's records. Accepts only gen9-agent's keys</td><td>19001 → 4001</td><td><a href="#b6-3">Watch every store empty</a>, <a href="#b2-limit">Over your model limit</a></td></tr>
       <tr data-service="gen9-models/keys"><td><code>keys</code></td><td>One-shot, every start: gen9-agent's virtual keys (the API's scoped to <code>embed</code> and <code>rerank</code>), the evals' key, and every person's default budget, in line with <code>.env</code> (<code>scripts/ensure-keys.py</code>)</td><td>none</td><td><a href="#b7-3c">What it may spend</a>, <a href="#b7-router">The router, inside</a></td></tr>
       <tr data-service="gen9-models/ready"><td><code>ready</code></td><td>Idles, so <code>make up</code> waits until <code>keys</code> succeeded</td><td>none</td><td><a href="#b7-router">The router, inside</a></td></tr>
