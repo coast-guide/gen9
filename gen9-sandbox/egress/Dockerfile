@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1
 # OpenSandbox's egress sidecar (Apache-2.0), rebuilt by Gen9 from that release, with a baseline no
 # sandbox's policy can lift: deny.always. OpenSandbox builds it on Debian 12 with Go 1.25.9 and
 # mitmproxy 11.0.2, which caps h11, cryptography, tornado and pyOpenSSL at versions with advisories

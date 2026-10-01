@@ -145,6 +145,15 @@ What the owner asked, restated before starting (they went on to "start the loop"
 
 ## Surprises & Discoveries
 
+- Docker's bake workflow builds from a git context pinned by checksum
+  (`https://github.com/coast-guide/gen9.git?ref=…&checksum=…&fetch-by-commit=true`), which needs a
+  Dockerfile frontend that knows BuildKit's `source.git.checksum`: the three Dockerfiles pinned to
+  `# syntax=docker/dockerfile:1.7` (gen9-postgres, the egress and execd images) failed on both
+  platforms with "failed to resolve dockerfile: unknown API capability source.git.checksum", while
+  those on `docker/dockerfile:1` (1.27.1) built. 1.7 was there as the floor for `ADD --checksum`;
+  all five now say `docker/dockerfile:1`. Local builds never showed it: they send the folder, not
+  a git URL.
+
 - OpenSandbox's Kubernetes runtime works with Gen9's egress and execd images unchanged (a command
   ran, the allowed host answered, an undeclared host and the metadata address were blocked), but
   its pod is looser than Gen9's Docker sandboxes: a privileged init container, only `NET_ADMIN`
