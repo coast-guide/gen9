@@ -42,6 +42,7 @@
     "authz": "node authz.mjs",
     "standing": "node standing.mjs",
     "stop": "node stop.mjs",
+    "database": "node database.mjs",
     "audit": "node audit.mjs",
     "admin-api": "node admin-api.mjs",
     "demotion": "node demotion.mjs",

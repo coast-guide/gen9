@@ -525,6 +525,21 @@ Nothing of a disabled person's acts after, and an operator can stop every agent 
 It deletes the person and their task, stops the worker for a moment (nothing else should use it
 meanwhile), and costs a few short steps of three turns.
 
+## The database not taking a request (`database.mjs`)
+
+gen9-postgres refusing writes, as a full disk makes it, and then down (gen9-agent's
+`db_unavailable.py`). As the seeded user, on a terminal:
+
+| Step | Checked |
+| --- | --- |
+| The services' role (`gen9_agent_app`) made read-only (`default_transaction_read_only`), its open sessions ended | A new chat 503 "Gen9 can't save changes right now. Try again later." with `Retry-After: 30`; reading the chats 200 |
+| Writable again | A new chat is made (201) |
+| gen9-postgres stopped | Reading the chats 503 "Gen9's database didn't answer. Try again in a moment." with `Retry-After: 30` |
+| gen9-postgres started again | The API answers by itself (200), and the worker too: a chat made and deleted, the deletion run to the end |
+
+It makes the role read-only and stops gen9-postgres for a few seconds (nothing else should
+use gen9-agent meanwhile), always undoes both, deletes the chats it made, and makes no model call.
+
 ## A2A (`a2a.mjs`)
 
 Gen9 as an A2A agent (gen9-agent/README.md, "A2A"), used as another agent would. The check reads
@@ -765,7 +780,7 @@ The harness bypasses gen9-ui's CSP to inject axe. A page with known problems (im
 
 ```bash
 make up                     # every stack; passkeys and a11y need gen9-keycloak, gen9-ui and gen9-agent
-make e2e                    # every check below; or: cd e2e && npm ci && npm run stacks / temporal / runs / models / search / memory / skills / agents / questions / approvals / retry / connectors / connectors-oauth / connectors-keycloak / directory / elicitation / apps / tool-changes / environments / scheduled / triggers / notifications / outcomes / background / mcp-server / agui / a2a / context / past-chats / memory-controls / authz / standing / stop / audit / demotion / export / cross-site / fairness / plugins / plugins-conformance / recovery / passkeys / keyboard / focus / a11y
+make e2e                    # every check below; or: cd e2e && npm ci && npm run stacks / temporal / runs / models / search / memory / skills / agents / questions / approvals / retry / connectors / connectors-oauth / connectors-keycloak / directory / elicitation / apps / tool-changes / environments / scheduled / triggers / notifications / outcomes / background / mcp-server / agui / a2a / context / past-chats / memory-controls / authz / standing / stop / database / audit / demotion / export / cross-site / fairness / plugins / plugins-conformance / recovery / passkeys / keyboard / focus / a11y
 ```
 
 `HEADED=1` shows the browser. Chrome is taken from where macOS and Linux install it
