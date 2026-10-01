@@ -46,7 +46,7 @@ node reference.mjs      # the Reference is complete, and every pointer into the 
 | Variable | Effect |
 | --- | --- |
 | `QUICK=1` | Skip the waits for the access token to expire and for step-up |
-| `DESTRUCTIVE=1` | Also back up gen9-postgres, wipe it and restore it in part 10 (every chat goes, then comes back from the backup) |
+| `DESTRUCTIVE=1` | Also back up gen9-postgres in part 10 (into a folder under your home, which Docker Desktop can mount), delete a chat of the seeded user's and restore, which deletes it again from the audit record; then wipe gen9-postgres and restore it (every chat goes, then comes back from the backup, with a warning that deletions since can't be read) |
 | `KEEP=1` | Keep the throwaway user at the end, and save it to `verify/out/user.json` (git-ignored, readable by you only) |
 | `REUSE=1` | Sign in again as the user a `KEEP=1` run saved, to re-run later batches without b1 and b2 (up to part 4: from part 5 on the user has an authenticator app) |
 | `HEADED=1` | Show the browser |

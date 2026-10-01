@@ -1,10 +1,10 @@
 // Batch 7, running it: what `make` does at startup, and how the stacks are wired. Destructive steps
-// (wiping gen9-postgres, which deletes every chat, between its backup and its restore) run only
-// with DESTRUCTIVE=1.
+// (a restore after a chat's deletion, which deletes it again; then wiping gen9-postgres, which
+// deletes every chat, between its backup and its restore) run only with DESTRUCTIVE=1.
 import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { ROOT, appdb, check, kcdb, sh } from "../lib.mjs";
+import { API, ROOT, appdb, check, kcdb, sh } from "../lib.mjs";
 
 export default async function running() {
   const obs = {};
@@ -122,13 +122,46 @@ PY`).out;
 
   // 7.5 Back up gen9-postgres, wipe it (every chat goes), 7.6 restore it (every chat comes back)
   if (process.env.DESTRUCTIVE) {
-    const dir = mkdtempSync(join(tmpdir(), "gen9-learn-backup-")); // empty, as make backup wants it
+    // Empty, as make backup wants it, and under the home folder: Docker Desktop mounts only the paths
+    // it shares, which on Linux leave out /tmp (docs/operations.md, "Back up and restore")
+    const dir = mkdtempSync(join(homedir(), ".gen9-learn-backup-"));
+    // The seeded user on a terminal (e2e/token.mjs), to delete a chat through Gen9 after the backup
+    const cli = mkdtempSync(join(tmpdir(), "gen9-learn-cli-"));
+    const call = async (method, path) => {
+      const token = JSON.parse(readFileSync(join(cli, "credentials.json"), "utf8")).access_token;
+      const r = await fetch(`${API}${path}`, { method, headers: { Authorization: `Bearer ${token}` } });
+      return { status: r.status, body: await r.json().catch(() => null) };
+    };
+    const signIn = () => sh(`GEN9_CONFIG_DIR=${cli} node e2e/token.mjs user`, { timeout: 120_000 });
+    const gone = async (id) => {
+      for (let i = 0; i < 60 && appdb(`select count(*) from threads where id = '${id}'`) !== "0"; i++) await new Promise((r) => setTimeout(r, 1000));
+      return appdb(`select count(*) from threads where id = '${id}'`) === "0";
+    };
+    let doomed = null;
     try {
+      signIn();
+      doomed = (await call("POST", "/v1/threads")).body?.id;
       obs.chatsBefore = appdb("select count(*) from threads");
       const backup = sh(`make backup STACKS=postgres DIR=${dir}`, { timeout: 300_000 });
       obs.backupOut = backup.out.split("\n").map((l) => l.replace(dir, "<dir>"));
       check(backup.code === 0 && existsSync(`${dir}/manifest`) && /ready/.test(sh("curl -s http://localhost:17000/readyz").out),
         "make backup copied gen9-postgres's volume and settings, and started it again", obs.backupOut.find((l) => /^Backed up/.test(l)));
+
+      // A chat deleted after the backup: the restore brings it back, then deletes it again, reading
+      // which ones from the audit record (T9, gen9-learn plan)
+      const deleted = await call("DELETE", `/v1/threads/${doomed}`);
+      const deletedGone = await gone(doomed);
+      const plain = sh(`make restore DIR=${dir} YES=1`, { timeout: 300_000 });
+      obs.restoreAgainOut = plain.out.split("\n").filter((l) => /^(Restored|Deleting again|chat |deleted again)/.test(l)).map((l) => l.replace(dir, "<dir>").replace(doomed, "<chat>"));
+      const deletedAgain = await gone(doomed); // "deleted again" starts the deletion; it runs on
+      obs.chatsAfterPlainRestore = appdb("select count(*) from threads");
+      check(
+        [202, 204].includes(deleted.status) && deletedGone && plain.code === 0 && deletedAgain &&
+          /Deleting again what was deleted after the backup was made: \d+ accounts, 1 chats/.test(plain.out) &&
+          obs.chatsAfterPlainRestore === String(Number(obs.chatsBefore) - 1),
+        "a chat deleted after the backup: the restore brings it back, then deletes it again, from the audit record",
+        `${deleted.status}; ${obs.restoreAgainOut.join(" | ")}; chats ${obs.chatsBefore} → ${obs.chatsAfterPlainRestore}`,
+      );
 
       const wipe = sh("make wipe STACKS=postgres YES=1", { timeout: 120_000 });
       obs.wipeTail = wipe.out.split("\n").slice(-3);
@@ -150,8 +183,18 @@ PY`).out;
       check(restore.code === 0 && /ready/.test(obs.readyzAfterRestore) && obs.chatsAfterRestore === obs.chatsBefore,
         "make restore brought gen9-postgres back as it was backed up",
         `chats ${obs.chatsBefore} → ${obs.chatsAfterWipe} → ${obs.chatsAfterRestore}; ${obs.readyzAfterRestore}`);
+      // The wipe took the audit record with it, so this restore can only warn, and says to delete
+      // again by id: the chat is back, and goes that way
+      if (doomed && appdb(`select count(*) from threads where id = '${doomed}'`) === "1") {
+        const byHand = sh(`cd gen9-agent && docker compose exec -T worker gen9-agent-erase --threads ${doomed}`, { timeout: 180_000 });
+        const goneByHand = await gone(doomed);
+        check(byHand.code === 0 && goneByHand && /couldn.t be read/.test(obs.restoreOut.join(" ")),
+          "after the wipe, the restore warns that deletions since can't be read, and deleting again by id, as it says, removes the chat",
+          `${byHand.out.split("\n").at(-1)}; gone ${goneByHand}`);
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
+      rmSync(cli, { recursive: true, force: true });
     }
   } else {
     obs.wipe = "skipped (DESTRUCTIVE=1 runs it: it backs up gen9-postgres, wipes it and restores it)";

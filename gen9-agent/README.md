@@ -1092,7 +1092,7 @@ Deleting a chat or an account is a Temporal workflow (`workflows/deletion.py`, A
   - `thread.delete`, by a chat's owner, one for each of its background tasks' chats too.
 
   `make restore` reads those made after its backup's time.
-- **After a restore:** `gen9-agent-erase --users SUB... --threads ID...` (`erase.py`, run in the worker's container by `scripts/restore.sh`) deletes again what a backup brought back. It uses the same workflows, waiting for each one's `deleted` Update. A chat whose row wasn't restored still gets its workflow, for the traces and history that were. Each is recorded as `restore.account.delete` or `restore.thread.delete` ([docs/operations.md, "Back up and restore"](../docs/operations.md#back-up-and-restore)).
+- **After a restore:** `gen9-agent-erase --users SUB... --threads ID...` (`erase.py`, run in the worker's container by `scripts/restore.sh`) deletes again what a backup brought back. It uses the same workflows, waiting for each one's `deleted` Update, each started as a deletion of its own (`delete-thread-<id>-again-<random>`): under the usual id it would join the first deletion if that is still running its late trace erasures (ten minutes), and delete nothing. A chat whose row wasn't restored still gets its workflow, for the traces and history that were. Each is recorded as `restore.account.delete` or `restore.thread.delete` ([docs/operations.md, "Back up and restore"](../docs/operations.md#back-up-and-restore)).
 
 ## How auth works
 
