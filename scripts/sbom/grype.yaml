@@ -69,19 +69,3 @@ ignore:
   - vulnerability: CVE-2026-82049
     package: {name: python, version: 3.10.21}
     reason: OpenSandbox's server extracts no archive to disk
-
-  # Gen9's egress (gen9-sandbox/egress): mitmproxy 12.2.3 caps these below their fixes. Its sidecar
-  # runs mitmdump, which reaches none of them (mitmproxy's own code, 2026-10-01): tornado is
-  # imported only by mitmproxy's console and web UIs; msgpack by none of its code; mitmproxy
-  # verifies upstream certificates through pyOpenSSL and OpenSSL, not cryptography's X.509
-  # verifier, and decrypts no PKCS#7. Held to the image's own Python path.
-  - package: {name: tornado, version: 6.5.5, location: "/usr/local/lib/python3.13/dist-packages/**"}
-    reason: only mitmproxy's console and web UIs use tornado; egress runs mitmdump
-  - package: {name: msgpack, version: 1.1.2, location: "/usr/local/lib/python3.13/dist-packages/**"}
-    reason: mitmproxy 12.2.3's code doesn't use msgpack
-  - vulnerability: GHSA-g6cj-pr64-35w5
-    package: {name: cryptography, version: 48.0.1, location: "/usr/local/lib/python3.13/dist-packages/**"}
-    reason: PKCS#7 EnvelopedData decryption, which mitmproxy never does
-  - vulnerability: GHSA-jwv3-5hgf-82ww
-    package: {name: cryptography, version: 48.0.1, location: "/usr/local/lib/python3.13/dist-packages/**"}
-    reason: cryptography's X.509 path building; mitmproxy verifies through OpenSSL
