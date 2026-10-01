@@ -3435,7 +3435,109 @@ claims about today's state, not rewritten.
 ### P6-Z. Cleanup, then phase 7
 
 - [ ] Z1 Everything this phase made removed; `make e2e` on the result.
-- [ ] Z2 Start phase 7 (standing instruction 7): /rigor first, then the next large list.
+- [x] Z2 Start phase 7 (standing instruction 7): /rigor first, then the next large list.
+  Done (2026-10-01): "Phase 7" below, from ASVS 5.0's unread chapters and today's releases
+  (Decision Log, "Phase 7's list").
+
+## Phase 7
+
+From today's sources (2026-10-01; Decision Log, "Phase 7's list"): the chapters of OWASP ASVS 5.0
+no phase has walked requirement by requirement, V5 (files), V9 and V10 (tokens, OAuth), V11
+(cryptography), V12 (communication), V13 (configuration) and V14 (data protection), less what
+earlier phases already settled (named in each item), and what upstream released. Each item:
+today's sources first, then live, then its own pull request, as before.
+
+### P7-A. Upstream
+
+- [ ] A1 What phase 6 waits on, each when it lands: Python 3.12.15's image (P6-D1c1), Debian's
+  images with DSA-6531-1 and Grype's database with it, and Redis's rebuild (D1c4), Temporal UI's
+  next release (D1c6), eslint-plugin-react with ESLint 10 (D6a), OpenSandbox's 1.1.1 and #1759
+  (A5). `make updates` and `make scan` on each.
+- [ ] A2 Released since phase 6's look, past the 7-day cooldown (P6-D2) unless a fix is urgent:
+  Keycloak 26.8.0 (2026-10-01; a minor, its upgrading guide first), Next.js 16.3.8, deepagents
+  0.7.21. Each read, verified where its publisher signs, and run live, as in P6-D1c2.
+- [ ] A3 P6-A3 (the raw event file of 2026/09/30, after 2026-10-02 00:00 UTC) and the A6 watches.
+
+### P7-B. Tokens and OAuth (ASVS 5.0 V9, V10)
+
+Settled before: exact redirect URIs (10.4.1, P2-B3), refresh-token rotation (10.4.5, the
+realm's `revokeRefreshToken`, checked by `gen9-keycloak/verify.sh`), revocation at `gen9 logout`
+and sign-out everywhere (10.4.9, phase 1's K11 and I12), and consents withdrawn in the Account
+Console (10.7.3).
+
+- [ ] B1 Each Keycloak client against V10.4, from the realm's export and tried live: a code used
+  twice (10.4.2) and its lifetime (10.4.3), the grants each allows (10.4.4: no password or
+  implicit grant), PKCE required with S256 (10.4.6), anonymous dynamic registration and its
+  policies (10.4.7, MCP clients), refresh tokens' absolute expiry (10.4.8), confidential clients'
+  authentication (10.4.10), scopes and response modes per client (10.4.11, 10.4.12). A replayed
+  refresh token refused, as rotation promises (10.4.5).
+- [ ] B2 gen9-agent's API as a resource server (V9, 10.3): a token signed with `none`, with
+  HS256 under the public key, with a key from elsewhere (9.1.1 to 9.1.3), expired or not yet valid
+  (9.2.1), an ID token or another client's access token (9.2.2, 9.2.3, 10.3.1), and the person
+  identified by `sub` (10.3.3).
+- [ ] B3 The web app as a client (10.1, 10.2, 10.5): which tokens reach the browser (10.1.1),
+  `state` and `nonce` (10.2.1, 10.5.1), the ID token's audience (10.5.4), and back-channel
+  logout's checks (10.5.5).
+
+### P7-C. Cryptography (ASVS 5.0 V11)
+
+Settled before: the payload key's and the signing keys' rotations, tried live (P3-C2, C3; P6-B).
+
+- [ ] C1 An inventory (11.1.2 to 11.1.4), kept in `docs/secrets.md` or beside it: every key and
+  algorithm, where it's made, kept and used: Temporal's payload codec, the session cookie, the
+  sealed connector and environment secrets, Keycloak's signing keys and password hashing, the
+  generated `.env` secrets (`init-env.sh`), the TLS certificates Gen9 makes. With a line on
+  moving to post-quantum algorithms (11.1.4).
+- [ ] C2 Each against 11.2 to 11.6: authenticated encryption and nonces (11.3.2 to 11.3.4),
+  128-bit strength (11.2.3), constant-time comparisons of tokens and secrets (11.2.4), password
+  hashing's parameters against OWASP's Password Storage Cheat Sheet (11.4.2), and every generator
+  of a value meant to be unguessable (11.5.1), each read in the code.
+
+### P7-D. Communication between services (ASVS 5.0 V12, V13.2)
+
+- [ ] D1 Every connection between stacks and to the outside listed (13.1.1), with whether it's
+  encrypted and how each side is authenticated (12.3.1, 12.3.3, 12.3.5, 13.2.1 to 13.2.3): what
+  one host's Docker networks justify, and what an operator spreading stacks over hosts must add.
+- [ ] D2 Every TLS client Gen9 runs validates certificates (12.3.2): the router to providers, the
+  worker to connectors, MCP servers and plugin sources, Keycloak to SMTP, the egress upstream.
+  Tried live against a server with a bad certificate.
+
+### P7-E. Configuration and data protection (ASVS 5.0 V13, V14)
+
+Settled before: the session cookie and the composer's sessionStorage cleared at sign-out (P3-C9,
+P4-C1), files served `private, no-store` (P3-F2), the API's `/docs` readable by design (phase 1's
+M5).
+
+- [ ] E1 Secrets (13.1.4, 13.3): which container gets which secret (13.3.2, least privilege), and
+  the schedule for replacing each (13.1.4, 13.3.4).
+- [ ] E2 Leakage (13.4), on every port Gen9 opens: `.git` (13.4.1), debug modes (13.4.2),
+  directory listings (13.4.3), `TRACE` (13.4.4), monitoring endpoints (13.4.5), version headers
+  and pages (13.4.6), the web app's source maps (13.4.7).
+- [ ] E3 The browser after sign-out (14.3.1) and on a shared computer: `Cache-Control: no-store` on
+  pages and answers with personal data (14.3.2; the back button after sign-out), what
+  localStorage, IndexedDB and the cache still hold (14.3.3), `Clear-Site-Data`.
+- [ ] E4 Personal data in addresses and to third parties (14.2.1, 14.2.3): query strings in the
+  access logs, the router's and Langfuse's copies.
+
+### P7-F. Files (ASVS 5.0 V5)
+
+Settled before: 25 MB a file and 250 MB a chat (P2-H2), names with folders refused and files
+served as attachments with `nosniff` and a sandbox CSP (P2-F6, P3-F2).
+
+- [ ] F1 What a file is (5.2.2): an extension that lies about the content, and what reaches the
+  vision model and the environment from it.
+- [ ] F2 Archives and images (5.2.3, 5.2.5, 5.2.6, 5.3.3): Gen9 unpacks nothing on its servers;
+  the agent can in the environment: a zip bomb, a symlink out, a pixel flood, each tried there,
+  and an image with 50,000 by 50,000 pixels sent to the model.
+- [ ] F3 One person's whole storage (5.2.4): files and chats across all their chats, and how
+  much one person can fill.
+- [ ] F4 Names as served (5.4.1, 5.4.2): quotes, CR and LF, non-ASCII and right-to-left names in
+  `Content-Disposition`; known-malicious files (5.4.3) and photos' metadata (14.2.8): decided.
+
+### P7-Z. Cleanup, then phase 8
+
+- [ ] Z1 Everything this phase made removed; `make e2e` on the result.
+- [ ] Z2 Start phase 8 (standing instruction 7): today's sources first, then the next large list.
 
 ## Surprises & Discoveries
 
@@ -4092,6 +4194,19 @@ claims about today's state, not rewritten.
   - **How it runs:** in a container with no Docker socket and no network while it reads an image
     (each image as `docker save`'s archive), since a scanner reads everything and Trivy's
     compromise stole what its runs could reach.
+- Decision (P6-Z2): phase 7's list. Sources read today:
+  - **OWASP ASVS 5.0** (OWASP/ASVS, `5.0/en`, the chapter files for V5 and V9 to V14). Earlier
+    phases cite V6, V7, V8 and V16 and the API Security Top 10. The other chapters were met only
+    in parts: redirect URIs (P2-B3), files' sizes and names (P2-H2, F6) and serving (P3-F2), key
+    rotations (P3-C2, C3), refresh-token rotation (`gen9-keycloak/verify.sh`). Not yet walked: V5's type,
+    archive, pixel, quota and name requirements (5.2.2 to 5.2.6, 5.4), V9 and V10.2 to 10.5,
+    V10.4's grants, codes and PKCE, V11 entirely (no inventory), V12.3, V13.1, 13.3 and 13.4,
+    and V14.2 and 14.3. Searching the plan: `Clear-Site-Data`, DPoP, source maps, `TRACE`,
+    pixel limits and an inventory appear nowhere.
+  - **Releases:** Keycloak 26.8.0 (2026-10-01), Next.js 16.3.8 and deepagents 0.7.21
+    (2026-09-30); LiteLLM and Langfuse were taken in P6-D1c2. Inside P6-D2's cooldown, so P7-A2
+    takes them after it.
+  - **Gen9's own state:** phase 6's waits (D1c1, D1c4, D1c6, D6a, A3) carried as P7-A1 and A3.
 
 ## Outcomes & Retrospective
 
