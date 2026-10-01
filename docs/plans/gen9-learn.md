@@ -586,10 +586,24 @@ links to the step that traces it; `cd gen9-learn/verify && node run.mjs` passes,
         first run, as a terminal admin, got 403 by design). `e2e/admin-api.mjs` drives them in
         Chrome as Ada: the toast, the email in Mailpit, gone from Keycloak and Gen9, each audited;
         passed live.
-      - [ ] T7, T8, found: `POST /v1/admin/directory/sync`, `/v1/admin/search/reindex` and
+      - [x] T7, T8, found: `POST /v1/admin/directory/sync`, `/v1/admin/search/reindex` and
         `/v1/admin/users/remove-deleted` are reachable by no client: the web app has no page that
-        calls them and the terminal is never an admin. Decide after the demo: admin buttons, or
-        drop the routes (the Schedules run them anyway).
+        calls them and the terminal is never an admin. Decided: drop the routes (Decision Log,
+        "run a Schedule now"); an admin who wants one now triggers its Schedule in Temporal's
+        web UI or with `temporal schedule trigger`.
+        - [x] gen9-agent: the three routes, `sweep_deleted_users` (their only caller) and the
+          two `*_NOW_WORKFLOW_ID`s gone; `tests/test_admin_reindex.py` gone; the unit tests,
+          ruff and ty pass (553 tests).
+        - [x] Docs in step: gen9-agent's README (the API table; Connectors, Search and the sweep
+          link to how to run a Schedule now), `docs/temporal.md` ("Running a Schedule now",
+          and its table without the API), gen9-learn's Reference and workflow rows,
+          `docs/design/screens/admin-users.md`'s "Next"; gen9-ui's audit words for the three
+          codes stay, since audit records already written keep them.
+        - [x] Checks, after `make up STACKS=agent` (the API's OpenAPI document lists no such
+          route): `audit.mjs` refuses `GET /v1/admin/users` instead (18 of 18), `authz.mjs` (11),
+          `search.mjs` (28) and `directory.mjs` (7) pass; `reference.mjs` names everything and its
+          33 pointers land; each Schedule triggered with the command in `docs/temporal.md` ran its
+          workflow to completion.
       - [x] T1, a person's caps, tasks and secrets: the 11th task and the 101st secret refused
         (409), the first 10 and 100 kept (`e2e/admin-api.mjs`, passed live after F27's fix).
       - [x] T1, connectors: the 51st refused (409), the first 50 kept, on e2e's elicitation test
@@ -842,6 +856,18 @@ Picked up in this order. Each is its own verified unit, as M9's were.
       4-hour path would double;
     - reference tables written by hand without the check: they'd drift, as the page's code line
       numbers did (manual-e2e.md, P6-F).
+
+- Decision: run a Schedule now from Temporal, not from Gen9's API (M9, T7 and T8). The three
+  admin routes that started the sweep, the search reindex and the directory sync now were
+  reachable by no client, and each only started what its Schedule starts anyway (every 15
+  minutes, every 15 minutes, every hour). Temporal's web UI, which Gen9 ships and lets only its
+  admins into, has a Trigger action on a Schedule (temporalio/ui v2.54.1, the version Gen9 runs:
+  `src/lib/components/schedule/schedule-action-modals/trigger-schedule-modal.svelte`), and
+  `temporal schedule trigger --schedule-id <id>` does it from gen9-temporal's CLI, as
+  `e2e/search.mjs` already does. Considered: admin buttons in the web app, as Open WebUI's admin
+  settings have a "Reindex Embedding Data" action (its `admin/Settings/Documents.svelte`);
+  not now, since nobody has asked to run these sooner and each button is a page, a check and
+  words to keep. Revisit if an admin needs one.
 
 ## Outcomes & Retrospective
 

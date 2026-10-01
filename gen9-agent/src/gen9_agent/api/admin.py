@@ -7,12 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import aliased
-from temporalio.common import (
-    Priority,
-    SearchAttributePair,
-    TypedSearchAttributes,
-    WorkflowIDConflictPolicy,
-)
 
 from .. import audit
 from ..auth import Principal, require_recent_authentication
@@ -20,21 +14,11 @@ from ..deletions import (
     ACCOUNT_WAIT_S,
     finished_or_accepted,
     start_account_deletion,
-    sweep_deleted_users,
 )
 from ..deps import Admin, AdminPrincipal, Session
 from ..keycloak_admin import KeycloakAdminError
 from ..models import AuditEvent, User
 from ..runs import control
-from ..temporal import GEN9_KIND
-from ..workflows.directory import SyncDirectoryWorkflow
-from ..workflows.names import (
-    DIRECTORY_NOW_WORKFLOW_ID,
-    PRIORITY_MAINTENANCE,
-    REINDEX_NOW_WORKFLOW_ID,
-    SYSTEM_QUEUE,
-)
-from ..workflows.search import ReindexInput, ReindexSearchWorkflow
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 _recent = require_recent_authentication(max_age=300)
@@ -215,79 +199,6 @@ async def delete_user(
     handle = await start_account_deletion(request.app.state.temporal, user_id, since)
     await audit.record(request, principal.sub, "admin.user.delete", target=user_id)
     return await finished_or_accepted(handle, ACCOUNT_WAIT_S)
-
-
-class SweepResult(BaseModel):
-    removed: int
-
-
-@router.post(
-    "/users/remove-deleted",
-    summary="Remove Gen9's data of users deleted in Keycloak directly (a Schedule also runs it)",
-)
-async def remove_deleted(principal: AdminPrincipal, request: Request) -> SweepResult:
-    """Runs SweepDeletedUsersWorkflow now and waits for it: it starts a DeleteAccountWorkflow for
-    each missing user and answers how many (`removed`); each goes on by itself, its data gone in
-    seconds unless a step waits on a service that is down, its late trace passes for ten minutes."""
-    removed = await sweep_deleted_users(request.app.state.temporal)
-    await audit.record(
-        request,
-        principal.sub,
-        "admin.users.remove_deleted",
-        detail={"removed": removed},
-    )
-    return SweepResult(removed=removed)
-
-
-class ReindexStarted(BaseModel):
-    workflow_id: str
-    run_id: str | None
-
-
-@router.post(
-    "/search/reindex",
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Make older chats searchable by meaning now (a Schedule also runs it)",
-)
-async def reindex_search(principal: AdminPrincipal, request: Request) -> ReindexStarted:
-    """Starts ReindexSearchWorkflow and returns at once: after a change of the router's `embed`
-    model it re-embeds every chat, which takes a while. One at a time: asking again while it runs
-    returns the same workflow."""
-    handle = await request.app.state.temporal.start_workflow(
-        ReindexSearchWorkflow.run,
-        ReindexInput(),
-        id=REINDEX_NOW_WORKFLOW_ID,
-        task_queue=SYSTEM_QUEUE,
-        id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
-        search_attributes=TypedSearchAttributes(
-            [SearchAttributePair(GEN9_KIND, "reindex")]
-        ),
-        priority=Priority(priority_key=PRIORITY_MAINTENANCE),
-    )
-    await audit.record(request, principal.sub, "admin.search.reindex")
-    return ReindexStarted(workflow_id=handle.id, run_id=handle.result_run_id)
-
-
-@router.post(
-    "/directory/sync",
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Update the connector directory's copy of the MCP registry now (a Schedule also does)",
-)
-async def sync_directory(principal: AdminPrincipal, request: Request) -> ReindexStarted:
-    """Starts SyncDirectoryWorkflow and returns at once. One at a time: asking again while it runs
-    returns the same workflow."""
-    handle = await request.app.state.temporal.start_workflow(
-        SyncDirectoryWorkflow.run,
-        id=DIRECTORY_NOW_WORKFLOW_ID,
-        task_queue=SYSTEM_QUEUE,
-        id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
-        search_attributes=TypedSearchAttributes(
-            [SearchAttributePair(GEN9_KIND, "directory")]
-        ),
-        priority=Priority(priority_key=PRIORITY_MAINTENANCE),
-    )
-    await audit.record(request, principal.sub, "admin.directory.sync")
-    return ReindexStarted(workflow_id=handle.id, run_id=handle.result_run_id)
 
 
 class AuditEventOut(BaseModel):

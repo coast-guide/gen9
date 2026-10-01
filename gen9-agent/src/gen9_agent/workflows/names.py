@@ -76,10 +76,8 @@ FIND_DELETED_USERS = "find_deleted_users"
 SWEEP_SCHEDULE_ID = "sweep-deleted-users"
 # The Schedule that re-embeds chats after `embed` changes and backfills older ones
 REINDEX_SCHEDULE_ID = "reindex-search"
-REINDEX_NOW_WORKFLOW_ID = "reindex-search-now"
 # The Schedule that keeps the connector directory's copy of the MCP registry
 DIRECTORY_SCHEDULE_ID = "sync-directory"
-DIRECTORY_NOW_WORKFLOW_ID = "sync-directory-now"
 # The Schedule that syncs every plugin source, daily
 PLUGINS_SCHEDULE_ID = "sync-plugin-sources"
 

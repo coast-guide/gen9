@@ -84,9 +84,6 @@ More workers: `docker compose up -d --scale worker=3`, or start `gen9-agent-work
 | `GET/PUT /v1/me/notifications` | any signed-in user | Which emails they get about their scheduled tasks ([Scheduled tasks](#scheduled-tasks)): `all`, `needs_you` or `never`, and whether this Gen9 sends emails at all (`SMTP_URL`) |
 | `GET /v1/me/plugins`, `PUT/DELETE /v1/me/plugins/{id}`, `GET /v1/me/skills` | any signed-in user | Their plugins ([Plugins](#plugins)): the ones admins made available or gave everyone (what each brings, whether they have it, and `waiting` when it changed and an admin hasn't looked yet); add or remove one (`409` for one given to everyone); every skill their chats can use, Gen9's own and their plugins' |
 | `GET /v1/admin/plugins`, `PATCH /v1/admin/plugins/{id}`, `GET /v1/admin/plugins/{id}/file?path=` | `gen9-admin` | Every plugin the sources list, with what it brings (skills, MCP servers), the `files` Gen9 keeps of it (path and size; `…/file` gives one's text, up to 200 KB, `cut` past that, `text` null for what isn't UTF-8), what was skipped and why, its notes, its `commit`, its `fingerprint` and whether it `changed` since an admin chose who may have it; set who may have it (`availability`: `off`, `available` or `installed`; only a loaded one, else `409`), agreeing to it as it is: with the `fingerprint` the admin saw, `409` if it changed since ([Plugins](#plugins)) |
-| `POST /v1/admin/directory/sync` | `gen9-admin` | Update the connector directory's copy of the MCP registry now ([Connectors](#connectors)): `202` with the workflow id; asked again while it runs, the same one (the `sync-directory` Schedule also runs it every `MCP_REGISTRY_SYNC_S`, default 3600 s) |
-| `POST /v1/admin/search/reindex` | `gen9-admin` | Start re-embedding and backfilling past chats now ([Search](#search)): `202` with the workflow id; asked again while it runs, the same one (a Schedule also runs it every `SEARCH_REINDEX_INTERVAL_S`) |
-| `POST /v1/admin/users/remove-deleted` | `gen9-admin` | Remove Gen9's data of users deleted in Keycloak directly, now: starts each one's deletion and answers how many (a Temporal Schedule also runs it every `DELETED_USERS_SWEEP_INTERVAL_S`, default 900 s; 0 turns it off) |
 | `DELETE /v1/admin/users/{id}` | `gen9-admin` who signed in within 5 min | Delete another user everywhere, the same `DeleteAccountWorkflow` as `DELETE /v1/me`; not yourself (409) |
 | `DELETE /v1/me` | any signed-in user who signed in within 5 min (`auth_time`; otherwise 401 `insufficient_user_authentication`, RFC 9470) | Delete own account with `DeleteAccountWorkflow` (see [Deletion](#deletion)): `204` when the data is gone, `202` if it takes longer than 15 s. The only admin can't (409) |
 | `GET/POST /v1/me/connectors`, `PATCH/DELETE /v1/me/connectors/{id}`, `POST /v1/me/connectors/{id}/tools` | any signed-in user (their own) | Remote MCP servers the caller connected ([Connectors](#connectors)): `POST {name, url, token?, header?, policy?}` connects first and lists the tools (`201`), or says why not (`422`: not https, a private network, can't reach it, token refused, not an MCP server); `409` for a name in use. `PATCH {policy}`: `ask`, `changes` or `never`. Each lists `changed`: tools the server added or changed since the person kept them, held back until they look (name, description, `was`, `pin`); `POST …/tools {pins}` keeps those they looked at ([Connectors](#connectors), pinned tools). The token is sealed and never returned (`has_token`). Other people's get `404` |
@@ -506,7 +503,7 @@ join that person's chats, named `<connector>__<tool>` ("Used deepwiki: read wiki
     form, so adding one connects first, and signs in when the server needs it.
   - `MCP_REGISTRY_URL` points at any registry with its v0.1 API, such as an organization's own
     (as GitHub Copilot allows). `MCP_REGISTRY_SYNC_S=0` turns the sync off.
-    `POST /v1/admin/directory/sync` runs it now.
+    To run it now: [docs/temporal.md, "Running a Schedule now"](../docs/temporal.md#running-a-schedule-now).
 - **Tokens** are sealed with `GEN9_SECRET_KEYS` (`vault.py`: AES-256-GCM, a key ring, bound to
   the owner and connector), sent as a header, and deleted with the connector or the account.
   To rotate the key: put a new one first, run `gen9-agent-reseal`, then remove the old one
@@ -1038,7 +1035,7 @@ and why is in `explore/search/NOTES.md`.
   4. It drops the old models' indexes once no row uses them (`search_index_drop_stale`).
 
   A Schedule runs it every `SEARCH_REINDEX_INTERVAL_S` (default 900 s; 0 turns it off), and an
-  admin can start it now. So after changing `embed` in gen9-models, nothing needs doing: until it
+  admin can run it now ([docs/temporal.md, "Running a Schedule now"](../docs/temporal.md#running-a-schedule-now)). So after changing `embed` in gen9-models, nothing needs doing: until it
   finishes, keyword search covers every chat and search by meaning the ones already done. These
   calls go on behalf of no user, so they don't count against anyone's budget.
 
@@ -1087,7 +1084,7 @@ Deleting a chat or an account is a Temporal workflow (`workflows/deletion.py`, A
   (`tests/histories/account_deleted_before_router_erase.json`).
 - **The response:** the API waits for the workflow's `deleted` Update, which returns once the data is gone (`204`). If that takes longer, it answers `202`, and the workflow finishes on its own.
 - **Late traces:** Langfuse ingests traces a few seconds after a run (0.8–6 s measured). So the workflow erases traces again 1 and 10 minutes later, catching a chat deleted right after an answer.
-- **Users deleted in Keycloak directly:** a Temporal Schedule, `sweep-deleted-users`, finds them. Each candidate is confirmed missing by its own lookup, then removed by its own `DeleteAccountWorkflow` without the Keycloak steps, late trace passes included. The sweep starts each deletion and leaves it to finish on its own (`ParentClosePolicy.ABANDON`), so one waiting on Langfuse holds up no other. The worker creates or updates the Schedule at start-up.
+- **Users deleted in Keycloak directly:** a Temporal Schedule, `sweep-deleted-users`, finds them. Each candidate is confirmed missing by its own lookup, then removed by its own `DeleteAccountWorkflow` without the Keycloak steps, late trace passes included. The sweep starts each deletion and leaves it to finish on its own (`ParentClosePolicy.ABANDON`), so one waiting on Langfuse holds up no other. The worker creates or updates the Schedule at start-up; to run it now: [docs/temporal.md, "Running a Schedule now"](../docs/temporal.md#running-a-schedule-now).
 - **The record:** every deletion is an audit event with its id as the target:
   - `account.delete`, by the person;
   - `admin.user.delete`, by an admin;
