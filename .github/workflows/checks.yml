@@ -43,6 +43,8 @@ jobs:
       # Only the build refuses a server-only module imported into a client component
       - run: npm run build
       - run: npm audit --audit-level=high
+      # Each installed package's registry signature, and its provenance where it has one
+      - run: npm audit signatures
 
   keycloak-theme:
     runs-on: ubuntu-latest
@@ -62,6 +64,8 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm audit --audit-level=high
+      # Each installed package's registry signature, and its provenance where it has one
+      - run: npm audit signatures
 
   design-copies:
     runs-on: ubuntu-latest

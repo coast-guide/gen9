@@ -6,7 +6,8 @@
 # 1.27 came out), and with the modules OpenSandbox's main has since moved to, x/crypto one further
 # (0.56.0, its SSH servers' fix). Go checks each module against its checksum database. The flags
 # are upstream's (components/execd/Dockerfile).
-# To upgrade: the image digest below, COMMIT (the release tag's commit) and the module versions.
+# To upgrade: the image digest below (its signature checked: docs/development.md, "Signatures and
+# provenance"), COMMIT (the release tag's commit) and the module versions.
 FROM golang:1.26.8-bookworm@sha256:a688600ca24f8a4d3ca77f95b0dd40704a9fc787c826660eb7ba0b641b8b175d AS builder
 ARG COMMIT=48b0215f1bd097b31d0f022a44640e00c11ac49d
 ADD https://github.com/opensandbox-group/OpenSandbox.git#${COMMIT} /src

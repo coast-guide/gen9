@@ -3193,9 +3193,31 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
   scripts not covered by allowScripts", and installed nothing. The Python side has no install
   hooks: uv runs code at install only to build a package that has no wheel, and every registry
   package locked for gen9-agent (161) and gen9-cli (17) has one.
-- [ ] D4 Signatures and provenance (A03: "Prefer signed packages"): `npm audit signatures` over
+- [x] D4 Signatures and provenance (A03: "Prefer signed packages"): `npm audit signatures` over
   each lockfile, the images whose publishers sign them checked, PyPI's attestations where uv can
   read them.
+  Done (2026-10-01; docs/development.md, "Signatures and provenance"):
+  - npm: `npm audit signatures` on each project installed afresh (npm 11.19): every package's
+    registry signature verified (gen9-ui 742, the theme 85, e2e 143, `scripts/updates` 617,
+    gen9-learn's verifier 43), and provenance on 156, 48, 33, 92 and 19 of them. `make audit` runs
+    it where a project's dependencies are installed, and CI after `npm ci` (gen9-ui and the theme).
+  - Images, the 30 pinned ones looked up with cosign (built from source in P6-D1) and `gh
+    attestation`: signed are Chainguard's MinIO and distroless (keyless; both verified in D1 and
+    D1c2), LiteLLM (its key; D1c2), uv (GitHub's attestation: SLSA provenance from astral-sh/uv's
+    `publish-docker-image.yml`, for Gen9's exact digest) and OpenSandbox's execd (keyless, from
+    `publish-components.yml@refs/tags/docker/execd/v1.1.0`, found here: its egress and server
+    carry none). The rest answered "no signatures found". Langfuse's couldn't be checked:
+    `docker.langfuse.com` answers for Docker Hub, which had answered 429 by then (Surprises).
+    Each signed image's check is in the docs, for when its pin moves.
+  - PyPI: uv uploads attestations when publishing but checks none when installing (its docs). PyPI's
+    Integrity API has provenance for 68 of gen9-agent's 160 locked packages and 9 of gen9-cli's
+    16; langchain, langgraph, deepagents, FastAPI and SQLAlchemy publish none. PyPA's
+    `pypi-attestations` (0.0.30) verified six against their repositories (cryptography, mcp,
+    openai, pyjwt, temporalio, urllib3), and refused cryptography for any other repository
+    ("provenance was signed by repository "pyca/cryptography"").
+  - [ ] D4b Langfuse's images, once Docker Hub's limit resets; and a check of every locked Python
+    package with provenance against the repository it names, from the lock's hashes without
+    downloading (pypi-attestations as a library), if it can run in `make audit`.
 - [ ] D5 The repository's own chain: the workflow's actions are pinned by SHA; `main` has no
   protection (GitHub's API answers 403 for a private repository on the free plan). What that
   leaves (A03's "separation of duties"), and what the owner can turn on for free.
@@ -3298,6 +3320,13 @@ claims about today's state, not rewritten.
   included. The run's b7 and b7d had checked a worker with it (they passed). AGENTS.md now says to
   write code elsewhere (a worktree) while a check that rebuilds images runs. The "before" is the
   record from the same outage in P6-B6's first pass.
+
+- P6-D4, Docker Hub's limit: after about an hour of lookups (Renovate's `make updates` twice,
+  `imagetools inspect` and cosign over 30 images), Docker Hub answered `429 Too Many Requests`
+  to unauthenticated requests, and so did `docker.langfuse.com`, which serves Docker Hub's
+  images. Lookups that failed that way read as missing data, not as an error, in a loop that
+  didn't check (a "provenance: no" column, discarded). **Read each lookup's error before reading
+  its absence; and keep Docker Hub lookups few before a `make up` that may need to pull.**
 
 - P6-C6, a new log line meets an old grep: once each audit record was a line of the API's
   log, gen9-learn's b6 found two `"DELETE /v1/me` lines for one deletion, the access line and
