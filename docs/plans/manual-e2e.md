@@ -3230,8 +3230,26 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
   Dependabot alerts and security updates (and `dependabot.yml` for the actions, 7-day cooldown),
   private vulnerability reporting, immutable releases and CodeQL's default setup. What's left and
   the free options: `docs/development.md`, "Checks". Reviews: 0 required, one maintainer.
-- [ ] D6 Unmaintained components (CWE-1104): each direct dependency's last release and whether
+- [x] D6 Unmaintained components (CWE-1104): each direct dependency's last release and whether
   it's archived or deprecated (npm's deprecation notices, PyPI's yanked releases).
+  Done (2026-10-01): the 91 direct dependencies of the seven projects (the five npm projects'
+  `dependencies` and `devDependencies`, gen9-agent's and gen9-cli's dependencies and groups), from
+  npm's registry, PyPI's JSON API and each source repository on GitHub. None is yanked, marked
+  inactive or archived. One is deprecated: gen9-ui's eslint 9.39.5, "This version is no longer
+  supported" (npm; latest 10.11.0). Nine had no release for over a year; their repositories say
+  which are finished and which are slowing:
+  - finished or active: remark-breaks (0 open issues), remark-gfm, `@keycloakify/email-native`,
+    `server-only` (a marker package, by design), class-variance-authority and react-markdown
+    (commits in September 2026);
+  - slowing: next-themes (last commit 2025-05-31, 69 open issues), tw-animate-css (2026-02-28)
+    and httpx (0.28.1 of 2024-12; last commit 2026-02-23, 139 open issues). For httpx, pydantic's
+    httpx2 says: "With HTTPX itself seeing limited activity recently, Pydantic is picking up
+    stewardship under the HTTPX2 name … including timely security updates". gen9-agent already
+    uses httpx2 for the MCP transport, and httpx for the rest.
+  - [ ] D6a ESLint 10 for gen9-ui (its 9 is deprecated): read its migration guide and
+    eslint-config-next's support first.
+  - [ ] D6b httpx to httpx2 in gen9-agent's and gen9-cli's own code (the libraries Gen9 uses keep
+    their own): what changes, and whether the agent's dependencies move with it.
 
 ### P6-E. Left by phase 5
 
