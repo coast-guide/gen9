@@ -3285,10 +3285,28 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
   in Chrome with the page's `Date.now` 5 minutes behind the server's: Settings' "This browser.
   Signed in in 4 minutes." before (the image rebuilt without the fix), "Signed in just now." after.
   gen9-ui's 158 tests, tsc, eslint and gen9-learn's `reference.mjs` pass.
-- [ ] E2 One person can spend the shared $5-a-day key for everyone, since their own limit is $20
+- [x] E2 One person can spend the shared $5-a-day key for everyone, since their own limit is $20
   over 30 days (P5-C8). Decide from LiteLLM's docs (an end user has one budget period;
   per-end-user rate and token limits) what keeps one person from stopping the others; check it
   live on throwaway budgets.
+  Done (2026-10-01): the default per-person budget is now daily, $1, a fifth of gen9-agent's $5
+  day (`init-env.sh`; this install's `.env` set the same). Sources: LiteLLM's customer docs (an
+  end user's `max_budget`, `budget_duration`, `tpm_limit`, `rpm_limit`, `max_parallel_requests`,
+  `model_max_budget`; one budget at a time), v1.103.1's `model_max_budget_limiter.py`. Probed on
+  throwaway end users through the live router (gen9-agent's key, one-word answers):
+  - a second, per-model daily budget: `/customer/new` with `model_max_budget` failed (422, the
+    field passed to the database unserialized), and `/budget/new` with it answered 400, "You must
+    have an enterprise license to set model_max_budget": not for Gen9;
+  - rate and token limits slow one person but bound no day's total;
+  - a `1d` budget: refused the end user after one call (429 `ExceededBudget`, chat and
+    embeddings alike), and the admin API said `period` `1d`, `resets_at` 2026-10-02T00:00:00Z.
+  So the period follows the shared key's: one person can spend at most a fifth of the day. The
+  cost: no separate monthly cap (30 days of $1 is $30 where it was $20); the key's $5 a day still
+  bounds everyone together. Applied here (`make up STACKS=models`): `gen9-user-default` is 1 |
+  1d, resetting 2026-10-02 00:00; Settings in Chrome reads "6% of your limit, which resets on 2
+  October 2026" for the seeded user. gen9-models' README, gen9-learn's page (its number, its
+  verified budget output) and b7's check say $1 a day; the e2e and guide checks that set a tiny
+  budget of their own keep `30d` and pass any date.
 - [ ] E3 Gen9's summary prompt on a live summarization's text (P5-C6 compared the prompts on a
   recorded history): a long chat summarized live, and the summary read from the checkpoint. What
   a source asked is recorded as what it said, and the person's requests as theirs.
