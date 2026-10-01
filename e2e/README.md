@@ -738,6 +738,27 @@ Keycloak locks an account after 5 wrong passwords (the realm's brute-force prote
 
 The person is deleted at the end, whatever happens.
 
+## Keycloak as an authorization server (`oauth.mjs`)
+
+What OWASP ASVS 5.0 asks of an authorization server (V10.4), tried live; `gen9-keycloak/verify.sh`
+checks the realm's settings behind it (grants, PKCE, scopes, lifetimes, registration). A
+throwaway person signs in through `gen9-mcp` (authorization code, PKCE, a loopback redirect), no
+model call:
+
+| Step | Checked |
+| --- | --- |
+| An authorization request without `code_challenge`, for `gen9-mcp` and for a client registered by its metadata document | Refused (`invalid_request`) |
+| A code exchanged with the wrong `code_verifier` | Refused |
+| A code exchanged twice | The second is refused, and the first one's refresh token stops working |
+| A code exchanged after a minute | Refused |
+| A refresh token used twice | The replay is refused, and so is the token that replaced it |
+| An offline token (`offline_access`), refreshed twice | Its end doesn't move: 30 days from the sign-in at most |
+| The person signs in on the terminal and signs out everywhere through Gen9's API, as Settings does | 204, and the offline token is refused (Keycloak's own logout leaves it) |
+| `gen9-agent`'s client credentials without its secret, or with a wrong one | Refused (401) |
+| gen9-agent's API given an ID token, or a real access token re-addressed to it (`aud`, `azp`) with `alg: none` | 401 each |
+
+The person, and the client registered by its document, are deleted at the end, whatever happens.
+
 ## Passkeys (`passkeys.mjs`)
 
 Creating a passkey needs the operating system's authenticator (Touch ID, Windows Hello, a security key), which browser automation can't drive. This check uses Chrome's virtual authenticator instead: the DevTools [WebAuthn domain](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/) sets up a platform authenticator with discoverable credentials and user verification. Everything else is real: Chrome, gen9-ui, Keycloak and the Gen9 theme.

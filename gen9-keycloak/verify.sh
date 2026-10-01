@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Verify gen9-keycloak on its own, without any app: health, issuer from host and from a container,
 # realm settings (including the configure step's), seeded users/roles, client security settings,
-# PKCE and redirect allow-list, password policy (dry run on a throwaway user) and email delivery
-# to Mailpit.
+# PKCE, grants, scopes and redirect allow-list, password policy (dry run on a throwaway user) and
+# email delivery to Mailpit.
 # Usage: ./verify.sh            (stack must be up: docker compose up -d --build --wait)
 set -euo pipefail
 # shellcheck source=/dev/null  # the generated .env, not in the repo
@@ -84,6 +84,23 @@ check "PKCE enforced (no code_challenge)" "Missing parameter: code_challenge_met
 check "unregistered redirect_uri rejected" "1" \
   "$(curl -s "$KC/realms/gen9/protocol/openid-connect/auth?client_id=gen9-ui&response_type=code&scope=openid&redirect_uri=https://evil.example/cb&code_challenge=$(printf 'x%.0s' $(seq 43))&code_challenge_method=S256" | grep -c 'Invalid parameter: redirect_uri' | sed 's/^[1-9][0-9]*$/1/' || true)"
 
+# OAuth, as OWASP ASVS 5.0's V10.4 asks (config/configure.sh; e2e/oauth.mjs tries the rest live)
+CLIENTS=$(api "$KC/admin/realms/gen9/clients?max=1000")
+check "no client allows the password or implicit grant" "none" \
+  "$(printf '%s' "$CLIENTS" | py 'print(",".join(c["clientId"] for c in d if c.get("directAccessGrantsEnabled") or c.get("implicitFlowEnabled")) or "none")')"
+check "every client of the code flow needs PKCE with S256 but temporal-ui (Temporal's UI sends none)" "temporal-ui" \
+  "$(printf '%s' "$CLIENTS" | py 'print(",".join(c["clientId"] for c in d if c.get("standardFlowEnabled") and not c.get("bearerOnly") and not c["clientId"].startswith("http") and c.get("attributes", {}).get("pkce.code.challenge.method") != "S256"))')"
+check "every public client needs PKCE, those that register themselves too (policy public-clients)" "client-access-type:public pkce-enforcer" \
+  "$(api "$KC/admin/realms/gen9/client-policies/policies" | py 'p = next(p for p in d["policies"] if p["name"] == "public-clients"); print(*(c["condition"] + ":" + ",".join(c["configuration"]["type"]) for c in p["conditions"]))') $(api "$KC/admin/realms/gen9/client-policies/profiles" | py 'print(*(e["executor"] for p in d["profiles"] if p["name"] == "pkce" for e in p["executors"]))')"
+check "codes last a minute; offline tokens 30 days at most, however often used" "60 True 2592000" \
+  "$(api "$KC/admin/realms/gen9" | py 'print(d["accessCodeLifespan"], d["offlineSessionMaxLifespanEnabled"], d["offlineSessionMaxLifespan"])')"
+check "Gen9's clients may ask only for what they use" "gen9-agent: | gen9-cli: | gen9-mcp:gen9-a2a,offline_access | gen9-ui: | temporal-ui:" \
+  "$(printf '%s' "$CLIENTS" | py 'print(" | ".join(c["clientId"] + ":" + ",".join(sorted(c.get("optionalClientScopes", []))) for c in sorted(d, key=lambda c: c["clientId"]) if c["clientId"] in ("gen9-ui", "gen9-cli", "gen9-mcp", "temporal-ui", "gen9-agent")))')"
+check "a client that registers itself may ask for" "gen9-a2a,gen9-mcp,offline_access" \
+  "$(api "$KC/admin/realms/gen9/default-optional-client-scopes" | py 'print(",".join(sorted(s["name"] for s in d)))')"
+check "registering a client without a token is refused" 403 \
+  "$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"redirect_uris":["https://evil.example/cb"]}' "$KC/realms/gen9/clients-registrations/openid-connect")"
+
 # Password policy + email, on a throwaway user that is deleted afterwards
 TMP_EMAIL="verify-$(date +%s)@gen9.test"
 api -X POST "$KC/admin/realms/gen9/users" -d "{\"username\":\"$TMP_EMAIL\",\"email\":\"$TMP_EMAIL\",\"enabled\":true,\"firstName\":\"Verify\",\"lastName\":\"Script\"}"
@@ -94,7 +111,11 @@ pw_error() { curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-
   python3 -c 'import sys,json; t=sys.stdin.read(); print(json.loads(t)["error"] if t else "accepted")'; }
 check "password < 15 chars rejected" invalidPasswordMinLengthMessage "$(pw_error 'fourteen-chars')"
 check "blocklisted password rejected" invalidPasswordBlacklistedMessage "$(pw_error 'passwordpassword')"
-check "long random password accepted" accepted "$(pw_error "gen9-$(openssl rand -hex 12)")"
+TMP_PASSWORD="gen9-$(openssl rand -hex 12)"
+check "long random password accepted" accepted "$(pw_error "$TMP_PASSWORD")"
+check "a password grant is refused, through Keycloak's admin-cli too" unauthorized_client \
+  "$(curl -s -d grant_type=password -d client_id=admin-cli -d "username=$TMP_EMAIL" --data-urlencode "password=$TMP_PASSWORD" \
+    "$KC/realms/gen9/protocol/openid-connect/token" | py 'print(d.get("error"))')"
 # "Choose a password" states the rules before a first try (theme's gen9PasswordHint): its length must be the realm's
 check "the password page's hint says the realm's minimum length" \
   "$(printf '%s' "$REALM" | py 'import re; print(re.search(r"length\((\d+)\)", d["passwordPolicy"]).group(1))')" \
