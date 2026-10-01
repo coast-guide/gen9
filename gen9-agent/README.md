@@ -958,6 +958,11 @@ with a `plugin.json`, skills under `skills/` and MCP servers in `mcp.json` (mile
     catalogue, then what the agent reads; a search reads at most 25 MB and says when it stopped;
   - the sources are `/plugins/`, then `/skills/`, so Gen9's own skill wins on a shared name
     (then the first plugin by name);
+  - a skill's scripts are files to read, not programs Gen9 runs: `/plugins/` and `/skills/` aren't
+    in the chat's environment, so the agent runs one there with its code in the command
+    (`python3 - <<'EOF'`), as its environment note tells it (`agent.py`). Asking first, the person
+    sees every line before allowing it; it runs as any command does, with the environment's
+    network and secrets (docs/plans/manual-e2e.md, P6-E4);
   - each turn resets `skills_metadata`, so adding or removing a plugin applies from the next
     message of an open chat;
   - a read of a plugin's skill records its plugin on `tool.started` (`plugin`), and the chat says

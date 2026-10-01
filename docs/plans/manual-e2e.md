@@ -3338,13 +3338,31 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
     checks pass (`osprey-61b3d6` in the summary and the answer; controls back to on; memory
     untouched; $0.0045). The residue (the old code word, four notes) was removed from the seeded
     user's memory through `/v1/me/memory`.
-- [ ] E4 A plugin skill that ships a script (`scripts/` beside its `SKILL.md`): what the agent does
+- [x] E4 A plugin skill that ships a script (`scripts/` beside its `SKILL.md`): what the agent does
   with it (the files are served read-only at `/plugins/`, the environment is apart), what the
   approval shows, and what the script can reach there (the environment's network and secrets,
   by host).
 - [ ] E5 Agents on the pre-registered `gen9-mcp` client share its chats (gen9-agent's README,
   P5-C7). An agent with its own Client ID Metadata Document sees only its own chats: checked
   live, and whether the consent screen says so.
+  Done (2026-10-01), live: a marketplace on e2e's git server with one plugin whose skill
+  (`e2e-report`) says to run the `scripts/report.py` it comes with; the seeded admin syncs it and
+  gives it to everyone; the seeded user asks for the report with `gen9 ask --ask-first`. Gen9 kept
+  the skill's two files. The agent read `SKILL.md` and the script from `/plugins/`, then asked to
+  run `python /plugins/e2e-report/scripts/report.py`: that path isn't in the environment (it's
+  apart), so it failed, and the agent retyped the script as `python -c '…'`. Each approval showed
+  the command as it would run. The script ran as root in the sandbox (uid 0, 16 environment
+  variables, no secret among them: secrets reach hosts through egress) with the environment's
+  network: `example.com` and `httpbin.org` both refused. Changed: the agent's environment note
+  says skills' files aren't on that machine and to run a skill's script with its code in the
+  command (`python3 - <<'EOF'`), so the approval shows every line that runs. Live again: one
+  approval holding the whole script, the same result, no failed step ($0.013 for both runs).
+  gen9-agent's 597 tests and gen9-learn's `reference.mjs` pass. The probe removed its source,
+  plugin and chats.
+- (2026-10-01) gen9-learn's full run after E1 to E3 and the D items: 259 of 261 checks, the two
+  known (b2d's search; b7's key budgets, this install's stand-ins, its person budget now
+  `1 | 1d`). b2d's context check passed with the person's memory off, b6's audit line and b7's
+  import check too ($0.05).
 
 ### P6-F. Every document in step with the stack (the owner)
 
