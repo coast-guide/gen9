@@ -3061,6 +3061,24 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
       hosts stay closed, E4b). And for the owner, a report to OpenSandbox: egress and execd built
       with Go 1.25.9 (govulncheck: 14 and 21 reached), egress with mitmproxy 11.0.2, the server on
       Python 3.10 at its end of life.
+      - [x] D1c5a Egress's Go binaries and its OpenSSL (2026-10-01). `egress/Dockerfile` builds
+        `egress` and the supervisor from release-1.1.0's commit (`b1a29cf9`, the tag's) with
+        `golang:1.25.14-bookworm` and upstream's flags, over OpenSandbox's image, and applies
+        Debian's updates (`libssl3` 3.0.22-1~deb12u1, DLA-4795-1). govulncheck: `egress` 14
+        reached to none, the supervisor 1 to none. Live: `e2e/environments.mjs` 24 of 24, twice,
+        with a sidecar on the new image; the egress probe (a secret reaches its host, a steered
+        `Host` gets 403, a closed host stays closed after the egress process is killed and the
+        supervisor restarts it). `make scan` on it: the Go and OpenSSL findings gone. Go 1.25.14
+        is the newest 1.25 (go.dev's list).
+      - [ ] D1c5b Its mitmproxy: 11.0.2 caps `h11` (<=0.14.0), `cryptography` (<44.1),
+        `tornado` (<=6.4.2) and `pyOpenSSL`, the versions with the advisories; mitmproxy 12.2.3
+        needs Python 3.12, and the image is Debian 12's (Python 3.11.2). So: rebuild it on Debian
+        13 with mitmproxy 12, after checking OpenSandbox's addon (`mitmscripts/system.py`, with
+        Gen9's `sni-binding.py`) and its `config.yaml` against mitmproxy 12's changes; or show which
+        advisories mitmproxy reaches (it reads bodies with `h11`'s readers).
+      - [ ] D1c5c execd the same way: its Dockerfile pins `golang:1.25.9` (and Alpine's OpenSSL
+        3.5.7-r0); config.toml would point at a Gen9 build. First, how the server takes it in: it
+        copies `/execd` and others out of the image into each sandbox.
     - [ ] D1c6 Temporal's UI: its next release (grpc 1.83.2 on main); `make scan` on it.
     - [ ] D1c4 OpenSSL's DSA-6531-1 (and pcre2's DSA-6530-1) in every Debian 13 image, once
       Grype's database has them: announced 2026-09-30 06:10 UTC, after the 00:35 data of the
