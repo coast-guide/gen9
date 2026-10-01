@@ -95,6 +95,16 @@ def shareable(entries: list[Any]) -> list[Any]:
 BIDI_CONTROLS = re.compile("[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 
 
+async def read_capped(files: Any, path: str, cap: int) -> bytes | None:
+    """At most `cap` bytes of a file in the environment, or None when it holds more. Its size was
+    listed a moment before, but a process left running there can grow it meanwhile (a sparse
+    `truncate -s 9G` is instant and takes no disk), and execd sends what the file holds when it
+    opens it: the worker would take it all in. A byte range has execd send at most cap + 1
+    (manual-e2e.md, P7-F2)."""
+    content = await files.read_bytes(path, range_header=f"bytes=0-{cap}")
+    return None if len(content) > cap else content
+
+
 def name_of(path: str) -> str:
     """A file's name as the person sees it: its path under OUT_DIR, any bidirectional control
     shown as "_" (the environment named it, maybe at a web page's suggestion)."""
@@ -165,7 +175,15 @@ async def capture(
                 "chat %s: %s left out, over %d bytes", thread_id, entry.path, MAX_FILE
             )
             continue
-        content = await sandbox.files.read_bytes(entry.path)
+        content = await read_capped(sandbox.files, entry.path, MAX_FILE)
+        if content is None:
+            log.info(
+                "chat %s: %s left out, grown over %d bytes",
+                thread_id,
+                entry.path,
+                MAX_FILE,
+            )
+            continue
         digest = hashlib.sha256(content).hexdigest()
         name = name_of(entry.path)
         grown = total - (before.size if before else 0) + len(content)

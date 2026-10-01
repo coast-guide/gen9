@@ -967,3 +967,31 @@ async def test_renewing_a_sandbox_already_gone_is_nothing_to_do(monkeypatch) -> 
     await environments.renew(settings, "sb-1", 3600)
     with pytest.raises(SandboxApiException):
         await environments.renew(settings, "sb-1", 3600)
+
+
+class GrownFiles:
+    """An environment's files as execd answers a byte range: at most its end + 1 bytes."""
+
+    def __init__(self, sizes: dict[str, int]) -> None:
+        self.sizes = sizes
+        self.ranges: list[str | None] = []
+
+    async def read_bytes(self, path: str, range_header: str | None = None) -> bytes:
+        self.ranges.append(range_header)
+        size = self.sizes[path]
+        if range_header:
+            end = int(range_header.removeprefix("bytes=0-"))
+            size = min(size, end + 1)
+        return b"x" * size
+
+
+@pytest.mark.asyncio
+async def test_a_file_grown_after_its_listing_is_read_no_further_than_the_cap() -> None:
+    # P7-F2: listed small, then grown to 9 GB by a process left running in the environment
+    files = GrownFiles(
+        {"/work/out/a.txt": 40, "/work/out/big.bin": 9 * 1024**3, "/work/out/empty": 0}
+    )
+    assert await chat_files.read_capped(files, "/work/out/a.txt", 1000) == b"x" * 40
+    assert await chat_files.read_capped(files, "/work/out/big.bin", 1000) is None
+    assert await chat_files.read_capped(files, "/work/out/empty", 1000) == b""
+    assert files.ranges == ["bytes=0-1000"] * 3
