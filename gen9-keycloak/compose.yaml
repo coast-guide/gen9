@@ -16,7 +16,7 @@ services:
   keycloak:
     logging: *logging
     build: .
-    image: gen9-keycloak:26.7.4
+    image: gen9-keycloak:26.7.5
     restart: unless-stopped
     labels:  # where to open it; the root Makefile lists these after make up
       gen9.name: Keycloak admin console
@@ -76,7 +76,7 @@ services:
     logging: *logging
     # One-shot: realm settings the first-boot import can't express (config/configure.sh). Runs after
     # every start and exits; each step is idempotent.
-    image: gen9-keycloak:26.7.4
+    image: gen9-keycloak:26.7.5
     depends_on:
       keycloak:
         condition: service_healthy
@@ -113,7 +113,7 @@ services:
     # configure fails: Compose doesn't wait for a one-shot job that nothing depends on
     # (docker/compose#9273, #9572). Without it, up returned while a new realm still had Keycloak's
     # built-in forgot-password flow. Idles on the image already built; init: true so it stops at once.
-    image: gen9-keycloak:26.7.4
+    image: gen9-keycloak:26.7.5
     entrypoint: ["sleep", "infinity"]
     init: true
     depends_on:

@@ -9,6 +9,7 @@
     "stacks": "node stacks.mjs",
     "runs": "node runs.mjs",
     "recovery": "node recovery.mjs",
+    "lockout": "node lockout.mjs",
     "keyboard": "node keyboard.mjs",
     "focus": "node focus.mjs",
     "temporal": "node temporal.mjs",

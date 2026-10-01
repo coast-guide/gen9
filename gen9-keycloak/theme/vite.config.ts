@@ -13,7 +13,7 @@ export default defineConfig({
       // Read from the Keycloak container's environment at runtime (kcContext.properties)
       environmentVariables: [{ name: "GEN9_UI_URL", default: "http://localhost:14000" }],
       accountThemeImplementation: "none",
-      // Keycloak 26+ only (the stack pins 26.7.4): one jar, no legacy 22-25 build
+      // Keycloak 26+ only (the stack pins 26.7.5): one jar, no legacy 22-25 build
       keycloakVersionTargets: { "22-to-25": false, "all-other-versions": "gen9-keycloak-theme.jar" },
     }),
   ],
