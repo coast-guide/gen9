@@ -97,9 +97,17 @@ something to do". Then: "looks good logo and everything".
     read-only; no wiki or projects; squash merges, branches deleted after merge.
   - [x] CI started by hand on `main` (the workflow as it was, `workflow_dispatch`): see the pull
     request that turns it on for the result.
-  - [ ] `SECURITY.md`, `.github/dependabot.yml`, CI on every pull request and on `main`; then the
-    ruleset requires its jobs.
-- [ ] M8 The README and the docs, for people and for any AI agent (Decision Log, "The README").
+  - [x] `SECURITY.md`, `.github/dependabot.yml`, CI on every pull request and on `main` (pull request
+    #1: its 7 CI jobs, CodeQL and the Dependabot config check passed); then the ruleset requires
+    the 7 jobs to pass, and CodeQL to find no new alert rated high or higher, before a merge.
+  - [x] CodeQL's first scan, triaged: 15 alerts (Surprises, "CodeQL's first scan"). One is fixed
+    (`gen9-models/scripts/ensure-keys.py` no longer prints the router's error text, which can
+    quote the key; it prints the status and points to the router's log); the 14 others are
+    dismissed on GitHub, each with its reason. Verified: the script's own `ensure_scoped_key`
+    against a fake router whose error echoes the request printed the key before the change and
+    only the status after it; on the running stacks the keys job still sets and reads back every
+    key.
+- [x] M8 The README and the docs, for people and for any AI agent (Decision Log, "The README").
   - [x] `README.md`: what Gen9 is and does, a quick start, how it is built, where to read more, and
     where agents start; everything else it held moved, word for word, to `docs/operations.md`
     (requirements, setup, everyday commands, upgrade, backup, stopping the agents, starting over,
@@ -189,6 +197,23 @@ something to do". Then: "looks good logo and everything".
   The check waited for Cloudflare's server only. It waits for both servers it searches for now.
   Evidence: once the pass had reached GitHub's server, the check passed all six steps, the pass
   still running.
+- **CodeQL's first scan.** Default setup found 15 alerts, 2 of them critical. None is an
+  exploitable hole, and one was worth changing:
+  - `ensure-keys.py` printed the router's error text when a key couldn't be set, and that text
+    can quote the request, which holds the key (a fake router that echoes the request showed the
+    key printed). It now prints the status and points to the router's own log. CodeQL's own
+    reason was elsewhere: its source is the constant `API_KEY_ALIAS = "gen9-agent-api"`, whose
+    name matches its pattern for passwords, flowing into the printed alias (read from the
+    analysis' SARIF), so it kept flagging the line after the fix, and the alert on pull request
+    #2 was dismissed as a false positive; the merge gate then passed. Its
+    other four alerts print an alias, a status, a scope or a description: false positives.
+  - "Full server-side request forgery" in `connector_auth.py`: a connector is fetched at the
+    address a person gives, by design; `check_url` refuses private addresses and the connection
+    pins the address it checked. "Server-side request forgery" in gen9-ui's `agentFetch`: every
+    caller passes an absolute `/v1/` path whose ids were validated as UUIDs first. Both false
+    positives.
+  - Eight in `e2e/` and gen9-learn's verifier (test code), one in a throwaway probe under
+    `explore/`. Dismissed as used in tests, or won't fix, each with its reason on GitHub.
 - **`background.mjs` failed on the model's wording, twice in six runs.** The final `make e2e` from
   the working copy stopped at "Allow in the chat lets the task go on: it wrote the memory" (the
   check restores the memory afterwards and printed no detail, so what was written is lost); three
