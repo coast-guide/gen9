@@ -32,6 +32,9 @@ FROM ${PYTHON_IMAGE}
 # git fetches plugin sources (plugin_sources.py), hardened there
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+# pip, and the copy ensurepip keeps, came with the base and serve nothing here: uv installs at
+# build, and nothing runs pip (`make scan` found six advisories in the base's pip 25.0.1)
+RUN python -m pip uninstall --yes --quiet pip && rm -rf /usr/local/lib/python3*/ensurepip
 RUN groupadd --system --gid 1001 app && useradd --system --uid 1001 --gid app --no-create-home app
 
 WORKDIR /app

@@ -1,0 +1,20 @@
+# What `make scan` reports and fails on (scripts/sbom.sh; docs/operations.md, "Images: SBOMs and
+# known vulnerabilities"): the vulnerabilities that have a fix, failing on a High or Critical one.
+# Those without a fix aren't listed: nothing can be done about them but follow the image's updates.
+only-fixed: true
+fail-on-severity: high
+output: table
+
+# Accepted findings, each with its reason. Each names the version it is accepted for, so the next
+# version ends it.
+ignore:
+  # gosu 1.19, which the postgres images run once at start to drop root: built with Go 1.24.6,
+  # whose standard library has 24 fixed advisories. gosu's SECURITY.md: no rebuild for a Go CVE
+  # its code never reaches; check with govulncheck. govulncheck v1.8.0 -mode=binary on the
+  # images' gosu (one binary, the same in all four) on 2026-10-01: "Your code is affected by 0
+  # vulnerabilities" (docs/plans/manual-e2e.md, P6-D1).
+  - package:
+      name: stdlib
+      version: go1.24.6
+      location: /usr/local/bin/gosu
+    reason: gosu 1.19 calls none of Go 1.24.6's vulnerable functions (govulncheck); gosu's SECURITY.md

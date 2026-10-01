@@ -2956,6 +2956,69 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
   candidates are Syft 1.52.0 with Grype 0.119.0, OSV-Scanner 2.6.0, and Trivy
   0.74.0. Trivy's release channels were compromised in March 2026 (GHSA-69fq-xp46-6x23), so
   whatever is chosen is pinned and verified before it runs.
+  Decided (2026-10-01), by a probe of all four on gen9-agent's and gen9-ui's images, each verified
+  before it ran (the decision below):
+  - Verified: Syft's and Grype's checksums, signed with cosign by their release workflow
+    (`release.yaml@refs/heads/main`); Trivy's tarball (`reusable-release.yaml@refs/tags/v0.74.0`);
+    OSV-Scanner's SLSA provenance (slsa-verifier v2.7.1, passed). None has GitHub artifact
+    attestations, and Anchore's container images carry no signature. cosign v3.1.3 itself was
+    built from source with `go install` (each module checked against Go's checksum database), and
+    it verified the released cosign as well.
+  - Coverage: Syft found the Python 3.12.14 and Node 24.21.0 that the bases install outside any
+    package manager, beside the Debian packages (118 and 79) and the apps' Python and npm packages.
+    Trivy and OSV-Scanner found no runtime; OSV-Scanner also missed the app's 150 Python packages
+    in `/app/.venv` and the web app's npm packages.
+  - Freshness: Trivy flagged OpenSSL 3.5.7-1~deb13u2 in both images, 13 CVEs fixed in
+    trixie-security's 3.5.7-1~deb13u3 (DSA-6531-1, after OpenSSL's advisory of 2026-09-29), which
+    Grype's database of 2026-09-30 00:35 UTC still had as not fixed. Grype's is built daily,
+    Trivy's every 6 hours.
+  - [x] D1a `make sbom`: a CycloneDX SBOM of each image Gen9 builds or runs, made by Syft in a
+    container built from its release tarball, pinned by the checksum verified above (`ADD
+    --checksum`). Each image goes to it as `docker save`'s archive: no Docker socket, no network.
+    Done: `scripts/sbom.sh`, `scripts/sbom/Dockerfile` (`gen9-sbom`, on distroless's static
+    image, whose signature cosign verified). 23 images in about 2 minutes, each SBOM named after
+    its image and ID; the three of profiles not in use here (llama.cpp, Ollama, gen9-ui's dev
+    image) are said to be left out. A checksum off by one digit fails the build ("digest
+    mismatch"). Grype read the CycloneDX SBOMs exactly as Syft's own JSON (286 and 176 matches,
+    the same ones), so only CycloneDX is kept.
+  - [x] D1b `make scan`: Grype over the SBOMs, its database fetched first and the scan itself
+    offline. It lists what has a fix and fails on a fixable High or Critical that isn't accepted
+    in its configuration, each acceptance with its reason. Done: `scripts/sbom/grype.yaml`
+    (only fixed, fail on High). The database is about 3 GB, in the volume `gen9-sbom-grype-db`;
+    the 23 scans take about 2 minutes.
+  - [ ] D1c The findings. The first scan failed 15 of 23 images; now 11. Done here:
+    - gosu 1.19 in all four postgres images (gen9-postgres among them), 24 Go 1.24.6
+      advisories each: govulncheck v1.8.0 on the binary (one, the same in all four) says its
+      code calls none of them, the case gosu's SECURITY.md describes. Accepted, for that Go
+      version at `/usr/local/bin/gosu` only.
+    - pip 25.0.1, left in gen9-agent's runtime image by its base (six advisories): removed,
+      with ensurepip's copy (`Dockerfile`). Nothing there runs pip: the API and worker are healthy,
+      `e2e/stacks.mjs` and `e2e/plugins.mjs` (the worker's git) pass. The chats' environment image
+      keeps its pip, for the agent's commands.
+    - gen9-keycloak: nothing with a fix. Its README's one finding, from an earlier Trivy run (the
+      SQL Server driver, CVE-2025-59250), was Trivy reading `13.2.1.jre11`, the advisory's fixed
+      version, as older. Grype, OSV's API and the jar's name agree it is fixed (corrected).
+    Left, each its own item:
+    - [ ] D1c1 Python 3.12.15 (tagged 2026-09-30, with three `tarfile` fixes, CVE-2026-82049 the
+      High; Grype places it at 3.14.0b1 from NVD's range) for gen9-agent and the environments'
+      image, once its official image is out (`make updates`).
+    - [ ] D1c2 Pins with a newer image: MinIO's `latest` (rebuilt: 6a1d0b45 to 4692462f; Go's
+      `x/crypto`, etcd), LiteLLM v1.103.1 (`pyjwt` 2.13.0, Wolfi's glibc and zlib), and Langfuse
+      (`deepmerge-ts`, `nodemailer`; Renovate can't read its registry, so by hand).
+    - [ ] D1c3 Images with nothing newer: Redis 7.4.11 (Debian 12's OpenSSL 3.0.20, a Critical
+      among four; 8.x is a major), Temporal's UI 2.54.1 (Go modules), OpenSandbox's server
+      (Python 3.10.21), its egress (mitmproxy 11.0.2's `h11` 0.14.0, Critical, `cryptography`,
+      `tornado`; Debian 12's OpenSSL; Go 1.25.9) and its execd (Alpine's OpenSSL 3.5.7-r0; Go).
+      For each: govulncheck on the Go binaries, whether Gen9 reaches what is vulnerable, and a fix
+      in Gen9's own layer where it has one (egress has) or a report upstream (the owner's).
+    - [ ] D1c4 OpenSSL's DSA-6531-1 (and pcre2's DSA-6530-1) in every Debian 13 image, once
+      Grype's database has them: announced 2026-09-30 06:10 UTC, after the 00:35 data of the
+      database `make scan` used. OpenSSL rates one High (DTLS) and the rest Low (QUIC, DTLS, SM2,
+      CMP), none of which Gen9 uses; Debian's `trixie-slim` image was last rebuilt 2026-09-19.
+  - [x] D1d The docs: operations.md ("Images: SBOMs and known vulnerabilities", and its Disk
+    table), development.md (instead of Docker Scout by hand), SECURITY.md, the Makefile's help,
+    and gen9-keycloak's README.
+
 - [ ] D2 Dependency cooldowns: npm 11.10's `min-release-age` (npm's config docs), uv's relative
   `exclude-newer` ("7 days", uv's resolution docs; with the lockfile's drift, astral-sh/uv#18775,
   open) and Renovate's `minimumReleaseAge` for `make updates`. Adopt or record why not.
@@ -3698,6 +3761,20 @@ claims about today's state, not rewritten.
     Keycloak's listener writes successes at INFO. Keycloak's stored events can be cleared by its
     admin without a trace, and the audit table's trigger lifted by the database's superuser; a
     copy sent as it happens survives both.
+- Decision (P6-D1): Syft makes Gen9's SBOMs and Grype scans them, both run from release
+  tarballs pinned by checksums verified with cosign. Sources: each tool's release assets and
+  docs (Syft's and Grype's `install.sh` and `.goreleaser.yaml`, Trivy's signature-verification
+  page, OSV-Scanner's SLSA provenance); Sigstore's cosign installation docs; GHSA-69fq-xp46-6x23;
+  Debian's security tracker (DSA-6531-1); CPython's v3.12.15 tag. The probe is in P6-D1.
+  - **Chosen:** Syft and Grype: the only pair that sees the Python and Node runtimes in Gen9's
+    bases, which is what `make audit` can't read.
+  - **Not chosen:** Trivy (no runtimes found; its channels were compromised in March, now
+    verified releases); OSV-Scanner (no runtimes, and it missed the apps' own packages).
+  - **Accepted:** Grype's database is a day behind Trivy's at worst (OpenSSL's DSA-6531-1); the
+    scan runs from time to time, not as a gate on every change.
+  - **How it runs:** in a container with no Docker socket and no network while it reads an image
+    (each image as `docker save`'s archive), since a scanner reads everything and Trivy's
+    compromise stole what its runs could reach.
 
 ## Outcomes & Retrospective
 

@@ -93,7 +93,7 @@ list_urls = for s in $(SELECTED); do docker ps $(OWN) \
 WIPE_FLAGS := $(if $(filter 1,$(YES)),--yes)
 
 .DEFAULT_GOAL := help
-.PHONY: help stacks doctor up down ps logs config setup admin-code backup restore stop-agents resume-agents wipe distclean fresh design-sync design-check e2e evals evals-calibrate audit updates
+.PHONY: help stacks doctor up down ps logs config setup admin-code backup restore stop-agents resume-agents wipe distclean fresh design-sync design-check e2e evals evals-calibrate audit sbom scan updates
 
 help:
 	@echo "Gen9: every command covers all stacks, or only STACKS=\"...\" (see make stacks)"
@@ -127,6 +127,8 @@ help:
 	@echo "                       REPORT=1: how their scores compare with the judge's;"
 	@echo "                       LABELS=file BY=who: reference labels not from people, reported apart"
 	@echo "  make audit           known vulnerabilities in npm and Python dependencies"
+	@echo "  make sbom            an SBOM of every image the stacks build or run (scripts/sbom/out/)"
+	@echo "  make scan            known vulnerabilities in those images: fails on a fixable high or critical one"
 	@echo "  make updates         pinned images rebuilt under their tag since, and newer releases (Renovate)"
 	@echo "  make design-sync     copy gen9-design (tokens, font, logo) into the apps"
 	@echo "  make design-check    fail if an app's copy differs from gen9-design"
@@ -268,13 +270,20 @@ evals-calibrate:
 	@cd gen9-agent && uv run -q --env-file langfuse.local.env python -m evals.calibrate \
 	  $(if $(LABELS),--label "$(abspath $(LABELS))" --by "$(BY)",$(if $(filter 1,$(REPORT)),--report,--sample $(SAMPLE)))
 
-# Fails on high or critical advisories. Images (OS packages, bundled runtimes): docker scout, see README
+# Fails on high or critical advisories. The images' own packages and runtimes: make sbom, make scan
 audit:
 	@for d in gen9-ui gen9-keycloak/theme e2e scripts/updates; do echo "== $$d"; (cd $$d && npm audit --audit-level=high) || exit 1; done
 	@for d in gen9-agent gen9-cli; do echo "== $$d"; f=$$(mktemp); \
 	  (cd $$d && uv export --frozen --no-hashes --no-emit-project --color never > $$f) && \
 	  NO_COLOR=1 uvx pip-audit -r $$f --disable-pip --no-deps --progress-spinner off; \
 	  status=$$?; rm -f $$f; [ $$status -eq 0 ] || exit $$status; done
+
+# Each image's SBOM, and Grype's scan of them, with pinned and verified Syft and Grype run in a
+# container with no Docker socket (scripts/sbom.sh; docs/operations.md)
+sbom:
+	@STACKS="$(SELECTED)" scripts/sbom.sh sbom
+scan:
+	@scripts/sbom.sh scan
 
 # Renovate's dry run over the stacks' compose files and Dockerfiles; changes nothing (scripts/updates.sh)
 updates:

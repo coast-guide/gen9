@@ -32,3 +32,4 @@ configuration makes one easier to exploit.
 - Where the agent runs commands, and what it can reach: [gen9-sandbox/README.md](gen9-sandbox/README.md)
 - The model router's hardening: [gen9-models/README.md](gen9-models/README.md)
 - Stopping every agent at once: [docs/operations.md, "Stop every agent at once"](docs/operations.md#stop-every-agent-at-once)
+- Known vulnerabilities in the dependencies and in every image, and an SBOM of each image: `make audit`, `make sbom` and `make scan` ([docs/operations.md, "Images"](docs/operations.md#images-sboms-and-known-vulnerabilities))

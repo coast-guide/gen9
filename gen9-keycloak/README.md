@@ -123,7 +123,7 @@ Put TLS in front of `127.0.0.1:15000` (and rate-limit `/realms/gen9/device` ther
 
 Read the [upgrading guide](https://www.keycloak.org/docs/latest/upgrading/). Update `KEYCLOAK_IMAGE` in the `Dockerfile` (the digest comes from `docker buildx imagetools inspect quay.io/keycloak/keycloak:<version>`), then run `docker compose up -d --build --wait && ./verify.sh`.
 
-**Known findings in 26.7.5 (checked with Trivy, `aquasec/trivy image --severity CRITICAL,HIGH --ignore-unfixed gen9-keycloak:26.7.5`, which on 26.7.4 found the 13 that 26.7.5 fixes):** one, in a library bundled with Keycloak that Gen9 never loads: `com.microsoft.sqlserver:mssql-jdbc` (CVE-2025-59250, high), the SQL Server driver; Gen9's Keycloak uses PostgreSQL. 26.7.5's Quarkus 3.33.4 brought `netty-handler` 4.1.138 and `bcprov-jdk18on` 1.86, which fix the critical findings of 26.7.4 (CVE-2026-75595, CVE-2026-8763, CVE-2026-13506), and FreeMarker 2.3.35 (CVE-2026-84939).
+**Known findings in 26.7.5 (`make scan`, [docs/operations.md](../docs/operations.md#images-sboms-and-known-vulnerabilities)):** none with a fix. Two high ones without, in UBI 9's `pcre2` 10.40 (CVE-2026-86145, CVE-2026-89161): only Red Hat's rebuild of the base can bring their fix. An earlier Trivy run reported the bundled SQL Server driver (`mssql-jdbc`, CVE-2025-59250, high); the jar is `13.2.1.jre11`, the advisory's fixed version (GHSA-m494-w24q-6f7w), so that one was Trivy's reading of the version (docs/plans/manual-e2e.md, P6-D1). 26.7.5's Quarkus 3.33.4 brought `netty-handler` 4.1.138 and `bcprov-jdk18on` 1.86, which fix the critical findings of 26.7.4 (CVE-2026-75595, CVE-2026-8763, CVE-2026-13506), and FreeMarker 2.3.35 (CVE-2026-84939).
 
 **In Keycloak itself:**
 
