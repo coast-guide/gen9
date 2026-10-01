@@ -92,8 +92,8 @@ PY`).out;
   obs.keyBudgets = router(`select key_alias, coalesce(max_budget::text, 'none'), coalesce(budget_duration, 'none') from "LiteLLM_VerificationToken" where key_alias in ('gen9-agent', 'gen9-agent-api', 'gen9-evals') order by 1`);
   obs.stepBudget = sh(`docker exec gen9-agent-worker-1 python -c "from gen9_agent.grounding import MODEL_CALLS_PER_TURN, MODEL_CALLS_PER_TURN_ALL, SEARCHES_PER_TURN; print(MODEL_CALLS_PER_TURN, MODEL_CALLS_PER_TURN_ALL, SEARCHES_PER_TURN)"`).out;
   check(
-    obs.personBudget === "20 | 30d" && /gen9-agent \| 5 \| 1d/.test(obs.keyBudgets) && /gen9-evals \| 5 \| 1d/.test(obs.keyBudgets) && obs.stepBudget === "50 150 12",
-    "what it may spend: each person $20 a month (30d, reset on the 1st), the worker's key $5 a day, the evals' key $5 a day; a turn at most 50 model calls an agent, 150 in all, and 12 searches",
+    obs.personBudget === "1 | 1d" && /gen9-agent \| 5 \| 1d/.test(obs.keyBudgets) && /gen9-evals \| 5 \| 1d/.test(obs.keyBudgets) && obs.stepBudget === "50 150 12",
+    "what it may spend: each person $1 a day (a fifth of the worker's key's day), the worker's key $5 a day, the evals' key $5 a day; a turn at most 50 model calls an agent, 150 in all, and 12 searches",
     `${obs.personBudget}; ${obs.keyBudgets.replaceAll("\n", " / ")}; steps ${obs.stepBudget}`,
   );
 

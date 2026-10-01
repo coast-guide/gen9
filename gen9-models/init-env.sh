@@ -162,10 +162,11 @@ GEN9_MODELS_ADMIN_PORT=$ADMIN_PORT
 OPENROUTER_API_KEY=
 OPENAI_API_KEY=$OPENAI_API_KEY
 # Every user's default limits, applied on the next start (empty: no limit). The budget is in USD
-# per period (e.g. 30d, 7d, 1d); a user over it gets a message in the chat until it resets. On by
-# default, so no one person's runs (or a stolen account's) can spend without end (OWASP API4)
-GEN9_USER_BUDGET_USD=20
-GEN9_USER_BUDGET_PERIOD=30d
+# per period (e.g. 1d, 7d, 30d); a user over it gets a message in the chat until it resets. On by
+# default, so no one person's runs (or a stolen account's) can spend without end (OWASP API4), and
+# daily, a fifth of GEN9_AGENT_BUDGET_USD, so one person can't use up the day's for everyone
+GEN9_USER_BUDGET_USD=1
+GEN9_USER_BUDGET_PERIOD=1d
 GEN9_USER_RPM=
 ENV
 }
