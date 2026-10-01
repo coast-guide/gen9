@@ -28,6 +28,8 @@ configuration makes one easier to exploit.
 
 - Identity, tokens and who may call what: [docs/auth-architecture.md](docs/auth-architecture.md)
 - Every secret, where it lives and how to replace it: [docs/secrets.md](docs/secrets.md)
+- Each key and algorithm, and what uses it: [docs/cryptography.md](docs/cryptography.md)
+- Every connection between Gen9's parts, whether it's encrypted, and what each side shows: [docs/development.md, "Connections"](docs/development.md#connections-and-what-each-side-shows)
 - What is logged and recorded, where, who can read, change or erase it, for how long, and how to send the logs to a separate system: [docs/logging.md](docs/logging.md)
 - Where the agent runs commands, and what it can reach: [gen9-sandbox/README.md](gen9-sandbox/README.md)
 - The model router's hardening: [gen9-models/README.md](gen9-models/README.md)

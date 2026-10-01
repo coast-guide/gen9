@@ -54,6 +54,48 @@ Clients on the host (browser, `gen9-cli`) reach stacks at `localhost:<published 
 
 This works the same on Linux and Docker Desktop. Going through the host instead (`host.docker.internal` to ports published on `127.0.0.1`) only works on Docker Desktop: on a Linux engine a container can't reach a port published on the host's loopback, and publishing on every interface would expose the databases (Docker's published ports bypass ufw). One network shared by all stacks is out too: Docker registers every service name on every network the service joins, and a container asking for its own `postgres` got the other stack's `postgres` there. `make config` fails if a change would let that happen (`scripts/check-networks.py`).
 
+## Connections, and what each side shows
+
+Every connection Gen9's parts make: whether it's encrypted, and how each side knows the other
+(OWASP ASVS 5.0 12.3, 13.2; docs/plans/manual-e2e.md, P7-D1). On one host the stacks talk over
+Docker's bridge networks, which stay inside the machine: that is why most aren't encrypted. Each
+is still authenticated, and a service sits only on the networks of those that call it (a stack's
+database and its other inner parts on its own network alone).
+
+| From | To | Encrypted | The caller shows | The service shows |
+| --- | --- | --- | --- | --- |
+| A browser, `gen9` on the terminal | gen9-ui, Keycloak, gen9-agent's API, on `127.0.0.1` | Behind the TLS proxy an operator puts in front (each stack's README, "Deploy on a VM"); over https the web app adds HSTS and `Secure` cookies | The session cookie; a sign-in at Keycloak; an access token | The proxy's certificate |
+| gen9-ui | gen9-agent's API | No | The person's access token (audience `gen9-agent`) | |
+| gen9-ui | Keycloak | No | Its client secret | Signed tokens, their issuer and audience checked |
+| gen9-ui | Its Valkey | No | `VALKEY_PASSWORD` | |
+| Keycloak | gen9-ui, to sign a session out | No | A signed logout token | |
+| gen9-agent's API and worker | gen9-postgres | No | A password (SCRAM-SHA-256), a role for each use | |
+| gen9-agent | Keycloak | No | Its client secret (the Admin API) | Signed tokens, their keys from Keycloak's JWKS |
+| gen9-agent | The router, the router's admin API | No | A router key; gen9-agent's own key | |
+| gen9-agent's worker | Langfuse | No | The project's keys | |
+| gen9-agent's worker | OpenSandbox's server, and through it a sandbox's execd | No | `SANDBOX_API_KEY`. execd takes no token: its ports are on `127.0.0.1`, or the bridge's gateway (gen9-sandbox/README.md) | |
+| gen9-agent, Temporal's UI | Temporal's frontend | No | A Keycloak token, whose `permissions` say what it may do | |
+| Temporal's own services | Each other | Yes: mTLS, with this stack's private CA | Its certificate | Its certificate |
+| Temporal, Temporal's UI | Keycloak | No | Temporal's UI: its client secret | Signed tokens |
+| Each stack | Its own Postgres, ClickHouse, Redis, MinIO | No | A password | |
+| The router | SearXNG, on the stack's own network | No | Nothing | |
+| The router | Model providers | Yes: TLS, certificates checked | The provider's key | A public certificate |
+| gen9-agent's worker | Connectors, MCP servers, plugin sources | Yes: https only, certificates checked; http only to a private network or a host the operator names | The person's token for that server | A public certificate |
+| A sandbox's egress sidecar | The hosts it's allowed | TLS onward, the server's certificate checked | The person's secrets, only to the hosts each is bound to | A public certificate |
+| Keycloak, gen9-agent's notices | SMTP | Mailpit: no. A real server: as it's set (gen9-agent: STARTTLS when offered, or `smtps://`) | The server's user, if it has one | |
+
+Checked: every TLS client Gen9 runs (gen9-agent's connector client, the router's Python, whose
+LiteLLM keeps `ssl_verify` on, the web app's, Keycloak's) refuses a self-signed certificate and
+one for another name; nothing in Gen9 turns the check off, and the egress sidecar only would with `OPENSANDBOX_EGRESS_MITMPROXY_SSL_INSECURE`, which
+Gen9 never sets (P7-D2).
+
+**On more than one host**, every connection above that crosses between hosts needs encryption:
+TLS on each service, or an encrypted network between the hosts (a VPN, or Docker's encrypted
+overlay network). In clear they carry passwords, router and client secrets, people's access tokens
+and their chats. Keep gen9-sandbox's host to itself: the Docker socket its server holds is that
+host's root, and execd's ports answer anyone who reaches them there. Point Keycloak at a real SMTP
+server over TLS (its realm's email settings) and gen9-agent at one with `smtps://` or STARTTLS.
+
 ## Add a stack
 
 1. Create `gen9-<name>/` with a Compose file and a README; publish ports on `127.0.0.1` in the next free block (`15000–15099`, …).
