@@ -1612,7 +1612,7 @@ the page: "Too many sign-in attempts. Wait a few minutes and try again, or reset
         <div class="out">[auth/backchannel-logout] <mark>sid</mark> logged out, 1 session(s) removed</div>
         <p>Keycloak's event: <code>LOGOUT</code> by client <code>account</code>. The other browser's next request finds no session and is sent to sign in.</p>
         <div class="where code">In the code</div>
-        <ul><li><code data-at="export async function POST" data-to="deleteSessionsBySub">gen9-ui/app/auth/backchannel-logout/route.ts:28-51</code>: verify the signature against Keycloak's keys, require the logout event and no nonce, refuse a replayed <code>jti</code> (remembered in Valkey), delete by <code>sid</code> or <code>sub</code>.</li></ul>
+        <ul><li><code data-at="export async function POST" data-to="await deleteSessionsBySub">gen9-ui/app/auth/backchannel-logout/route.ts:28-42</code> and <code>lib/auth/logout-token.ts</code>: verify the signature against Keycloak's keys, require the type <code>logout+jwt</code>, the logout event and no nonce, refuse a replayed <code>jti</code> (remembered in Valkey), delete by <code>sid</code> or <code>sub</code>.</li></ul>
       </div>
     </li>
 

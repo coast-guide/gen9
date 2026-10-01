@@ -3573,9 +3573,23 @@ Console (10.7.3).
       `azp`) unsigned, both 401.
   - Keys come only from the configured JWKS URL (`PyJWKClient`), never a token's header (9.1.3).
     The person is `sub` (10.3.3).
-- [ ] B3 The web app as a client (10.1, 10.2, 10.5): which tokens reach the browser (10.1.1),
+- [x] B3 The web app as a client (10.1, 10.2, 10.5): which tokens reach the browser (10.1.1),
   `state` and `nonce` (10.2.1, 10.5.1), the ID token's audience (10.5.4), and back-channel
   logout's checks (10.5.5).
+  - **Held, read in the code:**
+    - no token reaches the browser: the BFF keeps them in Valkey, the cookie holds a random id
+      (10.1.1);
+    - `state` bound to the browser by a cookie, and PKCE (10.2.1);
+    - `openid-client` checks the ID token's `nonce`, issuer and audience (10.5.1, 10.5.3, 10.5.4);
+    - the person is `sub` (10.5.2); only `openid profile email` asked for (10.2.3).
+  - **Fixed:** a logout token's type (10.5.5). The route checked the signature, the issuer, this
+    client as audience, its age (5 minutes), the logout event, no `nonce` and a fresh `jti`, but
+    not the `typ: logout+jwt` header that keeps another token of the realm, signed by the same
+    key, from passing as one. Keycloak 26.7.5 types its logout tokens so (`DefaultTokenManager`).
+    The check moved to `lib/auth/logout-token.ts` with `typ` required; four tests (without the
+    option the type test fails).
+  - **Live:** `stacks.mjs` 12 of 12, its admin ending a person's sessions included ("[auth/
+    backchannel-logout] sid logged out, 1 session(s) removed" in gen9-ui's log).
 
 ### P7-C. Cryptography (ASVS 5.0 V11)
 
