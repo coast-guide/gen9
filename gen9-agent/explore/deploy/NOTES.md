@@ -306,3 +306,31 @@ Compose v5.5.1, a throwaway project (an app that depends on a store, both Valkey
 
 From a pod on k3d, a container on the cluster's Docker network (`k3d-gen9`) answers at its
 container name: CoreDNS forwards to the node's resolver, Docker's.
+
+## Postgres elsewhere for gen9-keycloak, gen9-models and gen9-temporal (U5c-2)
+
+Each pinned image's own settings, read from the image or its source that day: Keycloak 26.7.5
+(`kc.sh start --help-all`) has `--db-url-host`, `-port`, `-database`, `-properties` ("appending
+the right character at the beginning"), `--db-tls-mode` (disabled, verify-server; the latter
+needs the server's certificate or CA in `--db-tls-trust-store-file`); Temporal 1.32.0's embedded
+config template (`common/config/config_template_embedded.yaml` at v1.32.0) reads `POSTGRES_SEEDS`,
+`DB_PORT`, `SQL_TLS_ENABLED`, `SQL_CA`, `SQL_HOST_VERIFICATION` (default false) for both
+databases, and admin-tools 1.32.0's `temporal-sql-tool` its own `SQL_TLS`,
+`SQL_TLS_DISABLE_HOST_VERIFICATION`, `SQL_TLS_CA_FILE`; the router's three clients take one URL:
+Prisma (LiteLLM) `sslmode` prefer, disable or require (Prisma's PostgreSQL page), psycopg libpq's.
+pgjdbc's `sslmode=require`: "In this mode we will accept all server certificates".
+
+A Postgres 16.15 container outside the stacks, TLS only (`ssl=on`, a self-signed certificate,
+`pg_hba.conf`: `hostssl … scram-sha-256`, `hostnossl … reject`; a plain connection: "pg_hba.conf
+rejects connection … no encryption"), the three roles and four databases made with the SQL in
+docs/operations.md. Keycloak with `KC_DB_URL_PROPERTIES=?sslmode=require`, the router with
+`LITELLM_DB_SSLMODE=require`, Temporal with `SQL_TLS_ENABLED=true`: every connection in
+`pg_stat_ssl` with `ssl` true (keycloak 4, litellm 4, temporal 47 and 6), Keycloak's 100 tables,
+LiteLLM's 90, Temporal's 40 and 3, `gen9_admin` made by the keys job (`CREATEROLE`), the admin
+API's budget and usage routes 200. Keycloak took `KC_DB_URL_PROPERTIES` empty (the bundled case).
+
+Moving Keycloak to an empty database makes a new realm, with new signing keys: gen9-agent's cached
+token for Temporal was then refused ("Request unauthorized", PermissionDenied) until gen9-agent
+restarted and took a new one. A recreated Keycloak also spends about 20 s trying to join the
+cluster of the container it replaced (JGroups, "too many JOIN attempts (10): becoming singleton"),
+which happens on any recreate.

@@ -123,11 +123,12 @@ was refused by `chat` at once and by `chat-backup` 59 s later; the agent then re
 
 ## Self-hosted models
 
-Models can run on this machine instead of a provider, behind the same aliases. To turn it on, add to
-`.env` and run `make up STACKS=models`:
+Models can run on this machine instead of a provider, behind the same aliases. To turn it on, add
+`local` to `COMPOSE_PROFILES` in `.env` (and the line below if you want other models), then run
+`make up STACKS=models`:
 
 ```bash
-COMPOSE_PROFILES=local                              # starts ollama and the reranker, pulls the models
+COMPOSE_PROFILES=postgres,local                     # local starts ollama and the reranker, pulls the models
 GEN9_LOCAL_MODELS=qwen3:0.6b embeddinggemma         # optional; these are the defaults
 ```
 
@@ -255,7 +256,9 @@ Why a service of Gen9's own:
 | `19000` | The router's API (OpenAI-compatible) | `GEN9_MODELS_PORT` |
 | `19001` | The admin API | `GEN9_MODELS_ADMIN_PORT` |
 
-Postgres isn't published. Use `docker compose exec postgres psql -U litellm -d litellm`.
+Postgres isn't published. Use `docker compose exec postgres psql -U litellm -d litellm`. It is a
+profile `.env`'s `COMPOSE_PROFILES` lists; another server instead, by `LITELLM_DB_HOST`:
+[docs/operations.md, "External services"](../docs/operations.md#external-services).
 
 ## Security
 

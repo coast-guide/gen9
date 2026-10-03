@@ -6,12 +6,15 @@
 # Adapted from Temporal's own Compose setup for Postgres
 # (github.com/temporalio/samples-server/tree/main/compose): a schema job, the server, a namespace job
 # and the web UI, on a Postgres that belongs to this stack alone.
+# The bundled Postgres, or another server by Temporal's own settings, with postgres left out of
+# COMPOSE_PROFILES in .env (docs/operations.md, "External services"); SQL_TLS_ENABLED=true for TLS
 x-temporal-db: &temporal-db
   DB: postgres12
-  DB_PORT: "5432"
-  POSTGRES_SEEDS: postgres
+  DB_PORT: ${DB_PORT:-5432}
+  POSTGRES_SEEDS: ${POSTGRES_SEEDS:-postgres}
   POSTGRES_USER: temporal
   POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:?run ./init-env.sh first}
+  SQL_TLS_ENABLED: ${SQL_TLS_ENABLED:-false}
 
 # Logs rotate: three files of 10 MB a container, compressed (Docker's local driver). Docker's
 # default, json-file, keeps a container's log for as long as the container lives, unbounded, with
@@ -25,6 +28,11 @@ x-logging: &logging
 services:
   postgres:
     logging: *logging
+    # Runs while .env's COMPOSE_PROFILES lists it (init-env.sh writes it so); left out, the setting
+    # in the label points Temporal at another server, and make up refuses to start without it
+    profiles: [postgres]
+    labels:
+      gen9.external: POSTGRES_SEEDS
     # Temporal supports Postgres 12 and later; its own Compose setup runs 16. Pinned as tag@digest.
     # To upgrade: docker buildx imagetools inspect postgres:<version>-trixie
     image: postgres:16.15-trixie@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
@@ -54,12 +62,16 @@ services:
     environment:
       <<: *temporal-db
       SQL_PASSWORD: ${TEMPORAL_DB_PASSWORD:?run ./init-env.sh first}
+      # temporal-sql-tool's own names for TLS: encrypted, the certificate not verified, as the server
+      SQL_TLS: ${SQL_TLS_ENABLED:-false}
+      SQL_TLS_DISABLE_HOST_VERIFICATION: "true"
     entrypoint: ["/bin/sh", "/scripts/setup-schema.sh"]
     volumes:
       - ./scripts:/scripts:ro
     depends_on:
       postgres:
         condition: service_healthy
+        required: false  # not there when POSTGRES_SEEDS names another server
     restart: "no"
 
   temporal:
