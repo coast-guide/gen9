@@ -6,8 +6,9 @@ values, per service (`services.<name>`):
   kind:      Deployment; StatefulSet (a named volume needs it); Job (a one-shot service, run at
              every install and upgrade); Init (a one-shot service another waits for, as Compose's
              service_completed_successfully: an init container of the service named in `into`);
-             or none (left out: Compose's `ready` services, which only make `up --wait` wait). A
-             service in a Compose profile is left out unless given a kind.
+             or none (left out: Compose's `ready` services, which only make `up --wait` wait; a
+             bundled store another one replaces, which its label gen9.external names the
+             setting of). A service in a Compose profile is left out unless given a kind.
   phase:     a Job's: post (default: once the rest is ready) or pre (before the rest changes:
              migrations the services wait for)
   into:      an Init's service
@@ -34,6 +35,17 @@ the names other stacks call it by).
 {{- range $name := keys $compose.services }}
 {{- if and (not (hasKey $services $name)) (not (index $compose.services $name).profiles) }}
 {{- fail (printf "compose.yaml's %s has no entry in services: give it a kind (none to leave it out)" $name) }}
+{{- end }}
+{{- end }}
+{{- /* A bundled store left out (kind none) whose label gen9.external in compose.yaml names the
+setting that points the stack at another one: refused without that setting, in settings or the
+stack's .env (docs/operations.md, "External services"), as make up refuses it on Docker */}}
+{{- $settings := include "gen9.settings" . | fromJson -}}
+{{- range $name, $svc := $compose.services }}
+{{- with index ($svc.labels | default dict) "gen9.external" }}
+{{- if and (eq (toString (index $services $name | default dict).kind) "none") (not (hasKey $settings .)) (not (has . ($root.Values.fromEnv | default list))) }}
+{{- fail (printf "%s.services.%s.kind is none, and nothing names another: set %s (in %s.settings, or gen9-%s/.env)" $root.Values.stack $name . $root.Values.stack $root.Values.stack) }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- /* A setting of this stack's that its Compose files don't read would install and do nothing:

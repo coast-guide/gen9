@@ -279,3 +279,30 @@ the API answered 200 and Keycloak 503; the rule back (`make k8s-reset`), 200 wit
 with the Gateway's connections already open, nothing changed: the policy is checked only on new
 connections. Restarting Envoy's container left it answering 503 until the Gateway was made again:
 cloud-provider-kind configures it once.
+
+## Leaving a bundled store out on Docker (U5c)
+
+Compose v5.5.1, a throwaway project (an app that depends on a store, both Valkey's image).
+
+- The store in a profile, the app's `depends_on` with `required: false`, the profile inactive:
+  `config --services` lists only the app, and `up --wait` starts it alone. With `required: true`:
+  `service "app" depends on undefined service "store": invalid compose project`.
+- `COMPOSE_PROFILES=${BUNDLED-store}` in `.env` interpolates: unset, the store runs; `BUNDLED=`
+  in the shell, it doesn't. Dify's `docker/.env.example` does the same
+  (`COMPOSE_PROFILES=${VECTOR_STORE:-weaviate},${DB_TYPE:-postgresql}`).
+- A profile from the setting, `profiles: ["${STORE_HOST:+external}"]`: unset, the profile is `""`
+  and the store ran, but only because an unset `COMPOSE_PROFILES` counts as one empty profile;
+  with `COMPOSE_PROFILES=local` (or `--profile local`) the store was left out. Not used.
+- `scale: ${STORE_SCALE:-1}` set to 0: the app started alone, but the store stays in `config
+  --services`, so every script reading the config needs a case for it. Not used.
+- A default holding a required variable, `${SESSION_STORE_URL:-redis://:${VALKEY_PASSWORD:?run
+  init}@valkey:6379/0}`: with both unset, "required variable VALKEY_PASSWORD is missing a value";
+  with `SESSION_STORE_URL` set, its value, and `VALKEY_PASSWORD` isn't needed.
+- `docker compose config --environment` prints every variable it interpolates with, values
+  included (the shell's and `.env`'s): read it only to test, never print it.
+- `docker compose config SERVICE` prints the service and its dependencies, so a label read from it
+  may be a dependency's (gen9-ui's `dev` showed `valkey`'s): `make up`'s check reads the label from
+  the Compose files themselves.
+
+From a pod on k3d, a container on the cluster's Docker network (`k3d-gen9`) answers at its
+container name: CoreDNS forwards to the node's resolver, Docker's.

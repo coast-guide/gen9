@@ -61,6 +61,32 @@ rm -rf "$packed"
 if [ "$from_lock" -ge 3 ]; then echo "a release's chart: its images from its packed lock"; else
   echo "a release's chart doesn't take its images from its packed lock ($from_lock of 3)"; status=1; fi
 
+# A bundled store left out (kind: none) is refused unless the setting its label gen9.external names
+# is given, and with it renders without the store (docs/operations.md, "External services")
+# shellcheck disable=SC2016,SC2086 # Python, in single quotes on purpose; images, a list of flags
+for pair in $(python3 -c '
+import glob, re
+for f in sorted(glob.glob("gen9-*/compose*.yaml")):
+    service = None
+    for line in open(f):
+        m = re.match(r"^  ([a-z][a-z0-9-]*):\s*$", line)
+        if m: service = m.group(1)
+        m = re.match(r"^\s+gen9\.external: *([A-Z0-9_]+)", line)
+        if m and service: print("%s/%s/%s" % (f.split("/")[0], service, m.group(1)))
+'); do
+  stack=${pair%%/*}; rest=${pair#*/}; store=${rest%%/*}; setting=${rest#*/}; key=${stack#gen9-}
+  if helm template check "$stack/chart" -f deploy/values.yaml $images --set "$key.services.$store.kind=none" >/dev/null 2>&1; then
+    echo "$stack: $store left out with no $setting wasn't refused"; status=1
+  elif ! out=$(helm template check "$stack/chart" -f deploy/values.yaml $images --set "$key.services.$store.kind=none" \
+    --set "$key.settings.$setting=elsewhere" 2>/dev/null); then
+    echo "$stack: $store left out with $setting set doesn't render"; status=1
+  elif printf '%s\n' "$out" | grep -q "^  name: $store$"; then
+    echo "$stack: $store left out with $setting set still renders it"; status=1
+  else
+    echo "$stack: $store elsewhere when $setting is set, refused without it"
+  fi
+done
+
 # The hosts people reach Gen9 by, the same in both shapes: gen9-edge's sites (Docker) and the
 # charts' public services (Kubernetes' routes)
 # shellcheck disable=SC2016 # Python, in single quotes on purpose

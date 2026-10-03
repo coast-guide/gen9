@@ -130,8 +130,9 @@ async def stack_drift(stack: str, env: dict) -> list[tuple[str, str]] | None:
         one_shot = spec.get("restart") == "no"
         if not one_shot and c["State"]["Status"] != "running":
             problems.append((service, f"{c['State']['Status']}, not running"))
-    for service, spec in config["services"].items():
-        if service not in seen and not spec.get("profiles"):
+    # Every service Compose would start, those of the profiles .env lists too (a bundled store)
+    for service in config["services"]:
+        if service not in seen:
             problems.append((service, "declared, no container"))
     return problems
 

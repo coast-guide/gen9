@@ -401,7 +401,51 @@ What the owner asked, restated before starting (they went on to "start the loop"
       `DOMAIN=localhost` stopped before unsetting it; setup's preflight now leaves the optional
       stacks out (`make up` checks their ports once they run).
   - [ ] U5c External services: which settings point a stack at its own Postgres, Valkey,
-    ClickHouse or S3 elsewhere, and how the bundled one is left out, in both shapes.
+    ClickHouse or S3 elsewhere, and how the bundled one is left out, in both shapes. How, decided
+    2026-10-03 (Decision Log, U5c): on Docker each bundled store is a Compose profile named after
+    it, which the stack's `.env` lists in `COMPOSE_PROFILES`, and what uses it depends on it with
+    `required: false`; on Kubernetes `<stack>.services.<store>.kind: none`; in both, the one
+    setting that points the stack elsewhere has the same name, in `.env` (a secret) or `settings`,
+    and the store's label `gen9.external` names it, so `make up` and the chart refuse a store left
+    out with nothing in its place. In four units:
+    - [x] U5c-1 The way, on gen9-ui's Valkey (`SESSION_STORE_URL`): its profile, `init-env.sh`
+      writing `COMPOSE_PROFILES`, `make setup` adding it to an older `.env`, the check in `make
+      up`'s preflight and in the library, the docs (operations.md "External services", gen9-ui's
+      README, gen9-learn). Verified: gen9-ui on a Valkey outside its stack, on Docker and on k3d, a
+      sign-in kept there (its keys in that Valkey), no bundled Valkey running; a store left out with
+      no setting refused by each; then back to the bundled one, `make diff` 0.
+      Done 2026-10-03. Built: gen9-ui's `valkey` in the profile `valkey` with the label
+      `gen9.external: SESSION_STORE_URL`, `prod` and `dev` depending on it with `required: false`,
+      `SESSION_STORE_URL` a setting whose default is the bundled one's; `init-env.sh` writes
+      `COMPOSE_PROFILES=valkey`; `make setup` adds the store to an `.env` that has neither it nor
+      its setting (`bundled` in `scripts/setup.sh`); `scripts/doctor.sh` refuses a store left out
+      with its setting empty, from Compose's own services and environment (not in `make setup`'s
+      preflight, `--before-setup`, since setup writes it); the library refuses `kind: none` without
+      the setting, and `scripts/check-charts.sh` checks that for every labelled store; `make diff`
+      now also names a missing container of a service in an active profile (it skipped every
+      profiled service). Verified on Docker, this install's own `.env` (no `COMPOSE_PROFILES`):
+      `make diff` exit 2, "gen9-ui-valkey-1: not a service of gen9-ui's Compose file"; `make up`
+      refused, "gen9-ui leaves out its valkey … SESSION_STORE_URL names no other"; `make setup`
+      added the line (twice: one line), `make up`, `make diff` 0. Then a Valkey container outside
+      the stack (`host.docker.internal:26379`), `COMPOSE_PROFILES=` and `SESSION_STORE_URL` in
+      `.env`: `make up`, `make diff` named the old Valkey, `make reset` removed it, 0;
+      `stacks.mjs` all passed (sign-in, chat, back-channel logout), the outside Valkey holding
+      `gen9:auth-txn`, `gen9:logout-jti` and `gen9:session-by-sub` keys. On k3d (Traefik's
+      Gateway, `gen9.localhost`): `ui.services.valkey.kind: none` alone, "UPGRADE FAILED …
+      ui.services.valkey.kind is none, and nothing names another: set SESSION_STORE_URL", still
+      revision 2; with `SESSION_STORE_URL` in `.env` (the Secret `env`; the Valkey on the k3d
+      network, by container name), revision 3, no StatefulSet, the PVC kept, `stacks.mjs` all
+      passed, the same three keys in the outside Valkey; `make k8s-diff` 0. Both back on the
+      bundled Valkey (k3d's on its old PVC), `make diff` 0 on every Docker stack, `make k8s-diff`
+      0 for gen9-ui. Four model calls in all, $0.001454.
+    - [ ] U5c-2 The Postgres of gen9-keycloak, gen9-models and gen9-temporal: each one's own
+      settings (Keycloak's `KC_DB_URL`, LiteLLM's database URL, Temporal's `POSTGRES_SEEDS`), TLS
+      to the server, and what its owner creates there first (the database and role; Temporal's two
+      databases).
+    - [ ] U5c-3 gen9-postgres, gen9-agent's database: the host gen9-agent and gen9-postgres's
+      `extensions` and `roles` reach, so those run against the outside server too; what that
+      server needs (pgvector, pg_textsearch).
+    - [ ] U5c-4 Langfuse's Postgres, Redis, ClickHouse and S3, by Langfuse's own variables.
 - [ ] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd
   images, its limits and closed network as on Docker; a chat's command runs in a pod.
   - [x] Choose the workload provider from evidence: OpenSandbox's own `BatchSandbox` (its CRDs
@@ -1066,6 +1110,31 @@ OpenSandbox `docs/guides/secure-container.md` and `manifests/charts` at `release
   Found for it meanwhile: Compose's `depends_on` takes `required: false` ("Compose only warns you
   when the dependency service isn't started", since v2.20.0), which lets a stack leave a bundled
   store out on Docker, as `kind: none` does in a chart.
+
+- Decision (U5c, how a stack uses a store elsewhere, 2026-10-03): on Docker, each bundled store is a
+  Compose profile named after the service, listed in the stack's `.env` as `COMPOSE_PROFILES`
+  (`init-env.sh` writes it, `make setup` adds it to an older `.env`), and every service using it
+  depends on it with `required: false`; on Kubernetes, `<stack>.services.<store>.kind: none`, the
+  library's way to leave out a service, in the values file where the cluster's workloads are
+  sized. The setting that points the stack elsewhere has the same name in both, in `.env` (a
+  secret; on Kubernetes the Secret `env`) or `settings`, and the store's label `gen9.external`
+  names it: `make up`'s preflight and the chart refuse a store left out with nothing in its place.
+  Evidence: Compose's reference, "When set to `false` Compose only warns you when the dependency
+  service isn't started or available … Introduced in Docker Compose version 2.20.0", and its
+  profiles guide, "Services without a `profiles` attribute are always enabled". Probed with
+  Compose v5.5.1 (explore/deploy, a throwaway project): a store in an inactive profile with
+  `required: false`, `up --wait` started the app alone; with `required: true`, "service "app"
+  depends on undefined service "store": invalid compose project"; `COMPOSE_PROFILES=${X-store}` in
+  `.env` interpolates. Dify does the same in its own Compose setup
+  (`COMPOSE_PROFILES=${VECTOR_STORE:-weaviate},${DB_TYPE:-postgresql}` in `docker/.env.example`).
+  Langfuse's chart leaves a store out with `<store>.deploy: false`, as `kind: none` does here.
+  Rejected: a profile interpolated from the setting (`profiles: ["${X:+external}"]`), which left the
+  store in only by accident (an unset `COMPOSE_PROFILES` counts as one empty profile, so with
+  `COMPOSE_PROFILES=local` the store was left out too); `scale: ${X:-1}`, which works, but the
+  service stays in `docker compose config`, so `make diff`, the port checks and the forwards of
+  `make k8s-e2e` would each need a case for it. Also probed: a default that holds a required
+  variable, `${SESSION_STORE_URL:-redis://:${VALKEY_PASSWORD:?…}@valkey:6379/0}`, needs
+  `VALKEY_PASSWORD` only when `SESSION_STORE_URL` is unset.
 
 ## Outcomes & Retrospective
 

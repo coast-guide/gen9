@@ -54,6 +54,19 @@ unset_env() {
   mv -f "$tmp" "$file"
 }
 
+# A bundled store (a Compose profile named after its service) in FILE's COMPOSE_PROFILES, as
+# init-env.sh writes it, unless FILE's SETTING points the stack at another one (docs/operations.md,
+# "External services"): an .env from before the stores were profiles gets it, other profiles kept
+bundled() {
+  local file=$1 store=$2 setting=$3 profiles
+  [ -f "$file" ] || return 0
+  ! grep -Eq "^$setting=.+" "$file" || return 0
+  profiles=$(sed -n 's/^COMPOSE_PROFILES=//p' "$file" | tail -n 1)
+  case ",$profiles," in *",$store,"*) return 0 ;; esac
+  set_env "$file" COMPOSE_PROFILES "${profiles:+$profiles,}$store"
+  echo "  $file: COMPOSE_PROFILES now lists $store, the bundled one ($setting names no other)"
+}
+
 # No usable OpenAI key in gen9-agent/.env: missing, empty, or sample.env's placeholder
 # A provider key for gen9-models: from the environment (scripts and CI), else asked for when
 # there is a terminal (hidden, Enter skips), else left for you to add. The value is never printed
@@ -272,7 +285,7 @@ fi
 
 if selected ui; then
   echo "gen9-ui"
-  if [ -f gen9-ui/.env ]; then kept gen9-ui/.env; else gen9-ui/init-env.sh; fi
+  if [ -f gen9-ui/.env ]; then kept gen9-ui/.env; bundled gen9-ui/.env valkey SESSION_STORE_URL; else gen9-ui/init-env.sh; fi
 fi
 
 if selected edge && [ -z "${DOMAIN:-}" ]; then
