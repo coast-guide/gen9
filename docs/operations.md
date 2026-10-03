@@ -139,7 +139,7 @@ stack's NetworkPolicy lets in only the stacks that call it.
 Settings: `deploy/values.yaml`, or your own file as `K8S_VALUES=<file>`. A setting Compose reads
 as `${X:-default}` is `settings.X` there for every stack, or `<stack>.settings.X` for one; a
 stack's sizes go under its services (`keycloak: {services: {postgres: {storage: {postgres_data:
-50Gi}}}}`). A key the charts don't know fails the install, with its path. Secrets: each stack's
+50Gi}}}}`). A key the charts don't know fails the install, with its path, and so does a setting no stack's Compose files read (`settings.X` is checked across every stack, `<stack>.settings.X` against that stack's): one misspelt would otherwise install and do nothing. Every setting, with its default, is in gen9-learn's Reference, "Settings". Secrets: each stack's
 settings files from `make setup` become Secrets in its namespace (`.env` the Secret `env`,
 `keycloak.local.env` the Secret `keycloak-local-env`), applied server-side so no copy of a value
 lands in an annotation.

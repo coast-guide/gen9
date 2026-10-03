@@ -98,11 +98,14 @@ for (const stack of stacks) {
   }
 }
 report("Settings files' keys", names(envKeys), (n) => page.includes(`<code>${n}</code>`));
-// …and what each of Gen9's own Compose files reads from its .env, with a default (${VAR:-…});
-// gen9-langfuse's docker-compose.yml is Langfuse's, documented by Langfuse
+// …and what each of Gen9's own Compose files reads from its .env, with a default (${VAR:-…}): each
+// stack's compose.yaml, and gen9-langfuse's compose.override.yaml; its docker-compose.yml is
+// Langfuse's, documented by Langfuse
 const composeVars = [];
-for (const stack of stacks.filter((s) => readdirSync(`${ROOT}${s}`).includes("compose.yaml"))) {
-  for (const m of readFileSync(`${ROOT}${stack}/compose.yaml`, "utf8").matchAll(/\$\{([A-Z][A-Z0-9_]*)/g)) composeVars.push(m[1]);
+for (const stack of stacks) {
+  for (const file of readdirSync(`${ROOT}${stack}`).filter((f) => f === "compose.yaml" || f === "compose.override.yaml")) {
+    for (const m of readFileSync(`${ROOT}${stack}/${file}`, "utf8").matchAll(/\$\{([A-Z][A-Z0-9_]*)/g)) composeVars.push(m[1]);
+  }
 }
 report("Compose files' settings", names(composeVars), (n) => page.includes(`<code>${n}</code>`));
 

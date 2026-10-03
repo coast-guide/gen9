@@ -50,6 +50,27 @@ from_env() {
   printf '[%s]' "$(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=..*/"\1"/p' "gen9-$1/.env" | paste -sd, -)"
 }
 
+# The shared settings (the values file's settings.X) each read by some stack's Compose files: one
+# that none reads would install and do nothing. Helm reads the values file (a throwaway chart that
+# prints the keys); a stack's own settings its chart checks
+check_settings() {
+  chart=$(mktemp -d)
+  mkdir "$chart/templates"
+  printf 'apiVersion: v2\nname: gen9-settings\nversion: 0.0.0\n' > "$chart/Chart.yaml"
+  cat > "$chart/templates/keys.yaml" <<'TEMPLATE'
+{{ range keys (.Values.settings | default dict) }}# {{ . }}
+{{ end }}
+TEMPLATE
+  keys=$(helm template s "$chart" -f "$values" | sed -n 's/^# \([A-Za-z_][A-Za-z0-9_]*\)$/\1/p')
+  rm -rf "$chart"
+  unread=""
+  for key in $keys; do
+    grep -qE "\\\$\\{?$key([^A-Za-z0-9_]|\$)" gen9-*/compose.yaml gen9-*/compose.override.yaml gen9-langfuse/docker-compose.yml ||
+      unread="$unread $key"
+  done
+  [ -z "$unread" ] || { for key in $unread; do echo "settings.$key: no stack's Compose files read $key" >&2; done; exit 2; }
+}
+
 # The stack's settings files as Secrets: name, then file
 secrets() {
   for f in "gen9-$1/.env" "gen9-$1"/*.local.env; do
@@ -95,6 +116,7 @@ put_secrets() {
 
 case "$action" in
   up|reset)
+    check_settings
     set_images=$(images)
     for s in "$@"; do
       ns="gen9-$s"
@@ -110,6 +132,7 @@ case "$action" in
         $set_images --set-json "fromEnv=$(from_env "$s")" $how --wait --timeout 15m
     done ;;
   diff)
+    check_settings
     set_images=$(images)
     drift=0
     for s in "$@"; do

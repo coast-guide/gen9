@@ -122,9 +122,10 @@ What the owner asked, restated before starting (they went on to "start the loop"
     frontend that knows `source.git.checksum`"; then run 36871669043).
   - [ ] After the owner merges: the run on `main` pushes, signs and attests;
     `gh attestation verify` on each.
-- [ ] U1b Langfuse's S3 store: MinIO's repository is archived ("THIS REPOSITORY IS NO LONGER
+- [x] U1b Langfuse's S3 store: MinIO's repository is archived ("THIS REPOSITORY IS NO LONGER
   MAINTAINED"); choose a maintained store for both shapes (SeaweedFS, which Langfuse's chart
-  bundles, or another), or keep Chainguard's build knowingly; any S3 stays a setting.
+  bundles, or another), or keep Chainguard's build knowingly; any S3 stays a setting. Decided
+  2026-10-03: Chainguard's build, knowingly (Decision Log, U1b).
 - [ ] U2 Docker from published images: one command deploys a version (or the lock) on any host
   with Docker, pulling by digest, building nothing; the settings in one place.
   - [x] Probe: a service with `image: ${VAR:-local tag}` and `build:`, given a digest reference,
@@ -266,6 +267,30 @@ What the owner asked, restated before starting (they went on to "start the loop"
     Reference already checks gen9-agent's settings and every settings file's keys
     (`reference.mjs`). To decide: one reference from Compose's own list, checked like the
     Reference, rather than a second copy.
+  - Found 2026-10-03: gen9-learn's Reference, "Settings", already has every settings file's key
+    (checked by `reference.mjs`) and "What each `compose.yaml` reads, with its default", which
+    nothing checks against what Compose reads. On Kubernetes `settings` is a free map: a misspelt
+    key installs and is ignored. Split in three units:
+  - [x] U5a One list, checked, and unknown settings refused: `reference.mjs` checks every variable
+    each stack's Compose files read (`docker compose config --variables`) is on the page, but
+    those of Langfuse's own file, which Langfuse documents; the chart refuses a
+    `<stack>.settings` key its stack's Compose files don't read, and `make k8s-up` a shared
+    `settings` key no stack reads. Verify: a misspelt key refused by each, naming it.
+    Built: `reference.mjs` already checked each `compose.yaml`'s `${X}`; it now reads Gen9's
+    `compose.override.yaml` too (gen9-langfuse has no `compose.yaml`), which found one name
+    missing, `MINIO_ROOT_USER`, now on the page (87 settings, "the page names everything", with
+    the Docker stacks up). The library refuses a stack's own key its Compose files don't read
+    (`$$` aside); `scripts/k8s.sh` refuses a shared one no stack's Compose files read, Langfuse's
+    own file included (its `LANGFUSE_S3_*` point it at another S3), before touching the cluster:
+    Helm reads the values file through a throwaway chart printing the keys. Verified: `make
+    k8s-up` with `ui.settings.VALKEY_MAXMEMRY` on k3d, "UPGRADE FAILED … gen9-ui's Compose files
+    don't read VALKEY_MAXMEMRY", the release still at revision 1; `settings.GEN9_UI_ULR` beside
+    three real keys, exit 2 naming it alone; `make k8s-diff` 0 on k3d with the new template.
+  - [ ] U5b Reaching Gen9 from outside, a domain and TLS: on Docker the stacks publish on
+    127.0.0.1; on Kubernetes, Gateway API routes (Decision Log), the addresses the stacks give
+    browsers (`GEN9_UI_URL`, `KC_HOSTNAME`, …) from one domain.
+  - [ ] U5c External services: which settings point a stack at its own Postgres, Valkey,
+    ClickHouse or S3 elsewhere, and how the bundled one is left out, in both shapes.
 - [ ] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd
   images, its limits and closed network as on Docker; a chat's command runs in a pod.
   - [x] Choose the workload provider from evidence: OpenSandbox's own `BatchSandbox` (its CRDs
@@ -790,7 +815,7 @@ prerequisite, else from Gen9's own templates; each data store can instead be an 
 | PostgreSQL 18 (Gen9's image with pgvector), 16 and 17 | The official image (init scripts in `docker-entrypoint-initdb.d`); for Kubernetes, CloudNativePG 1.30 (images `ghcr.io/cloudnative-pg/postgresql`, extensions through image volumes or its standard images) | StatefulSets of the same images; CloudNativePG or a managed Postgres as external |
 | Valkey 9.1.2, Redis 7.4 | valkey-helm (official): `valkey` "Standalone / replication without operator", image `valkey/valkey` | Own small StatefulSets, or the `valkey` chart if its values take Gen9's settings (U3) |
 | ClickHouse 26.8 | ClickHouse's own operator is `v1alpha1` and needs cert-manager; Altinity's operator (0.27.4) is the long-standing one | One StatefulSet of the official image, as in Docker; a ClickHouse cluster as external |
-| MinIO (Chainguard's build) | `minio/minio` is archived: "THIS REPOSITORY IS NO LONGER MAINTAINED", pointing at AIStor; Langfuse's own Compose file still uses `cgr.dev/chainguard/minio` | U1b |
+| MinIO (Chainguard's build) | `minio/minio` is archived: "THIS REPOSITORY IS NO LONGER MAINTAINED", pointing at AIStor; Langfuse's own Compose file still uses `cgr.dev/chainguard/minio`, built from `chainguard-forks/minio`, which Chainguard keeps up with security fixes | U1b: kept (Decision Log) |
 | SearXNG, Mailpit, Ollama, llama.cpp | Container images and Compose only; no Kubernetes guidance. Mailpit is an email testing tool; Ollama and llama.cpp have GPU image variants | Own Deployments; SMTP is a setting (Mailpit only when none is set); local models optional, GPUs a setting |
 
 Sources: [Keycloak Operator installation](https://www.keycloak.org/operator/installation),
@@ -824,6 +849,23 @@ OpenSandbox `docs/guides/secure-container.md` and `manifests/charts` at `release
   take up to six more misses each, answered from CoreDNS's cache once seen. Sources: Kubernetes'
   "DNS for Services and Pods" (`searches` "merged into the base search domain names", "up to 32
   search domains", stable since 1.28); probed on kind (explore/deploy/NOTES.md, U3).
+
+- Decision (U1b, 2026-10-03): gen9-langfuse keeps Chainguard's MinIO, in both shapes, from the
+  same Compose file. Evidence, read that day: `minio/minio` archived (last release
+  RELEASE.2025-10-15T17-29-55Z, last push 2026-04-24). Gen9's pinned image reports
+  `RELEASE.2026-09-22T19-25-18Z`, commit df34868a, built from `chainguard-forks/minio` (Wolfi's
+  `minio.yaml`), "a supported replacement of the original minio repository" whose README
+  promises "a best-effort attempt to address publicly known security vulnerabilities"; its log
+  has CVE-2026-41145, -33814, -33322 and -40344 fixed (May to June 2026) and dependencies moved
+  to fixed versions in September; Chainguard rebuilds the image daily (latest 2026-10-02).
+  Langfuse's own `docker-compose.yml` on `main` still runs `cgr.dev/chainguard/minio`; only its
+  Helm chart (langfuse-2.1.3) bundles SeaweedFS, and says to use an external store in
+  production. The alternative, SeaweedFS 4.48 (2026-09-28, Apache-2.0), supports the lifecycle
+  rule `minio-lifecycle` sets (`PutBucketLifecycleConfiguration`, no transitions): to switch is a
+  probe of Langfuse's uploads, media and expiry against it, and moving existing data. Revisit when
+  Langfuse's Compose file moves off MinIO, when a published MinIO vulnerability goes unfixed in
+  the fork for weeks, or when Chainguard stops publishing the image. Production: any S3, by the
+  settings Langfuse reads (`LANGFUSE_S3_*`, U5).
 
 ## Outcomes & Retrospective
 

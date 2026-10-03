@@ -36,6 +36,17 @@ the names other stacks call it by).
 {{- fail (printf "compose.yaml's %s has no entry in services: give it a kind (none to leave it out)" $name) }}
 {{- end }}
 {{- end }}
+{{- /* A setting of this stack's that its Compose files don't read would install and do nothing:
+refused, naming it. What they read: each ${X…} or $X ($$, a literal dollar, aside). The shared
+settings are checked across every stack by scripts/k8s.sh */}}
+{{- $text := regexReplaceAll "\\$\\$" (cat (.Files.Get "compose.yaml") (.Files.Get "compose.override.yaml")) "" -}}
+{{- $read := dict -}}
+{{- range regexFindAll "\\$\\{?[A-Za-z_][A-Za-z0-9_]*" $text -1 }}{{ $_ := set $read (regexReplaceAll "^\\$\\{?" . "") true }}{{ end -}}
+{{- range $key, $_ := (index .Values .Values.stack | default dict).settings | default dict }}
+{{- if not (hasKey $read $key) }}
+{{- fail (printf "%s.settings.%s: gen9-%s's Compose files don't read %s (a key its services read from a settings file goes in that file, gen9-%s/.env or a *.local.env, which make k8s-up makes a Secret)" $root.Values.stack $key $root.Values.stack $key $root.Values.stack) }}
+{{- end }}
+{{- end }}
 {{- /* Files bind-mounted from the stack's folder: one ConfigMap each */}}
 {{- $files := dict -}}
 {{- range $name := keys $services | sortAlpha }}
