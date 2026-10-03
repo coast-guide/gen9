@@ -54,7 +54,7 @@ generated() {
     sandbox) echo gen9-sandbox/.env gen9-agent/sandbox.local.env ;;
     temporal) echo gen9-temporal/.env gen9-temporal/tls.local.env ;;
     models) echo gen9-models/.env gen9-agent/models.local.env gen9-agent/models-api.local.env gen9-agent/models-evals.local.env ;;
-    edge) echo gen9-edge/.env ;;
+    edge) echo gen9-edge/.env gen9-keycloak/edge.local.env ;;
   esac
 }
 

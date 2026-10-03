@@ -164,7 +164,7 @@ services:
     image: temporalio/ui:2.54.1@sha256:ff0943fe532b8e33c46cd28b29e81e0ce0b6f55b9ee50a38ef1b437cc4de3fa5
     labels:  # where to open it; the root Makefile lists these after make up
       gen9.name: Temporal (workflows)
-      gen9.url: http://localhost:${GEN9_TEMPORAL_UI_PORT:-18000}/namespaces/gen9/workflows
+      gen9.url: ${GEN9_TEMPORAL_UI_URL:-http://localhost:${GEN9_TEMPORAL_UI_PORT:-18000}}/namespaces/gen9/workflows
     env_file:
       - path: keycloak.local.env  # TEMPORAL_AUTH_ISSUER_URL, _CLIENT_ID, _CLIENT_SECRET (make setup)
     environment:
@@ -177,7 +177,8 @@ services:
       # access token goes with every call, and only Gen9 admins hold a role on the namespace.
       TEMPORAL_AUTH_ENABLED: "true"
       TEMPORAL_AUTH_PROVIDER_URL: http://gen9-keycloak:8080/realms/gen9
-      TEMPORAL_AUTH_CALLBACK_URL: http://localhost:${GEN9_TEMPORAL_UI_PORT:-18000}/auth/sso/callback
+      # Where browsers reach the UI: its port here, or its host under the domain (make setup DOMAIN=…)
+      TEMPORAL_AUTH_CALLBACK_URL: ${GEN9_TEMPORAL_UI_URL:-http://localhost:${GEN9_TEMPORAL_UI_PORT:-18000}}/auth/sso/callback
       TEMPORAL_AUTH_SCOPES: openid,profile,email
       TEMPORAL_AUTH_LABEL: Gen9
       # gen9-agent decrypts payloads for the UI, for admins only (the user's token goes along)

@@ -71,7 +71,7 @@ services:
     image: ${GEN9_AGENT_IMAGE:-gen9-agent:dev}
     labels:  # where to open it; the root Makefile lists these after make up
       gen9.name: Agent API docs
-      gen9.url: http://localhost:${GEN9_AGENT_PORT:-17000}/docs
+      gen9.url: ${GEN9_API_PUBLIC_URL:-http://localhost:${GEN9_AGENT_PORT:-17000}}/docs
     depends_on:
       migrate:
         condition: service_completed_successfully

@@ -6,8 +6,10 @@
 #
 #   scripts/setup.sh [STACK...]      default: postgres keycloak langfuse temporal models sandbox agent ui edge
 #
-# gen9-edge is optional: DOMAIN=gen9.example.com sets it up to serve Gen9 under that domain over
-# TLS, EDGE_TLS its certificate (`internal`, Caddy's own CA, the default; or an email, for Let's Encrypt).
+# DOMAIN=gen9.example.com serves Gen9 under that domain, over TLS: gen9-edge set up (optional
+# otherwise), EDGE_TLS its certificate (`internal`, Caddy's own CA, the default; or an email, for
+# Let's Encrypt), and every address browsers and terminals use, in each stack's settings files,
+# one host per service under it (gen9-edge/README.md). DOMAIN=localhost goes back to the ports.
 #
 # gen9-langfuse's first user comes from LANGFUSE_EMAIL and LANGFUSE_NAME, or is asked for. Its
 # project keys go to gen9-agent/langfuse.local.env, which gen9-agent reads before its .env.
@@ -273,17 +275,71 @@ if selected ui; then
   if [ -f gen9-ui/.env ]; then kept gen9-ui/.env; else gen9-ui/init-env.sh; fi
 fi
 
-if selected edge; then
+if selected edge && [ -z "${DOMAIN:-}" ]; then
   echo "gen9-edge"
-  if [ -n "${DOMAIN:-}" ]; then
-    [ -f gen9-edge/.env ] || (umask 077 && : >gen9-edge/.env)
-    set_env gen9-edge/.env GEN9_DOMAIN "$DOMAIN"
-    [ -z "${EDGE_TLS:-}" ] || set_env gen9-edge/.env GEN9_EDGE_TLS "$EDGE_TLS"
-    echo "  serves Gen9 under $DOMAIN (gen9-edge/.env)"
-  elif [ -f gen9-edge/.env ]; then
+  if [ -f gen9-edge/.env ]; then
     kept gen9-edge/.env
   else
     echo "  optional, left out: make setup DOMAIN=<domain> serves Gen9 under it, over TLS"
+  fi
+fi
+
+# A value of FILE's KEY (a port: never a secret), or DEFAULT
+value_of() { local v; v=$(sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -n 1); echo "${v:-$3}"; }
+# KEY=VALUE in FILE, if FILE exists (a stack not set up yet gets it from its own setup later)
+set_if_there() { if [ -f "$1" ]; then set_env "$1" "$2" "$3"; fi; }
+
+# Every address browsers and terminals reach Gen9 by, in each stack's settings files: under the
+# domain, one host per service, as gen9-edge serves them; for localhost, each stack's own port.
+# Containers call each other inside and keep their addresses
+public_addresses() {
+  local ui id api traces media temporal apps
+  if [ "$1" = localhost ]; then
+    ui="http://localhost:$(value_of gen9-ui/.env GEN9_UI_PORT 14000)"
+    id="http://localhost:$(value_of gen9-keycloak/.env KEYCLOAK_PORT 15000)"
+    api="http://localhost:$(value_of gen9-agent/.env GEN9_AGENT_PORT 17000)"
+    traces="http://localhost:$(value_of gen9-langfuse/.env LANGFUSE_PORT 13000)"
+    media="http://localhost:$(value_of gen9-langfuse/.env LANGFUSE_MEDIA_PORT 13001)"
+    temporal="http://localhost:$(value_of gen9-temporal/.env GEN9_TEMPORAL_UI_PORT 18000)"
+    apps="http://{id}.apps.localhost:$(value_of gen9-ui/.env GEN9_UI_SANDBOX_PORT 14003)"
+  else
+    ui="https://$1" id="https://id.$1" api="https://api.$1" traces="https://traces.$1"
+    media="https://traces-media.$1" temporal="https://temporal.$1" apps="https://{id}.apps.$1"
+  fi
+  set_if_there gen9-keycloak/.env KC_HOSTNAME "$id"
+  set_if_there gen9-keycloak/.env GEN9_UI_URL "$ui"
+  set_if_there gen9-keycloak/.env GEN9_TEMPORAL_UI_URL "$temporal"
+  set_if_there gen9-keycloak/.env GEN9_MCP_URL "$api/mcp"
+  set_if_there gen9-keycloak/.env GEN9_A2A_URL "$api/a2a"
+  set_if_there gen9-ui/keycloak.local.env KEYCLOAK_ISSUER "$id/realms/gen9"
+  set_if_there gen9-agent/keycloak.local.env KEYCLOAK_ISSUER "$id/realms/gen9"
+  set_if_there gen9-temporal/keycloak.local.env TEMPORAL_AUTH_ISSUER_URL "$id/realms/gen9"
+  set_if_there gen9-ui/.env GEN9_UI_URL "$ui"
+  set_if_there gen9-ui/.env MCP_APPS_SANDBOX_URL "$apps"
+  set_if_there gen9-agent/.env GEN9_UI_URL "$ui"
+  set_if_there gen9-agent/.env GEN9_API_PUBLIC_URL "$api"
+  set_if_there gen9-agent/.env TEMPORAL_UI_URL "$temporal"
+  set_if_there gen9-langfuse/.env NEXTAUTH_URL "$traces"
+  set_if_there gen9-langfuse/.env LANGFUSE_MEDIA_PUBLIC_URL "$media"
+  set_if_there gen9-langfuse/.env LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT "$media"
+  set_if_there gen9-temporal/.env GEN9_TEMPORAL_UI_URL "$temporal"
+  set_if_there gen9-temporal/.env GEN9_TEMPORAL_CODEC_URL "$api/v1/temporal/codec"
+}
+
+if [ -n "${DOMAIN:-}" ]; then
+  echo "gen9-edge"
+  if [ "$DOMAIN" = localhost ]; then
+    public_addresses localhost
+    rm -f gen9-edge/.env gen9-keycloak/edge.local.env
+    echo "  every address back on this machine's ports; gen9-edge no longer set up (make down STACKS=edge stops it)"
+  else
+    [ -f gen9-edge/.env ] || (umask 077 && : >gen9-edge/.env)
+    set_env gen9-edge/.env GEN9_DOMAIN "$DOMAIN"
+    [ -z "${EDGE_TLS:-}" ] || set_env gen9-edge/.env GEN9_EDGE_TLS "$EDGE_TLS"
+    # Keycloak behind the edge reads its forwarded headers (gen9-keycloak/compose.yaml)
+    (umask 077 && printf 'KC_PROXY_HEADERS=xforwarded\n' >gen9-keycloak/edge.local.env)
+    public_addresses "$DOMAIN"
+    echo "  Gen9 under $DOMAIN: every address in the stacks' settings files, one host per service (gen9-edge/README.md)"
   fi
 fi
 

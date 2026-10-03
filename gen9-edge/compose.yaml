@@ -14,9 +14,6 @@ services:
   edge:
     logging: *logging
     image: caddy:2.11.6@sha256:907efba736324e43f891ccb9d760fe5abe545e313419b3d18d63d4ec670dad8d
-    labels:  # where to open it; the root Makefile lists these after make up
-      gen9.name: Gen9, under its domain
-      gen9.url: https://${GEN9_DOMAIN:-gen9.localhost}
     environment:
       # make setup DOMAIN=… writes it; gen9.localhost resolves to this machine without DNS
       GEN9_DOMAIN: ${GEN9_DOMAIN:-gen9.localhost}
