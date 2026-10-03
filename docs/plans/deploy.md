@@ -344,10 +344,23 @@ What the owner asked, restated before starting (they went on to "start the loop"
       and with the root `docker compose cp` hands out, curl verified the certificates;
       not set up, `make up` noted it and `make config` passed; setup with and without `DOMAIN`;
       `make diff` "as declared"; the wipe listing; gen9-learn's checks.
-    - [ ] U5b-2 `make setup DOMAIN=…`: every public address written from it (the web app, the
+    - [x] U5b-2 `make setup DOMAIN=…`: every public address written from it (the web app, the
       issuer and the `*.local.env` that carry it, Keycloak's redirect addresses, Langfuse and its
       media, Temporal's UI and the codec, the API, the apps' sandbox); localhost ports stay the
       default.
+      Built 2026-10-03: `scripts/setup.sh`'s `public_addresses`, into each settings file that
+      exists (eighteen keys over eight files); Temporal's UI takes its sign-in callback from
+      `GEN9_TEMPORAL_UI_URL`; `gen9-keycloak/edge.local.env` (`KC_PROXY_HEADERS=xforwarded`, an
+      optional `env_file`). Found: Keycloak refused an empty `KC_PROXY_HEADERS` ("Invalid value
+      for option 'KC_PROXY_HEADERS': . Expected values are: forwarded, xforwarded"), so it is
+      absent unless behind the edge; and the web app's client kept its first redirect address,
+      the realm file's placeholders being read only on the first import ("Invalid parameter:
+      redirect_uri"): `configure.sh` now puts its addresses on it every start, as it already did
+      for Temporal's UI. Verified on the Docker stacks: `make setup DOMAIN=gen9.localhost`, `make
+      up` (91 s); `stacks.mjs` through `https://gen9.localhost` and `https://id.gen9.localhost`
+      (`E2E_INSECURE_CERTS=1`), every check passed, back-channel logout included; then `make setup
+      DOMAIN=localhost`: every key as it was, by hash, those added holding the ports' addresses;
+      `make up`, gen9-edge left out with its note, and `stacks.mjs` on the ports passed.
     - [ ] U5b-3 The charts: an HTTPRoute per public service with the same hosts, on the Gateway
       the settings name, or an Ingress of a class, or none (the default); TLS the Gateway's.
     - [ ] U5b-4 Verified through the domain: `stacks.mjs` and a sign-in in Chrome on Docker behind

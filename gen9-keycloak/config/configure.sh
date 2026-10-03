@@ -156,6 +156,14 @@ temporal_access() {
   kcadm add-roles -r gen9 --uusername service-account-gen9-agent --cclientid temporal --rolename gen9:write
   echo "temporal: admins hold gen9:admin and temporal-system:read, gen9-agent holds gen9:write"
 
+  # The web app's addresses, as its settings say now: the realm file gives them only on the first
+  # import, so a later change (make setup DOMAIN=…) reaches the client here
+  app=$(client_id gen9-ui)
+  kcadm update "clients/$app" -r gen9 -s "rootUrl=$GEN9_UI_URL" -s "baseUrl=$GEN9_UI_URL/" \
+    -s "redirectUris=[\"$GEN9_UI_URL/auth/callback\",\"$GEN9_UI_DEV_URL/auth/callback\"]" \
+    -s "attributes.\"post.logout.redirect.uris\"=$GEN9_UI_URL/*##$GEN9_UI_DEV_URL/*"
+  echo "gen9-ui: redirects to $GEN9_UI_URL/auth/callback, and the dev server's"
+
   # Temporal's web UI signs in here (authorization code flow, confidential)
   ui=$(client_id temporal-ui)
   if [[ -z $ui ]]; then

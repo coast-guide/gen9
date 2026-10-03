@@ -22,6 +22,15 @@ make up
 | `temporal.gen9.example.com` | Temporal's web UI |
 | `<id>.apps.gen9.example.com` | the connector apps' views, one host per connector |
 
+`make setup DOMAIN=…` also writes every address browsers and terminals use into the stacks'
+settings files, one host per service as above: Keycloak's issuer (`KC_HOSTNAME`, and the
+`*.local.env` that carry it), the addresses Keycloak lets sign-ins return to, `GEN9_UI_URL`,
+gen9-agent's `GEN9_API_PUBLIC_URL`, Langfuse's `NEXTAUTH_URL` and media, Temporal's UI and its
+codec, the apps' `MCP_APPS_SANDBOX_URL`; and `gen9-keycloak/edge.local.env`, so Keycloak reads the
+edge's forwarded headers. Containers keep calling each other inside. `make setup DOMAIN=localhost`
+puts every address back on this machine's ports, and leaves gen9-edge unset (`make down
+STACKS=edge` stops it).
+
 Each host goes to the name its stack gives on its own network (`Caddyfile`); the edge joins only
 those networks. The DNS names must point at the machine (a wildcard record, `*.gen9.example.com`,
 covers them all), and ports 80 and 443 must reach it: `GEN9_EDGE_ADDRESS=0.0.0.0` in `.env` on a

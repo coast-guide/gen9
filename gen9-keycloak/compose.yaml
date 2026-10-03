@@ -26,6 +26,12 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_healthy
+    # Behind gen9-edge (make setup DOMAIN=…): KC_PROXY_HEADERS=xforwarded, so Keycloak reads the
+    # proxy's X-Forwarded-* headers (Keycloak's "Configuring a reverse proxy"); otherwise absent,
+    # as Keycloak refuses an empty value and anyone reaching it directly could set them
+    env_file:
+      - path: edge.local.env
+        required: false
     environment:
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keycloak
@@ -101,6 +107,10 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?run ./init-env.sh first}
       GEN9_UI_BACKCHANNEL_LOGOUT_URL: ${GEN9_UI_BACKCHANNEL_LOGOUT_URL:-http://gen9-ui:3000/auth/backchannel-logout}
+      # The web app's addresses, put on its client every start: the realm file sets them only when
+      # first imported, so a later change (make setup DOMAIN=…) reaches the client this way
+      GEN9_UI_URL: ${GEN9_UI_URL:-http://localhost:14000}
+      GEN9_UI_DEV_URL: ${GEN9_UI_DEV_URL:-http://localhost:14001}
       # Temporal's web UI client (make setup STACKS=keycloak adds the secret to an older .env)
       GEN9_TEMPORAL_UI_URL: ${GEN9_TEMPORAL_UI_URL:-http://localhost:18000}
       # Gen9's MCP server (gen9-agent), the audience of tokens for it
