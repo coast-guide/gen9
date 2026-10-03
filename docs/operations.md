@@ -99,8 +99,8 @@ make setup DOMAIN=gen9.example.com     # EDGE_TLS=you@example.com: certificates 
 make up                                # gen9-edge too, now that it's set up
 ```
 
-The hosts, the certificates (Let's Encrypt, or Caddy's own CA and how a browser trusts it), and
-the settings: [gen9-edge/README.md](../gen9-edge/README.md). Without `DOMAIN`, `make up` leaves
+The hosts, the certificates (Let's Encrypt, or Caddy's own CA and how a browser trusts it; the
+connector apps' hosts', made on demand), and the settings: [gen9-edge/README.md](../gen9-edge/README.md). Without `DOMAIN`, `make up` leaves
 gen9-edge out with a note. On Kubernetes the cluster's Gateway serves the same hosts (below).
 
 ## Kubernetes
