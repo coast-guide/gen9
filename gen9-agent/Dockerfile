@@ -3,7 +3,7 @@
 # locked, cached dependency layer first, then the project; the runtime stage has no uv and runs as non-root.
 
 # Pinned as tag@digest. To upgrade: docker buildx imagetools inspect <image>:<tag>
-ARG PYTHON_IMAGE=python:3.12.14-slim-trixie@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f
+ARG PYTHON_IMAGE=python:3.12.15-slim-trixie@sha256:29113dcae7aad06daa8e95260fa09f27d62be33b9687ea3774f771d601a02256
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.12.19@sha256:04d046b13e60d6bcec73cbc5e1cad25d680dea90c8573340950a0ac2d1aef424
 
 FROM ${UV_IMAGE} AS uv
