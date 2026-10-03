@@ -7,7 +7,8 @@ this repository; they are not behavior of Gen9's own agent.
 ## Start of every session
 
 1. `git status`, `git log --oneline -15` and `gh pr view` (if a PR is open): what changed last.
-2. Read the active plan in `docs/plans/` (today `docs/plans/release.md`, then
+2. Read the active plan in `docs/plans/` (today `docs/plans/deploy.md`, the owner's deployment
+   and release work, with its standing instructions; then `docs/plans/release.md`, then
    `docs/plans/gen9-learn.md`, then `docs/plans/manual-e2e.md` from P6-B6, where the owner had
    paused it, resumed by their instruction to finish the repository's remaining items; its
    standing instructions apply; `harness.md` is complete): its `Progress` says what is done and what is next, `Surprises & Discoveries` what
