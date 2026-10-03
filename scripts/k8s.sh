@@ -211,8 +211,10 @@ sys.exit(2 if found else 0)
     done ;;
   e2e)
     # The ports each stack publishes on Docker (127.0.0.1:<published> -> <target>), from Compose
+    # A stack with no chart has nothing on the cluster to reach (gen9-edge: the Gateway serves it)
     forwards=""
     for s in "$@"; do
+      [ -d "gen9-$s/chart" ] || continue
       forwards="$forwards $(cd "gen9-$s" && docker compose config --format json | python3 -c '
 import json, sys
 for name, svc in json.load(sys.stdin)["services"].items():
@@ -224,10 +226,14 @@ for name, svc in json.load(sys.stdin)["services"].items():
     pids=""
     for f in $forwards; do
       stack=${f%%/*}; rest=${f#*/}; svc=${rest%%/*}; rest=${rest#*/}; pub=${rest%%/*}; tgt=${rest#*/}
-      ( while :; do kc -n "gen9-$stack" port-forward --address 127.0.0.1 "svc/$svc" "$pub:$tgt" >/dev/null 2>&1; sleep 1; done ) &
+      # kubectl ends a forward when its pod goes ("error: lost connection to pod", exit 1): `|| :`
+      # keeps the loop dialling again, where set -e would end it
+      ( while :; do kc -n "gen9-$stack" port-forward --address 127.0.0.1 "svc/$svc" "$pub:$tgt" >/dev/null 2>&1 || :; sleep 1; done ) &
       pids="$pids $!"
     done
-    stop_forwards() { for p in $pids; do pkill -P "$p" 2>/dev/null; kill "$p" 2>/dev/null; done; }
+    # Each loop's kubectl or sleep, then the loop. Under set -e a kill that finds nothing would end
+    # the trap there: the forwards after it kept running and make k8s-e2e failed after its checks
+    stop_forwards() { for p in $pids; do pkill -P "$p" 2>/dev/null || :; kill "$p" 2>/dev/null || :; done; }
     trap stop_forwards EXIT INT TERM
     for _ in $(seq 60); do curl -fsS -o /dev/null http://127.0.0.1:14000/api/health 2>/dev/null && break; sleep 2; done
     # E2E_SHAPE: a check that runs a make target of Docker's runs its k8s- one (stop.mjs)

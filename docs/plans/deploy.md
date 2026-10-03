@@ -812,11 +812,37 @@ What the owner asked, restated before starting (they went on to "start the loop"
     rightly said "under a minute" (the check fixed, #91; all 20 passed after). `agui.mjs`: the model
     saved "Favourite bird: heron." without the tag the check looks for; run again, all passed. The
     model calls cost $0.1791 (420 calls).
+  - [x] Meanwhile, `make k8s-e2e` on k3d against the same 7 images, the agent's with #92's fix,
+    2026-10-04: every check passed, 694 across every script (1 skipped: no reranker), the model
+    calls $0.1751 (410 calls). The first run stopped in agents.mjs, where the model ran away inside
+    a tool call and the worker stopped (Surprises; fixed in #92). And `make k8s-e2e` exited 1 after
+    its checks had passed: `scripts/k8s.sh e2e`'s forwards inherited `set -e`, so each ended the
+    first time kubectl dropped it, and its cleanup stopped at the first forward already gone. Now
+    each forward dials again and the cleanup goes through. With the UI's pod replaced mid-run, the
+    UI answered again within 4 s, the script exited 0 and no forward was left; as committed, it
+    didn't answer for 60 s, exit 1, one forward left. Then k3d back on the domain
+    (`make k8s-diff` 0) and Docker up (`make diff` 0).
   - [ ] `make e2e` against Docker and kind from published images (after the owner's U8).
 
 
 ## Surprises & Discoveries
 
+- `make k8s-e2e`'s forwards never dialled again, though the script says they do: each ran in a
+  subshell with `set -e` from `scripts/k8s.sh`, and kubectl v1.37.1 ends a forward whose pod goes
+  ("error: lost connection to pod", exit 1, tried on k3d), which ended the loop. gen9-edge's
+  forwards, for a stack with no chart, ended at once. Then the cleanup, also under `set -e`, stopped
+  at the first `pkill -P` that found nothing (dash's EXIT trap ends on a failing command), so the
+  run exited 1 after every check passed and left the later forwards running (Z1).
+- A model that ran away inside a tool call stopped gen9-agent's worker (Z1's `make k8s-e2e` on k3d,
+  2026-10-03). In agents.mjs, gpt-6-luna's `task` call ran to its 32,000-token limit, four minutes,
+  its arguments ending in 190,000 characters inside a JSON key it never closed. langchain-core's
+  `parse_partial_json` then held the worker's event loop for over two minutes (the readiness probe
+  failed from 20:59:21 to 21:00:51), so the Temporal token's renewal didn't run; Temporal refused
+  the expired token ("Token is expired", from 20:59:42) and the worker stopped ("Worker failed,
+  shutting down"). Idle, the same worker ran 15 minutes without a refusal. The function repairs text
+  that doesn't parse by retrying `json.loads` once for each character it drops: 85 s for that text
+  on this machine (gen9-agent/explore/harness/NOTES.md, "A runaway tool call stalls the worker").
+  Fixed in #92.
 - gen9-ui's sign-in waits while its session store refuses it: with the Valkey's CA withheld,
   `/auth/login` gave no answer within 10 s, node-redis retrying ("[session-store] self-signed
   certificate in certificate chain", 285 times), where a 503 would say so at once (U5c-5c).
@@ -1421,6 +1447,20 @@ OpenSandbox `docs/guides/secure-container.md` and `manifests/charts` at `release
   `make k8s-e2e` would each need a case for it. Also probed: a default that holds a required
   variable, `${SESSION_STORE_URL:-redis://:${VALKEY_PASSWORD:?…}@valkey:6379/0}`, needs
   `VALKEY_PASSWORD` only when `SESSION_STORE_URL` is unset.
+
+- Decision (the runaway tool call, 2026-10-04; #92): gen9-agent installs its own
+  `parse_partial_json` (`partial_json.py`) where langchain-core looks it up, and renews its Temporal
+  token while half its life is left (`TOKEN_MARGIN_S`, 150 s). Adapt, not adopt: langchain-core
+  1.6.6, the latest (2026-09-29), has the function unchanged; langchain-ai/langchain#40826 (open,
+  2026-09-30) reports its quadratic cost on another path, its two pull requests closed unmerged, and
+  the change it proposes, cutting back to `JSONDecodeError.pos`, is this one. The copy returns or
+  raises what langchain-core's does, compared on every prefix of a set of documents and on random
+  corruptions, strict or not (4,000 corruptions in its tests, 60,000 more in a seeded run); 193,000
+  characters parse in 0.03 s against 85 s, the event loop's longest stall 0.1 s against 85.4 s
+  (`explore/harness/runaway_tool_call_probe.py`). It goes once a release fixes #40826. The wider
+  margin covers any stall, not only this one: at 30 s, a stall of 30 s at the wrong moment let the
+  token lapse. Rejected: a lower output limit for the agent's model, which shortens such a stall but
+  also cuts an honest long answer, a file written through a tool call.
 
 ## Outcomes & Retrospective
 
