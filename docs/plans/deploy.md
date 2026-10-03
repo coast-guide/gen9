@@ -383,8 +383,21 @@ What the owner asked, restated before starting (they went on to "start the loop"
       host 200 over TLS, certificate verified; Keycloak's public rule removed and the Gateway made
       again, Keycloak 503 and the API 200, the rule put back by `make k8s-reset`, 200 again;
       `make k8s-diff` 0.
-    - [ ] U5b-4 Verified through the domain: `stacks.mjs` and a sign-in in Chrome on Docker behind
+    - [x] U5b-4 Verified through the domain: `stacks.mjs` and a sign-in in Chrome on Docker behind
       `gen9-edge`, on kind (`cloud-provider-kind`'s Gateway) and on k3d (Traefik's).
+      Done 2026-10-03, `stacks.mjs` with `APP_URL`, `KEYCLOAK_URL` and `LANGFUSE_URL` under
+      `gen9.localhost` and `E2E_INSECURE_CERTS=1`: on Docker behind gen9-edge (U5b-2), every check
+      passed; on k3d, every check passed, through Traefik's Gateway (`deploy/k3d.yaml` now turns
+      its Gateway provider on, k3s's HelmChartConfig, and publishes 127.0.0.1:80 and :443 from k3d's
+      load balancer; a Gateway in `gen9-gateway`, an HTTPS listener on Traefik's 8443, Accepted and
+      Programmed; the seven routes Accepted, every host 200 with the certificate verified); on kind
+      through cloud-provider-kind's Gateway (published on 443 by a test-only socat container), every
+      check but the streamed answer, cut at that Gateway's 15 s (Surprises). Traefik v3.7.13 doesn't
+      list request timeouts among its features either, but sets no such limit. Afterwards: `make
+      setup DOMAIN=localhost`, `make up`, `stacks.mjs` on the ports passed. Found on the way:
+      `make setup` checked gen9-edge's ports in its preflight, so with k3d holding 80 and 443,
+      `DOMAIN=localhost` stopped before unsetting it; setup's preflight now leaves the optional
+      stacks out (`make up` checks their ports once they run).
   - [ ] U5c External services: which settings point a stack at its own Postgres, Valkey,
     ClickHouse or S3 elsewhere, and how the bundled one is left out, in both shapes.
 - [ ] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd

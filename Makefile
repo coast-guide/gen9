@@ -267,8 +267,11 @@ k8s-stop-agents:
 k8s-resume-agents:
 	@scripts/k8s.sh resume-agents
 
+# The preflight but of the optional stacks: setup writes their files, and make up checks their ports
+# once they run, so a domain (or DOMAIN=localhost, which unsets gen9-edge) isn't stopped by what
+# holds ports 80 and 443 meanwhile
 setup:
-	@scripts/doctor.sh --preflight $(SELECTED)
+	@scripts/doctor.sh --preflight $(filter-out $(OPTIONAL),$(SELECTED))
 	@scripts/setup.sh $(SELECTED)
 
 # A cold backup of the stacks' volumes and settings files (scripts/backup.sh), and its restore

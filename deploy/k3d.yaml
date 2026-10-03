@@ -23,6 +23,32 @@ files:
     nodeFilters:
       - server:*
       - agent:*
+  # Gen9 under a domain (global.domain, global.gateway): k3s's Traefik with its Gateway provider
+  # on, as k3s's docs say ("Gateway API"), a HelmChartConfig k3s applies from its manifests folder
+  - description: Traefik's Gateway provider
+    source: |
+      apiVersion: helm.cattle.io/v1
+      kind: HelmChartConfig
+      metadata:
+        name: traefik
+        namespace: kube-system
+      spec:
+        valuesContent: |-
+          providers:
+            kubernetesGateway:
+              enabled: true
+    destination: /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
+    nodeFilters:
+      - server:*
+# Traefik's ports on this machine, from k3d's load balancer: a Gateway's HTTPS listener on Traefik's
+# websecure entry point (8443 in the pod) is https://…:443 here
+ports:
+  - port: 127.0.0.1:80:80
+    nodeFilters:
+      - loadbalancer
+  - port: 127.0.0.1:443:443
+    nodeFilters:
+      - loadbalancer
 options:
   k3s:
     extraArgs:
@@ -30,7 +56,3 @@ options:
         nodeFilters:
           - server:*
           - agent:*
-      # Gen9 brings no ingress yet: k3s's bundled Traefik would only take memory
-      - arg: --disable=traefik
-        nodeFilters:
-          - server:*

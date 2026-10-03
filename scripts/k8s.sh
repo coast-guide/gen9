@@ -126,7 +126,8 @@ case "$action" in
     set_images=$(images)
     for s in "$@"; do
       ns="gen9-$s"
-      [ -d "gen9-$s/chart" ] || { echo "== $ns: no chart yet, left out"; continue; }
+      # gen9-edge is Docker's: on a cluster its Gateway serves the domain (global.domain)
+      [ -d "gen9-$s/chart" ] || { echo "== $ns: no chart, left out (on a cluster, the Gateway serves the domain)"; continue; }
       echo "== $ns"
       prerequisites "$s"
       kc create namespace "$ns" --dry-run=client -o yaml | kc apply --server-side -f - >/dev/null
