@@ -3010,9 +3010,17 @@ A10: programs that "fail to prevent, detect, and respond to unusual and unpredic
       SQL Server driver, CVE-2025-59250), was Trivy reading `13.2.1.jre11`, the advisory's fixed
       version, as older. Grype, OSV's API and the jar's name agree it is fixed (corrected).
     Left, each its own item:
-    - [ ] D1c1 Python 3.12.15 (tagged 2026-09-30, with three `tarfile` fixes, CVE-2026-82049 the
+    - [x] D1c1 Python 3.12.15 (tagged 2026-09-30, with three `tarfile` fixes, CVE-2026-82049 the
       High; Grype places it at 3.14.0b1 from NVD's range) for gen9-agent and the environments'
       image, once its official image is out (`make updates`).
+      Done 2026-10-04: the official `python:3.12.15-slim-trixie` (built 2026-10-01 21:49 UTC,
+      `PYTHON_VERSION=3.12.15`; `python:3.12-slim` is the same build under another index digest)
+      pinned by digest in gen9-agent's Dockerfile and as `SANDBOX_IMAGE`'s default
+      (`settings.py`). Grype (`make scan`'s tools, their database of that day) on Python: 3.12.14's
+      image 13 findings, CVE-2026-82049 the one High; 3.12.15's and the rebuilt gen9-agent's 7, no
+      High or Critical, CVE-2026-82049 gone. Live, the rebuilt gen9-agent (Python 3.12.15):
+      `environments.mjs` all 24 checks passed, every sandbox started from the new image (the
+      sandbox server's log); on k3d its pods 3.12.15, `stacks.mjs` passed, `make k8s-diff` 0.
     - [x] D1c2 Pins with a newer image: MinIO's `latest` (rebuilt: 6a1d0b45 to 4692462f; Go's
       `x/crypto`, etcd), LiteLLM v1.103.1 (`pyjwt` 2.13.0, Wolfi's glibc and zlib), and Langfuse
       (`deepmerge-ts`, `nodemailer`; Renovate can't read its registry, so by hand).
@@ -3510,7 +3518,10 @@ today's sources first, then live, then its own pull request, as before.
 
 ### P7-A. Upstream
 
-- [ ] A1 What phase 6 waits on, each when it lands: Python 3.12.15's image (P6-D1c1), Debian's
+- [ ] A1 What phase 6 waits on, each when it lands (2026-10-04: Python 3.12.15's image landed, P6-D1c1
+  done; Temporal UI v2.55.0 is out since 2026-10-01, in its cooldown to 2026-10-08; OpenSandbox
+  1.1.1 still a release candidate, #1759 open; eslint-plugin-react 7.37.5 still to ESLint 9):
+  Python 3.12.15's image (P6-D1c1), Debian's
   images with DSA-6531-1 and Grype's database with it, and Redis's rebuild (D1c4), Temporal UI's
   next release (D1c6), eslint-plugin-react with ESLint 10 (D6a), OpenSandbox's 1.1.1 and #1759
   (A5). `make updates` and `make scan` on each.
@@ -3524,6 +3535,10 @@ today's sources first, then live, then its own pull request, as before.
     CVE-2026-59889: per-property annotations on deserialization) and netty-codec-http
     (CVE-2026-59903: Netty's CORS handler and its `Vary` header).
 - [ ] A3 P6-A3 (the raw event file of 2026/09/30, after 2026-10-02 00:00 UTC) and the A6 watches.
+  - (2026-10-03, 17:00 UTC) The raw event files: none of 2026/09/30 left (nor of 10/01 or 10/02),
+    24 of 10/03 only, in the bucket whose volume dates from 2026-09-30 16:33 UTC; the rule
+    `gen9-expire-raw-events` enabled (prefix `events/`, 1 day). P6-A3's part done. The watches:
+    deepagents #6122 and guidepup #143 still open, unchanged since 09-23 and 09-25.
 
 ### P7-B. Tokens and OAuth (ASVS 5.0 V9, V10)
 
