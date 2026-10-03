@@ -92,7 +92,14 @@ something to do". Then: "looks good logo and everything".
 - [x] M6 The licence and notices: `LICENSE` (Apache-2.0, the text as apache.org publishes it), `NOTICE`
   (what the repository carries from other projects, each with its licence and where its text is),
   and the README's first paragraph and "Licence" section.
-- [ ] M7 The public repository, protected and checked (Decision Log, "The public repository").
+- [x] M7 The public repository, protected and checked (Decision Log, "The public repository").
+  Checked 2026-10-04, every part done and each setting read back from GitHub's API that day: the
+  rulesets "Protect main branch" (deletion, non_fast_forward, required_linear_history,
+  pull_request, required_status_checks, code_scanning) and "Protect release tags" (`refs/tags/v*`:
+  deletion, non_fast_forward, update), both active; squash merges only, branches deleted after
+  merge, no wiki or projects; private vulnerability reporting, Dependabot alerts and security
+  updates; CodeQL's default setup configured; Actions pinned to full commit SHAs, the token
+  read-only, every outside contributor's workflows only after approval; immutable releases.
   - [x] Settings, through `gh`, each read back: a ruleset on `main` (no deletion, no force push,
     linear history, changes only through a pull request, squash merging) and one on `v*` tags
     (no deletion, no move); Dependabot alerts and security updates; private vulnerability
