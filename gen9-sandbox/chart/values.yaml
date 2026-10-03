@@ -1,0 +1,30 @@
+# gen9-sandbox on Kubernetes: what compose.yaml doesn't say (deploy/helm/gen9-lib, "gen9.stack").
+# The server is Gen9's own image, as on Docker, told by launch.py to run sandboxes as
+# kubernetes-sigs/agent-sandbox Sandboxes in their own namespace (templates/sandboxes.yaml).
+stack: sandbox
+usedBy: [agent]
+
+global:
+  images: {}
+  storageClass: ""
+
+services:
+  opensandbox:
+    kind: StatefulSet
+    ports: {http: 8090}
+    storage: {store: 1Gi, metadata: 1Gi}
+    dropMounts: [/var/run/docker.sock]  # no Docker on Kubernetes: the server calls its API
+    serviceAccount: opensandbox
+    env:
+      GEN9_SANDBOX_RUNTIME: kubernetes
+      GEN9_SANDBOX_NAMESPACE: gen9-sandboxes
+  egress-image: {kind: none}  # Compose's way of pulling or building an image; here by digest
+  execd-image: {kind: none}
+
+sandboxes:
+  namespace: gen9-sandboxes
+  # Docker's limits on a sandbox's own container, added to each sandbox pod as it's created
+  # (a MutatingAdmissionPolicy, stable since Kubernetes 1.36). Without that API the chart refuses
+  # to install unless this is set to optional: sandboxes would then keep only OpenSandbox's own
+  # (NET_ADMIN dropped) and no disk limit
+  hardening: required

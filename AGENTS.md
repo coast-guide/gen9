@@ -153,6 +153,8 @@ Only then implement. The same applies to design and UX work, and to any change o
 - gen9-ui: `npx tsc --noEmit && npx eslint . && npx vitest run && npm run build` (only the build
   enforces `server-only`). gen9-keycloak's theme: `npx tsc --noEmit`.
 - The shell scripts: shellcheck, as the workflow's `shellcheck` step runs it (in Docker).
+- The Helm charts (`gen9-*/chart`, `deploy/helm`): `scripts/check-charts.sh` (helm lint and
+  kubeconform), also after changing a stack's `compose.yaml`, which each chart reads.
 - gen9-learn: `cd gen9-learn/verify && node page.mjs && node reference.mjs`, and `node run.mjs` when a flow changed.
   `reference.mjs` also after any change to gen9-agent, gen9-ui or gen9-cli code: the page points
   into it by line (`data-at`), and an edit above a pointer moves it.

@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Gen9 stack chart values",
+  "description": "Every stack chart's values (gen9-<stack>/chart/values.yaml, then deploy/values.yaml), linked into each chart as values.schema.json: Helm refuses an install or an upgrade whose values don't fit, so a misspelt setting fails instead of being ignored (docs/plans/deploy.md, U5).",
+  "type": "object",
+  "additionalProperties": false,
+  "definitions": {
+    "quantity": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$"
+    },
+    "settings": {
+      "description": "Compose's ${X:-default} variables, by name: settings.X here is X in a stack's .env on Docker",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "Deployment",
+            "StatefulSet",
+            "Job",
+            "Init",
+            "none"
+          ]
+        },
+        "phase": {
+          "enum": [
+            "pre",
+            "post"
+          ]
+        },
+        "into": {
+          "type": "string"
+        },
+        "ports": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          }
+        },
+        "storage": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/quantity"
+          }
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resources": {
+          "type": "object"
+        },
+        "podSecurityContext": {
+          "type": "object"
+        },
+        "weight": {
+          "type": "integer"
+        },
+        "dropMounts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "serviceAccount": {
+          "type": "string"
+        }
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/service"
+      }
+    },
+    "stack": {
+      "description": "One stack's own settings and services, as deploy/values.yaml overrides them",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "settings": {
+          "$ref": "#/definitions/settings"
+        },
+        "services": {
+          "$ref": "#/definitions/services"
+        }
+      }
+    }
+  },
+  "properties": {
+    "stack": {
+      "enum": [
+        "postgres",
+        "keycloak",
+        "langfuse",
+        "temporal",
+        "models",
+        "sandbox",
+        "agent",
+        "ui"
+      ]
+    },
+    "usedBy": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "postgres",
+          "keycloak",
+          "langfuse",
+          "temporal",
+          "models",
+          "sandbox",
+          "agent",
+          "ui"
+        ]
+      }
+    },
+    "services": {
+      "$ref": "#/definitions/services"
+    },
+    "settings": {
+      "$ref": "#/definitions/settings"
+    },
+    "global": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "images": {
+          "description": "Gen9's own images, by digest, from the lock (make k8s-up IMAGES=…)",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "agent": {
+              "type": "string"
+            },
+            "ui": {
+              "type": "string"
+            },
+            "keycloak": {
+              "type": "string"
+            },
+            "postgres": {
+              "type": "string"
+            },
+            "sandbox": {
+              "type": "string"
+            },
+            "sandboxEgress": {
+              "type": "string"
+            },
+            "sandboxExecd": {
+              "type": "string"
+            }
+          }
+        },
+        "storageClass": {
+          "type": "string"
+        },
+        "clusterDomain": {
+          "type": "string"
+        }
+      }
+    },
+    "postgres": {
+      "$ref": "#/definitions/stack"
+    },
+    "keycloak": {
+      "$ref": "#/definitions/stack"
+    },
+    "langfuse": {
+      "$ref": "#/definitions/stack"
+    },
+    "temporal": {
+      "$ref": "#/definitions/stack"
+    },
+    "models": {
+      "$ref": "#/definitions/stack"
+    },
+    "sandbox": {
+      "$ref": "#/definitions/stack"
+    },
+    "agent": {
+      "$ref": "#/definitions/stack"
+    },
+    "ui": {
+      "$ref": "#/definitions/stack"
+    },
+    "gen9-lib": {
+      "type": "object"
+    },
+    "fromEnv": {
+      "description": "The names of the keys in the stack's .env (make k8s-up passes them, never their values): a Compose ${X:-default} that .env sets takes its value from the Secret env, as Compose takes it from .env",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z_][A-Z0-9_]*$"
+      }
+    },
+    "sandboxes": {
+      "description": "gen9-sandbox only: where sandboxes run on Kubernetes, and whether Docker's limits on them are required",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "hardening": {
+          "enum": [
+            "required",
+            "optional"
+          ]
+        }
+      }
+    }
+  }
+}

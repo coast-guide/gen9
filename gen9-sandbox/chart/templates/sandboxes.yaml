@@ -1,0 +1,182 @@
+{{- /*
+Where sandboxes run on Kubernetes, and what holds them as on Docker (docs/plans/deploy.md, U6):
+their own namespace; the server's rights there and nowhere else; a network only the server reaches
+(gen9-agent reaches a sandbox only through it); and Docker's limits on each sandbox's own
+container, from config.toml's [docker] (capabilities, no new privileges) and SANDBOX_DISK_GB,
+added to each sandbox pod as it's created.
+*/ -}}
+{{- $ns := .Values.sandboxes.namespace -}}
+{{- $docker := (.Files.Get "config.toml" | fromToml).docker -}}
+{{- $disk := index (include "gen9.settings" . | fromJson) "SANDBOX_DISK_GB" | default 10 -}}
+{{- $policies := .Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1/MutatingAdmissionPolicy" -}}
+{{- if and (not $policies) (eq (toString .Values.sandboxes.hardening) "required") -}}
+{{- fail "This cluster has no MutatingAdmissionPolicy (Kubernetes 1.36 or later), which gives each sandbox Docker's limits (capabilities, no new privileges, its disk). Set sandboxes.hardening: optional to run sandboxes without them." -}}
+{{- end -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns }}
+  labels:
+    app.kubernetes.io/part-of: gen9
+    # Each sandbox's execd init container is privileged for a moment, to turn IPv6 off in its
+    # pod (OpenSandbox's disable_ipv6): allowed here, and only here
+    pod-security.kubernetes.io/enforce: privileged
+  annotations:
+    helm.sh/resource-policy: keep  # uninstalling the server leaves the sandboxes' namespace
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opensandbox
+  labels:
+    app.kubernetes.io/part-of: gen9
+automountServiceAccountToken: false  # only the server's pod mounts it
+---
+# The server makes and removes sandboxes (agent-sandbox's Sandboxes, and the Secrets, Services and
+# claims they come with) in their namespace, and nowhere else
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gen9-sandbox-server
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/part-of: gen9
+rules:
+  - apiGroups: ["agents.x-k8s.io"]
+    resources: ["sandboxes", "sandboxes/status"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/status", "pods/log", "services", "configmaps", "persistentvolumeclaims"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "delete", "get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  # Read only: OpenSandbox lists its own kinds alongside (fast sandboxes, snapshots), which Gen9
+  # doesn't install; allowed to look, it finds none (404, an empty list) instead of being refused,
+  # which fails every listing of sandboxes ("Fsb Sandbox CRs are unavailable", 503)
+  - apiGroups: ["sandbox.fast.io"]
+    resources: ["sandboxes", "sandboxtemplates", "sandboxesnapshots"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["sandbox.opensandbox.io"]
+    resources: ["sandboxsnapshots", "batchsandboxes", "pools"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gen9-sandbox-server
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/part-of: gen9
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gen9-sandbox-server
+subjects:
+  - kind: ServiceAccount
+    name: opensandbox
+    namespace: {{ .Release.Namespace }}
+---
+# Read-only, cluster-wide: which runtime classes exist (gVisor, Kata), and the namespace itself
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gen9-sandbox-server-read
+  labels:
+    app.kubernetes.io/part-of: gen9
+rules:
+  - apiGroups: ["node.k8s.io"]
+    resources: ["runtimeclasses"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gen9-sandbox-server-read
+  labels:
+    app.kubernetes.io/part-of: gen9
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gen9-sandbox-server-read
+subjects:
+  - kind: ServiceAccount
+    name: opensandbox
+    namespace: {{ .Release.Namespace }}
+---
+# Nothing reaches a sandbox but the server: gen9-agent goes through it (use_server_proxy). What a
+# sandbox may reach is its egress sidecar's to decide, as on Docker
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: only-the-server
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/part-of: gen9
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+{{- if $policies }}
+---
+# Docker's limits on the sandbox's own container (gen9-sandbox/config.toml, [docker]), which
+# OpenSandbox's pod for agent-sandbox doesn't set: the container runtime's seccomp filter (Docker
+# applies its own by default; Kubernetes runs a container unconfined unless asked), capabilities
+# dropped, no new privileges, and its disk (SANDBOX_DISK_GB), past which the kubelet evicts it
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: gen9-sandboxes
+  labels:
+    app.kubernetes.io/part-of: gen9
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: a-sandbox
+      expression: "object.spec.containers.exists(c, c.name == 'sandbox')"
+  failurePolicy: Fail
+  reinvocationPolicy: IfNeeded
+  variables:
+    - name: at
+      expression: >-
+        "/spec/containers/" + string(object.spec.containers.map(c, c.name).indexOf("sandbox"))
+  # A JSON patch: capabilities.drop is an atomic list, which an apply configuration may not change
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: >
+          [
+            JSONPatch{op: "add", path: variables.at + "/securityContext/seccompProfile", value: Object.spec.containers.securityContext.seccompProfile{type: "RuntimeDefault"}},
+            JSONPatch{op: "add", path: variables.at + "/securityContext/allowPrivilegeEscalation", value: {{ not $docker.no_new_privileges }}},
+            JSONPatch{op: "add", path: variables.at + "/securityContext/capabilities/drop", value: {{ $docker.drop_capabilities | toJson }}},
+            JSONPatch{op: "add", path: variables.at + "/resources/limits/ephemeral-storage", value: "{{ $disk }}Gi"}
+          ]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: gen9-sandboxes
+  labels:
+    app.kubernetes.io/part-of: gen9
+spec:
+  policyName: gen9-sandboxes
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ $ns }}
+{{- end }}

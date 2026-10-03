@@ -2,6 +2,8 @@
 
 End-to-end checks that cross stacks, run in real Chrome against the running stacks. It is not a stack: nothing here runs in Docker.
 
+The same checks run against Gen9 on Kubernetes (`make k8s-e2e`, [docs/operations.md, "Kubernetes"](../docs/operations.md#kubernetes)): each port a stack publishes on Docker is forwarded to the same port on 127.0.0.1, and `e2e/k8s/docker`, first on `PATH`, stands in for `docker`, so a check that reaches a container (`docker exec gen9-postgres-postgres-1 …`, a sandbox's limits) reaches its pod instead. What it maps is listed at its top; anything else it refuses by name, so a check that needs more says so.
+
 ## Calls between stacks (`stacks.mjs`)
 
 Every call one stack makes to another, set off the way a user does. Containers reach each other over the per-stack networks ([docs/development.md, "How stacks stay decoupled"](../docs/development.md#how-stacks-stay-decoupled)), so this is what shows those work.
@@ -528,7 +530,8 @@ Nothing of a disabled person's acts after, and an operator can stop every agent 
 | `make resume-agents` | The worker is healthy again, and the task's Schedule isn't paused; `operator.stop` and `operator.resume` are audit events |
 
 It deletes the person and their task, stops the worker for a moment (nothing else should use it
-meanwhile), and costs a few short steps of three turns.
+meanwhile), and costs a few short steps of three turns. Against a cluster (`make k8s-e2e`) it runs
+`make k8s-stop-agents` and `make k8s-resume-agents` instead.
 
 ## The database not taking a request (`database.mjs`)
 

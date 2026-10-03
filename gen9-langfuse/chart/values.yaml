@@ -1,0 +1,33 @@
+# gen9-langfuse on Kubernetes: what Langfuse's docker-compose.yml and Gen9's compose.override.yaml,
+# merged as Compose merges them, don't say (deploy/helm/gen9-lib, "gen9.stack").
+stack: langfuse
+usedBy: [agent]
+
+global:
+  images: {}
+  storageClass: ""
+
+services:
+  langfuse-web:
+    kind: Deployment
+    ports: {http: 3000}
+  langfuse-worker:
+    kind: Deployment
+    ports: {http: 3030}
+  clickhouse:
+    kind: StatefulSet
+    ports: {http: 8123, native: 9000}
+    storage: {langfuse_clickhouse_data: 20Gi, langfuse_clickhouse_logs: 1Gi}
+  minio:
+    kind: StatefulSet
+    ports: {s3: 9000, console: 9001}
+    storage: {langfuse_minio_data: 20Gi}
+  minio-lifecycle: {kind: Job}
+  postgres:
+    kind: StatefulSet
+    ports: {postgres: 5432}
+    storage: {langfuse_postgres_data: 10Gi}
+  redis:
+    kind: StatefulSet
+    ports: {redis: 6379}
+    storage: {langfuse_redis_data: 1Gi}

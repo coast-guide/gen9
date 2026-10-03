@@ -1,0 +1,9 @@
+apiVersion: v2
+name: gen9-models
+description: Gen9's model router (LiteLLM), its Postgres, web search (SearXNG) and admin API (docs/plans/deploy.md, U3)
+type: application
+version: 0.1.0
+dependencies:
+  - name: gen9-lib
+    version: 0.1.0
+    repository: file://../../deploy/helm/gen9-lib

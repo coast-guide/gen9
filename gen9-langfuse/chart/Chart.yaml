@@ -1,0 +1,9 @@
+apiVersion: v2
+name: gen9-langfuse
+description: Langfuse for Gen9's traces, with its Postgres, ClickHouse, Redis and S3 store (docs/plans/deploy.md, U3)
+type: application
+version: 0.1.0
+dependencies:
+  - name: gen9-lib
+    version: 0.1.0
+    repository: file://../../deploy/helm/gen9-lib

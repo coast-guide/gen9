@@ -2911,6 +2911,13 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>make audit</code></td><td>Known vulnerabilities in the npm and Python dependencies; npm's registry signatures, and the Python packages' PyPI provenance against their pinned repositories</td><td></td></tr>
       <tr><td><code>make sbom</code></td><td>A CycloneDX SBOM of every image the stacks build or run, in <code>scripts/sbom/out/</code></td><td><a href="#b7-toolbox">The operator's toolbox</a></td></tr>
       <tr><td><code>make scan</code></td><td>Known vulnerabilities in those images; fails on a fixable high or critical one not accepted, with its reason, in <code>scripts/sbom/grype.yaml</code></td><td><a href="#b7-toolbox">The operator's toolbox</a></td></tr>
+      <tr><td><code>make k8s-up</code></td><td>The same stacks on a Kubernetes cluster: each a Helm release of <code>gen9-&lt;stack&gt;/chart</code> in its namespace <code>gen9-&lt;stack&gt;</code>, images by digest from a lock (<code>IMAGES=</code>), settings files as Secrets (<code>docs/operations.md</code>, "Kubernetes")</td><td></td></tr>
+      <tr><td><code>make k8s-diff</code></td><td>What on the cluster differs from what the charts and settings declare, changes made by hand included; exit 2 if anything does</td><td></td></tr>
+      <tr><td><code>make k8s-reset</code></td><td>Puts back what was changed by hand on the cluster: each object replaced whole with what the charts render, the Secrets with the settings files</td><td></td></tr>
+      <tr><td><code>make k8s-down</code></td><td>Uninstalls the stacks from the cluster; their volumes and Secrets stay</td><td></td></tr>
+      <tr><td><code>make k8s-stop-agents</code></td><td><code>make stop-agents</code> on the cluster: every run cancelled and scheduled task paused, then the worker's Deployment scaled to 0</td><td></td></tr>
+      <tr><td><code>make k8s-resume-agents</code></td><td><code>make resume-agents</code> on the cluster: the worker back, and what the stop paused unpaused</td><td></td></tr>
+      <tr><td><code>make k8s-e2e</code></td><td><code>make e2e</code> against the cluster, each stack's ports forwarded to <code>localhost</code></td><td></td></tr>
       <tr><td><code>make updates</code></td><td>Pinned images rebuilt under their tag since, and newer releases (Renovate's dry run)</td><td></td></tr>
       <tr><td><code>make design-sync</code></td><td>Copies <code>gen9-design</code> (tokens, font, logo) into the apps</td><td></td></tr>
       <tr><td><code>make design-check</code></td><td>Fails if an app's copy differs from <code>gen9-design</code></td><td></td></tr>

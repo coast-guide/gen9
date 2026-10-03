@@ -1,0 +1,4 @@
+# What the cluster needs before this chart, applied by make k8s-up and compared by make k8s-diff
+# (scripts/k8s.sh), each checked against its digest: <URL> <sha256>. agent-sandbox's CRD and
+# controller (docs/plans/deploy.md, U6): the digest GitHub records for the release's asset.
+https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.5/sandbox.yaml e89fd95c0aa57609fa24be4112bd52ce67fe8939ecf6f3c17edf2f1e8f1eb860

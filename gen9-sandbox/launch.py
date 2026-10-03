@@ -28,6 +28,13 @@ manual-e2e.md, P4-B and P5-C5).
   `[runtime] execd_image` and `[egress] image` set from GEN9_SANDBOX_EXECD_IMAGE and
   GEN9_SANDBOX_EGRESS_IMAGE, which compose.yaml sets to the images of its execd-image and
   egress-image.
+- **The same server on Kubernetes** (GEN9_SANDBOX_RUNTIME=kubernetes, set by gen9-sandbox's chart;
+  docs/plans/deploy.md, U6). The copy says `[runtime] type = "kubernetes"`, and sandboxes are
+  kubernetes-sigs/agent-sandbox's Sandboxes in GEN9_SANDBOX_NAMESPACE; config.toml's other
+  settings hold as on Docker. None of the above about Docker applies there: the server starts
+  no containers through Docker, and each sandbox's disk is its pod's ephemeral-storage limit,
+  past which the kubelet evicts the pod; a thread here then deletes that sandbox through the
+  server's API, as on Docker, since an evicted pod and its Sandbox stay until someone does.
 """
 
 import logging
@@ -118,6 +125,37 @@ def watch_disk() -> None:
             log.warning("disk check failed: %s", e)
 
 
+def watch_evictions() -> None:
+    """On Kubernetes: the kubelet evicts a sandbox's pod past its disk (its ephemeral-storage
+    limit, SANDBOX_DISK_GB, which gen9-sandbox's chart sets) and leaves the pod, ended, and its
+    Sandbox. A sandbox's pod never ends on its own, so this deletes the sandbox of any pod that
+    has (Succeeded or Failed: an evicted pod showed either) through the server's API, as
+    watch_disk does on Docker, and gen9-agent gives the chat a fresh one. The Kubernetes client
+    (the server's own dependency) has no async API: a daemon thread of its own."""
+    from kubernetes import client, config
+
+    config.load_incluster_config()
+    pods = client.CoreV1Api()
+    namespace = os.environ["GEN9_SANDBOX_NAMESPACE"]
+    while True:
+        time.sleep(DISK_CHECK_S)
+        try:
+            for pod in pods.list_namespaced_pod(namespace).items:
+                sandbox = (pod.metadata.labels or {}).get(SANDBOX)
+                if pod.status.phase not in ("Succeeded", "Failed") or not sandbox:
+                    continue
+                how = "deleted"
+                try:
+                    delete_sandbox(sandbox)
+                except (OSError, urllib.error.URLError) as e:
+                    how = f"left (deleting it failed: {e})"
+                why = pod.status.message or pod.status.reason or pod.status.phase
+                log.warning("sandbox %s ended (%s): %s", sandbox, why, how)
+        # A check that fails is tried again next time
+        except Exception as e:  # noqa: BLE001 - the client raises its own and urllib3's
+            log.warning("eviction check failed: %s", e)
+
+
 class QueryValues(logging.Filter):
     """Masks the query values of uvicorn's access line (client, method, path, HTTP version,
     status); the path, its ids and the names of the parameters stay."""
@@ -134,20 +172,31 @@ class QueryValues(logging.Filter):
         return True
 
 
-def with_images(text: str, images: dict[tuple[str, str], str]) -> str:
-    """config.toml's text with each (section, key) in images set to its value, other lines as they
-    are."""
+def with_settings(text: str, settings: dict[tuple[str, str], str]) -> str:
+    """config.toml's text with each (section, key) in settings set to its value, other lines as
+    they are."""
     section, lines = "", []
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("[") and stripped.endswith("]"):
             section = stripped.strip("[]").strip()
         key = stripped.split("=", 1)[0].strip()
-        if "=" in stripped and (section, key) in images:
-            line = f'{key} = "{images[(section, key)]}"'
+        if "=" in stripped and (section, key) in settings:
+            line = f'{key} = "{settings[(section, key)]}"'
         lines.append(line)
     return "\n".join(lines) + "\n"
 
+
+ON_KUBERNETES = os.environ.get("GEN9_SANDBOX_RUNTIME") == "kubernetes"
+KUBERNETES = """
+[kubernetes]
+namespace = "{namespace}"
+workload_provider = "agent-sandbox"
+
+[agent_sandbox]
+shutdown_policy = "Delete"
+ingress_enabled = false
+"""
 
 images = {
     (section, key): os.environ[name]
@@ -161,9 +210,14 @@ images = {
 args = sys.argv[1:]
 at = args.index("--config") + 1 if "--config" in args else -1
 config_path = args[at] if at > 0 else os.environ["SANDBOX_CONFIG_PATH"]
-if images:
+if images or ON_KUBERNETES:
+    settings = dict(images)
+    if ON_KUBERNETES:
+        settings[("runtime", "type")] = "kubernetes"
     with open(config_path) as source:
-        config = with_images(source.read(), images)
+        config = with_settings(source.read(), settings)
+    if ON_KUBERNETES:
+        config += KUBERNETES.format(namespace=os.environ["GEN9_SANDBOX_NAMESPACE"])
     with open("/tmp/gen9-config.toml", "w") as copy:
         copy.write(config)
     os.environ["SANDBOX_CONFIG_PATH"] = "/tmp/gen9-config.toml"
@@ -174,9 +228,12 @@ if images:
         f"gen9: execd and egress images: {', '.join(images.values())}", file=sys.stderr
     )
 
-containers.convert_port_bindings = one_address
-containers.HostConfig.__init__ = bounded
-threading.Thread(target=watch_disk, name="gen9-disk-watch", daemon=True).start()
+if ON_KUBERNETES:
+    threading.Thread(target=watch_evictions, name="gen9-evictions", daemon=True).start()
+else:
+    containers.convert_port_bindings = one_address
+    containers.HostConfig.__init__ = bounded
+    threading.Thread(target=watch_disk, name="gen9-disk-watch", daemon=True).start()
 # On the logger itself: uvicorn's logging settings, applied at start, add handlers and keep it
 logging.getLogger("uvicorn.access").addFilter(QueryValues())
 

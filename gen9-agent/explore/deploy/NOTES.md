@@ -172,6 +172,26 @@ web.u3b.svc.cluster.local`; `u3c` has nothing.
   (`kubernetes.io/metadata.name`), `u3a` still got through and `u3c` timed out: kindnet enforces
   NetworkPolicy.
 
+### Another stack's names, all of them (U3)
+
+An ExternalName per stack gives only its own name; a stack may give more on its network
+(`gen9-models-admin`, `gen9-langfuse-media`, `gen9-mailpit`). On `kind-gen9`, a pod in
+`gen9-agent` from gen9-agent's image, with `dnsConfig.searches: [gen9-models.svc.cluster.local,
+gen9-langfuse.svc.cluster.local]` and no ExternalName Service:
+
+- `gen9-models-admin` 10.96.38.10 and `gen9-langfuse-media` 10.96.102.47, the cluster IPs of the
+  Services of those names in their namespaces; `gen9-models` too; `no-such-name` still "Name or
+  service not known".
+- Its `/etc/resolv.conf`: `search gen9-agent.svc.cluster.local svc.cluster.local cluster.local
+  gen9-models.svc.cluster.local gen9-langfuse.svc.cluster.local`, `options ndots:5`: the
+  namespace's own names first, the added ones after, as Kubernetes merges them.
+
+Then the charts with search domains instead (each pod's from the `gen9-*` networks its Compose
+service joins): after `make k8s-up`, gen9-agent's migration hook reached `gen9-postgres` with no
+ExternalName created first; from the worker, `gen9-models-admin:4001` and
+`gen9-langfuse-media:9000` answered (404 and 403 at `/`, the services themselves); from the API,
+`gen9-langfuse-media` didn't resolve, as on Docker, where `api` doesn't join gen9-langfuse.
+
 ## A chart in the stack's folder, with the files Compose mounts (U3)
 
 Helm v4.3.0, a chart at `stack/chart/` with `chart/initdb -> ../initdb` (a symlink) and a
@@ -199,3 +219,22 @@ A helper over a service's `environment` (`~/.cache/gen9-probes/u3-compose/templa
 gave `KC_HOSTNAME` that) or else the default; literals stayed; a secret inside a longer value is
 defined first and referred to as `$(X)`, which Kubernetes expands from the container's earlier
 variables. For Keycloak: 6 secrets and 17 values, each as Compose would give it.
+
+## Sandboxes with kubernetes-sigs/agent-sandbox (U6)
+
+On `kind-gen9`: agent-sandbox v1.0.4's `sandbox.yaml` (sha256 `c4f6344b…`, equal to the digest
+GitHub's API gives for the release asset; controller `registry.k8s.io/agent-sandbox/agent-sandbox-controller:v1.0.4`,
+CRD `sandboxes.agents.x-k8s.io`), then OpenSandbox's server alone (its `manifests/charts/server`
+at release-1.1.0, image `opensandbox/server:release-1.1.0`) with `[kubernetes] workload_provider =
+"agent-sandbox"`, `namespace = "u6-sandboxes"`, `[agent_sandbox] shutdown_policy = "Delete"`, and
+Gen9's execd and egress images from the lock.
+
+- The first create was refused: "sandboxes.agents.x-k8s.io is forbidden: User
+  "system:serviceaccount:u6-server:u6-server" cannot create resource "sandboxes""; upstream's server
+  chart grants nothing on that API group. A Role and RoleBinding in `u6-sandboxes` fixed it.
+- Then `sandbox_k8s.py`: `id -u` 0, the allowed host 200, an undeclared host and the metadata
+  address blocked (`URLError`). A `Sandbox` (Ready, `DependenciesReady`), its pod (2/2: `sandbox`
+  and Gen9's `egress`, init `execd-installer` from Gen9's execd image) and a headless Service.
+- The init container ran `privileged: true` here too: `[egress] disable_ipv6` defaults to true
+  (`config.py`: "egress IPv6 support is incomplete, especially on Kubernetes runtime"), and
+  `prep_execd_init_for_egress` needs privilege to write `/proc/sys/.../disable_ipv6`.

@@ -1,0 +1,20 @@
+# A local Kubernetes cluster for trying Gen9 (docs/operations.md, "Kubernetes"): kind, with its
+# containerd reading registry settings from /etc/containerd/certs.d, so a registry on this machine
+# can serve the lock's images, as kind documents it (https://kind.sigs.k8s.io/docs/user/local-registry/)
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      config_path = "/etc/containerd/certs.d"
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      # A sandbox may start 4,096 processes, as gen9-sandbox's config.toml gives it on Docker
+      # (pids_limit): on Kubernetes that is the kubelet's, per pod (docs/operations.md, "Kubernetes")
+      - |
+        kind: KubeletConfiguration
+        podPidsLimit: 4096
+        # A command past a sandbox's memory is killed, not every process in the sandbox, as on
+        # Docker: no memory.oom.group on cgroup v2
+        singleProcessOOMKill: true
