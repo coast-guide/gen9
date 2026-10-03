@@ -90,26 +90,29 @@ What the owner asked, restated before starting (they went on to "start the loop"
     with `[kubernetes]`, a sandbox pod with Gen9's egress image, gVisor or not.
   - [x] R2e Drift on Kubernetes: `helm diff upgrade` (and its three-way mode) and
     `kubectl diff --server-side`, each against an edit made by hand.
-- [ ] R3 Each third-party part's own official deployment guides, of the version Gen9 pins, read
+- [x] R3 Each third-party part's own official deployment guides, of the version Gen9 pins, read
   that day (the owner: "for third party stacks we are using refer to their own official docs to
   see if they provide guides - latest research"), findings and links in the Decision Log
   ("Third-party guides"), before U3 chooses adopt, adapt or build for each:
-  - [ ] Keycloak 26.7.5 (container guide, Operator, production configuration).
-  - [ ] Temporal server 1.32.0 and UI 2.54.1 (self-hosted guide, the Helm chart, production
+  - [x] Keycloak 26.7.5 (container guide, Operator, production configuration).
+  - [x] Temporal server 1.32.0 and UI 2.54.1 (self-hosted guide, the Helm chart, production
     checklist).
-  - [ ] Langfuse 4.48.0 (self-hosting: Docker Compose, Kubernetes Helm; ClickHouse, S3, Redis,
+  - [x] Langfuse 4.48.0 (self-hosting: Docker Compose, Kubernetes Helm; ClickHouse, S3, Redis,
     Postgres requirements).
-  - [ ] LiteLLM proxy v1.103.1 (Docker, Helm chart, production settings).
-  - [ ] OpenSandbox 1.1.0 (Kubernetes deployment, controller, secure runtime).
-  - [ ] PostgreSQL 18 and 16/17 with pgvector (the image's docs; CloudNativePG as the operator).
-  - [ ] Valkey 9.1, Redis 7.4 (the official images, valkey-helm).
-  - [ ] ClickHouse 26.8 (its Docker image, its Kubernetes operator).
-  - [ ] MinIO (Chainguard image) and the S3 alternatives Langfuse documents.
-  - [ ] SearXNG, Mailpit, Ollama and llama.cpp server (their container docs).
+  - [x] LiteLLM proxy v1.103.1 (Docker, Helm chart, production settings).
+  - [x] OpenSandbox 1.1.0 (Kubernetes deployment, controller, secure runtime).
+  - [x] PostgreSQL 18 and 16/17 with pgvector (the image's docs; CloudNativePG as the operator).
+  - [x] Valkey 9.1, Redis 7.4 (the official images, valkey-helm).
+  - [x] ClickHouse 26.8 (its Docker image, its Kubernetes operator).
+  - [x] MinIO (Chainguard image) and the S3 alternatives Langfuse documents.
+  - [x] SearXNG, Mailpit, Ollama and llama.cpp server (their container docs).
 - [ ] U1 Images built once: a bake file for the 7 Gen9 images from the Dockerfiles Compose builds;
   a workflow that builds them for linux/amd64 and linux/arm64, pushes them to
   `ghcr.io/coast-guide/gen9-*`, and attests provenance and SBOM; a lock of their digests in git.
   `make up` keeps building locally for development.
+- [ ] U1b Langfuse's S3 store: MinIO's repository is archived ("THIS REPOSITORY IS NO LONGER
+  MAINTAINED"); choose a maintained store for both shapes (SeaweedFS, which Langfuse's chart
+  bundles, or another), or keep Chainguard's build knowingly; any S3 stays a setting.
 - [ ] U2 Docker from published images: one command deploys a version (or the lock) on any host
   with Docker, pulling by digest, building nothing; the settings in one place.
 - [ ] U3 Kubernetes: a Helm 4 chart (or what R2b chooses), standard APIs only, the same images by
@@ -192,7 +195,8 @@ candidate); Temporal's chart temporal-1.7.0, Langfuse's langfuse-2.1.3.
   file with a JSON schema is the configuration surface item 4 asks for, which Kustomize has no
   equivalent of.
 - Decision: the Kubernetes shape runs the same images as the Docker shape, by digest, and the same
-  configuration files, rather than upstream charts that swap parts. Rationale: the owner's core
+  configuration files, rather than upstream charts that swap parts (refined by R3, "Third-party
+  guides": an upstream chart is used where it runs the same images). Rationale: the owner's core
   concern ("shouldn't be any difference"); Langfuse's chart swaps MinIO for SeaweedFS (Surprises).
   An upstream chart can still be used where it runs the same images (to check per part in U3).
 - Decision: HTTP enters through the Gateway API (HTTPRoute), with a plain Ingress as a setting.
@@ -243,6 +247,46 @@ candidate); Temporal's chart temporal-1.7.0, Langfuse's langfuse-2.1.3.
 - Decision: how HTTP gets in is a setting with three answers: an HTTPRoute on a Gateway the cluster
   has (named in the settings), an Ingress of a class it has, or neither. Rationale: R2c, no cluster
   routes to a Gateway out of the box, and only k3s routes Ingress.
+
+### Third-party guides (R3)
+
+Each part's own docs, read on 2026-10-01 for the version Gen9 pins (latest releases that day in
+brackets). The rule for the chart that follows from them: Gen9 requires of a cluster only what
+can't be avoided (OpenSandbox's CRDs and controller); every other part runs the same image as in
+Docker, from an upstream chart where that chart runs the same images and adds no cluster-wide
+prerequisite, else from Gen9's own templates; each data store can instead be an external service
+(a setting), which is how a cluster owner brings an operator or a managed service.
+
+| Part | What its own docs give for Kubernetes | Gen9's chart |
+| --- | --- | --- |
+| Keycloak 26.7.5 [26.8.0, out today] | The Keycloak Operator: OLM "the recommended way to install" it, or `kubectl apply -k …keycloak-k8s-resources/kubernetes?ref=<version>`; its Helm chart is "Experimental … a preview". It needs a database provided by the user, a TLS Secret and a hostname; a custom image "requires a high degree of trust"; realms through `KeycloakRealmImport`. Images: build optimized (`kc.sh build`), health on port 9000 | Own templates: the gen9-keycloak image with `start --optimized` and the realm import, as in Docker. The Operator needs cluster-wide CRDs and a second way to configure the same server; documented as the alternative |
+| Temporal 1.32.0, UI 2.54.1 | Its Helm chart (temporal-1.7.0): "installs only the Temporal server components. You must provide persistence"; runs schema jobs (`manageSchema`); images `temporalio/server:1.32.0`, `admin-tools:1.32.0`, `ui:2.54.1`, Gen9's exact pins. Services "should run on hosts that are not accessible from the public internet" | Adopt the chart as a dependency, pointed at Gen9's Postgres |
+| Langfuse 4.48.0 [4.49.0] | Docker Compose is for "Local use and testing", a "Single VM without high availability, scaling, or backups"; Kubernetes (Helm, langfuse-2.1.3) for production. From chart 2.0.0 its bundled ClickHouse needs "the ClickHouse Kubernetes Operator" (and cert-manager); it bundles SeaweedFS for S3 and recommends a managed blob store in production; each store can be external (`*.deploy: false`). Kubernetes 1.28 or newer | Adopt the chart for Langfuse's web and worker (the same images), every store external, pointed at Gen9's |
+| LiteLLM v1.103.1 [v1.103.2] | Images `ghcr.io/berriai/litellm` ("pin a version tag"); charts `oci://ghcr.io/berriai/litellm-helm` (monolithic) and a componentized one; a migrations job, `DISABLE_SCHEMA_UPDATE=true` on the proxies; a production checklist. The monolithic chart (1.1.3) defaults to v1.85.1 and depends on Bitnami's PostgreSQL and Redis charts with `bitnamilegacy/*` images | Own templates: one Deployment, the migrations Job, Gen9's `config.yaml`; the chart's dependencies would vendor Bitnami's legacy charts |
+| OpenSandbox 1.1.0 | Its charts (all-in-one `opensandbox` 1.1.0: CRDs, controller, server); `[secure_runtime]` with `k8s_runtime_class` (gVisor, Kata, Firecracker), and the server "will refuse to start if the runtime is unavailable" | Adopt its charts; Gen9's execd and egress images, Gen9's BatchSandbox template, the sandboxes' namespace and a NetworkPolicy (U6) |
+| PostgreSQL 18 (Gen9's image with pgvector), 16 and 17 | The official image (init scripts in `docker-entrypoint-initdb.d`); for Kubernetes, CloudNativePG 1.30 (images `ghcr.io/cloudnative-pg/postgresql`, extensions through image volumes or its standard images) | StatefulSets of the same images; CloudNativePG or a managed Postgres as external |
+| Valkey 9.1.2, Redis 7.4 | valkey-helm (official): `valkey` "Standalone / replication without operator", image `valkey/valkey` | Own small StatefulSets, or the `valkey` chart if its values take Gen9's settings (U3) |
+| ClickHouse 26.8 | ClickHouse's own operator is `v1alpha1` and needs cert-manager; Altinity's operator (0.27.4) is the long-standing one | One StatefulSet of the official image, as in Docker; a ClickHouse cluster as external |
+| MinIO (Chainguard's build) | `minio/minio` is archived: "THIS REPOSITORY IS NO LONGER MAINTAINED", pointing at AIStor; Langfuse's own Compose file still uses `cgr.dev/chainguard/minio` | U1b |
+| SearXNG, Mailpit, Ollama, llama.cpp | Container images and Compose only; no Kubernetes guidance. Mailpit is an email testing tool; Ollama and llama.cpp have GPU image variants | Own Deployments; SMTP is a setting (Mailpit only when none is set); local models optional, GPUs a setting |
+
+Sources: [Keycloak Operator installation](https://www.keycloak.org/operator/installation),
+[basic deployment](https://www.keycloak.org/operator/basic-deployment),
+[containers](https://www.keycloak.org/server/containers);
+[Temporal, deployment](https://docs.temporal.io/self-hosted-guide/deployment),
+[temporalio/helm-charts](https://github.com/temporalio/helm-charts);
+[Langfuse, self-hosting](https://langfuse.com/self-hosting),
+[Kubernetes (Helm)](https://langfuse.com/self-hosting/deployment/kubernetes-helm),
+langfuse-k8s `charts/langfuse/Chart.yaml` and `values.yaml`;
+[LiteLLM, deploy](https://docs.litellm.ai/docs/proxy/deploy), `helm/litellm-helm/Chart.yaml`;
+OpenSandbox `docs/guides/secure-container.md` and `manifests/charts` at `release-1.1.0`;
+[CloudNativePG](https://cloudnative-pg.io/docs/devel); [valkey-helm](https://github.com/valkey-io/valkey-helm);
+[ClickHouse operator](https://github.com/ClickHouse/clickhouse-operator); the
+[minio/minio README](https://github.com/minio/minio);
+[SearXNG, Docker](https://docs.searxng.org/admin/installation-docker.html),
+[Mailpit, Docker](https://mailpit.axllent.org/docs/install/docker/),
+[Ollama, Docker](https://docs.ollama.com/docker),
+[llama.cpp, Docker](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md).
 
 ## Outcomes & Retrospective
 
