@@ -108,7 +108,8 @@ Sandboxes (gen9-sandbox) need a little more of the cluster, to hold them as Dock
   `gen9-sandbox/config.toml` drops, `SANDBOX_DISK_GB` of disk). On an older cluster the chart
   refuses to install, unless `sandboxes: {hardening: optional}` accepts sandboxes without them.
 - Two kubelet settings on the nodes that run sandboxes, which no pod field can set, as
-  `deploy/kind.yaml` sets them for kind: a process limit, `podPidsLimit: 4096` (Docker's
+  `deploy/kind.yaml` sets them for kind and `deploy/k3d.yaml` for k3s (a kubelet config file k3s
+  takes as `--kubelet-arg=config=…`): a process limit, `podPidsLimit: 4096` (Docker's
   `pids_limit`; the kubelet's default is none), and `singleProcessOOMKill: true`, so that a
   command past a sandbox's memory is killed and the sandbox lives on, as on Docker (on cgroup v2
   the kubelet otherwise kills every process of the container).
@@ -135,7 +136,9 @@ lands in an annotation.
 
 To try it here: `kind create cluster --config deploy/kind.yaml` makes a cluster whose containerd
 can pull from a registry on this machine (kind's [local registry](https://kind.sigs.k8s.io/docs/user/local-registry/)
-recipe: connect the registry to the `kind` network and give each node a `hosts.toml`). `make
+recipe: connect the registry to the `kind` network and give each node a `hosts.toml`); `k3d
+cluster create --config deploy/k3d.yaml` makes a k3s one (a registry of your own with
+`--registry-config`, k3s's `registries.yaml`). `make
 k8s-e2e` runs `make e2e` against the cluster: it forwards each port a stack publishes on Docker to
 the same port on 127.0.0.1, and puts `e2e/k8s` first on `PATH`, whose `docker` reaches the pods.
 

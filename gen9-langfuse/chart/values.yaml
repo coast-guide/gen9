@@ -14,6 +14,7 @@ services:
   langfuse-worker:
     kind: Deployment
     ports: {http: 3030}
+  migrated: {kind: Init, into: langfuse-worker}  # the worker waits for Langfuse's migrations
   clickhouse:
     kind: StatefulSet
     ports: {http: 8123, native: 9000}

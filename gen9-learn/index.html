@@ -2387,6 +2387,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr data-service="gen9-langfuse/redis"><td><code>redis</code></td><td>Langfuse's queues between web and worker, and its cache</td><td>13005 → 6379; <code>gen9-langfuse_langfuse_redis_data</code></td><td><a href="#b7-langfuse">Langfuse, inside</a></td></tr>
       <tr data-service="gen9-langfuse/minio"><td><code>minio</code></td><td>S3 storage: raw event batches under <code>events/</code>, and a trace's images. Containers reach it as <code>gen9-langfuse-media:9000</code></td><td>13001 → 9000, 13002 → 9001 (console); <code>gen9-langfuse_langfuse_minio_data</code></td><td><a href="#b6-4">What outlives the account</a></td></tr>
       <tr data-service="gen9-langfuse/minio-lifecycle"><td><code>minio-lifecycle</code></td><td>One-shot, every start: the one-day expiry rule on <code>events/</code></td><td>none</td><td><a href="#b6-4">What outlives the account</a></td></tr>
+      <tr data-service="gen9-langfuse/migrated"><td><code>migrated</code></td><td>One-shot, every start: waits until langfuse-web answers, so its migrations are in, before the worker starts and loads the newest model prices</td><td>none</td><td></td></tr>
     </tbody>
   </table></div>
 

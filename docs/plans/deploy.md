@@ -196,7 +196,16 @@ What the owner asked, restated before starting (they went on to "start the loop"
     image on the cluster, the sandboxes' egress and execd included, was the lock's digest. The
     cluster's router: $0.224666 over 497 calls for all of it, a floor (deleting the throwaway
     people erases their records).
-  - [ ] Verified on k3d with the same values.
+  - [x] Verified on k3d with the same values: k3d v5.9.0, k3s v1.37.1 (`deploy/k3d.yaml`, its
+    kubelet settings from a file k3s takes as `--kubelet-arg=config=…`: `podPidsLimit 4096`,
+    `singleProcessOOMKill true` on the node), the kind lock's registry by k3s's `registries.yaml`.
+    `make k8s-up` installed the eight stacks in 502 s once the one-shot Jobs restarted in place
+    (Surprises); `make k8s-diff` 0; every Gen9 image, the sandboxes' included, the lock's digest.
+    `make k8s-e2e`'s scripts that exercise what differs between clusters, once each, to spare
+    model spend after all 49 had passed on kind: `stacks`, `temporal`, `models` (after the
+    Langfuse fix, Surprises), `search` (a one-off container), `environments` (sandboxes under
+    kube-router's policies), `retry` (the router down), `stop`, `context` (a second worker): all
+    passed. The router: $0.025507 over 71 calls.
   - [x] A check that every Compose service has a chart entry and every bind source a link: the
     template's own, run by CI's `charts` job on every pull request and by `make k8s-up`, rather
     than in `make config`, which would need Helm of everyone on Docker alone. Tried on a copy of
@@ -390,6 +399,26 @@ What the owner asked, restated before starting (they went on to "start the loop"
   check read only the API's log; a sweep inside the check fails it on Docker too, which the
   timing had hidden. Fixed in PR #67 (from `main`): the worker logs each line; on kind the sweep
   triggered by hand wrote three rows and three lines.
+- On k3d (k3s v1.37.1), gen9-postgres's `extensions` Job failed all four tries: "connection to
+  server at "postgres" (10.43.42.7), port 5432 failed: Connection refused", Postgres up and
+  listening throughout. A new pod in that namespace reached Postgres on its second try, half a
+  second after starting: k3s's network policy controller (kube-router) refuses a brand-new pod
+  until its rules know the pod's address (kube-router#873, its rules lagging a pod's first traffic,
+  reported in 2020 and still discussed by its maintainers in 2026),
+  and each retry of a Job with `restartPolicy: Never` is a new pod. Kubernetes' "Network Policies",
+  "Pod lifecycle": "a newly created pod may have no network connectivity at all when it is first
+  started … pods must be resilient". kind's kindnet never showed it, nor Docker. The library's
+  Jobs now restart in the same pod (`OnFailure`); then every stack installed on k3d.
+- `models.mjs` failed on k3d: Langfuse had the call under `openai/gpt-6-luna` but no cost. The
+  fresh Langfuse held only the 87 prices its migrations bring (none for gpt-5 or later): its
+  worker loads the newest ones once, at start (Langfuse 4.48.0, `worker/src/initialize.ts`, no
+  retry), and had started before the web's migrations made the tables: "Error upserting default
+  model prices … relation "models" does not exist". Langfuse's own Compose file and Helm chart
+  (langfuse-2.1.3) start the worker after Postgres alone, so a fresh install on Docker can meet it
+  too. gen9-langfuse's `compose.override.yaml` now has `migrated`, a one-shot from the worker's
+  image that waits for the web's health (served only once migrated), which the worker waits for:
+  `depends_on` on Docker, its init container on Kubernetes. A fresh Langfuse on k3d: the one-shot
+  waited, then "Finished upserting default model prices in 2113ms", 185 prices, gpt-6 among them.
 - Not a difference between the shapes, kept for a follow-up: `runs.mjs`'s "a task with steps"
   failed once on kind and passed when run again. The failing run took the long way (13 tools
   live, "Used the research brief skill"; "Used 6 tools and a plan" when done; "Made a plan" after

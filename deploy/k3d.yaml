@@ -1,0 +1,36 @@
+# A local k3s cluster for trying Gen9 (docs/operations.md, "Kubernetes"), as deploy/kind.yaml is
+# for kind: k3d runs k3s in Docker. `k3d cluster create --config deploy/k3d.yaml`
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: gen9
+image: rancher/k3s:v1.37.1-k3s1@sha256:ca7f37d993d82ef0dcdcfecb2e0e2618ea541dbaffc620c8cedebe01a82acd0d
+servers: 1
+files:
+  # The kubelet settings sandboxes need, as in deploy/kind.yaml: k3s takes a kubelet config file
+  # given as --kubelet-arg=config=… into its own drop-in directory, after its defaults
+  - description: Gen9's kubelet settings
+    source: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      # A sandbox may start 4,096 processes, as gen9-sandbox's config.toml gives it on Docker
+      # (pids_limit): on Kubernetes that is the kubelet's, per pod
+      podPidsLimit: 4096
+      # A command past a sandbox's memory is killed, not every process in the sandbox, as on
+      # Docker: no memory.oom.group on cgroup v2
+      singleProcessOOMKill: true
+    destination: /etc/gen9/kubelet.conf
+    nodeFilters:
+      - server:*
+      - agent:*
+options:
+  k3s:
+    extraArgs:
+      - arg: --kubelet-arg=config=/etc/gen9/kubelet.conf
+        nodeFilters:
+          - server:*
+          - agent:*
+      # Gen9 brings no ingress yet: k3s's bundled Traefik would only take memory
+      - arg: --disable=traefik
+        nodeFilters:
+          - server:*

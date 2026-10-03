@@ -141,7 +141,12 @@ spec:
       labels: {{- include "gen9.labels" $c | nindent 8 }}
     spec:
       {{- if eq $k.kind "Job" }}
-      restartPolicy: Never
+      {{- /* A new pod may start before the network policy allows it anywhere ("pods must be
+      resilient against being started up with different network connectivity than expected",
+      Kubernetes' Network Policies, "Pod lifecycle"): k3s refused each new pod of a one-shot for
+      its first half second, and a new pod per retry met the same. Retried in the same pod, a
+      one-shot is let through */}}
+      restartPolicy: OnFailure
       {{- end }}
       {{- with $k.serviceAccount }}
       serviceAccountName: {{ . }}
