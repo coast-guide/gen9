@@ -108,8 +108,20 @@ What the owner asked, restated before starting (they went on to "start the loop"
   - [x] SearXNG, Mailpit, Ollama and llama.cpp server (their container docs).
 - [ ] U1 Images built once: a bake file for the 7 Gen9 images from the Dockerfiles Compose builds;
   a workflow that builds them for linux/amd64 and linux/arm64, pushes them to
-  `ghcr.io/coast-guide/gen9-*`, and attests provenance and SBOM; a lock of their digests in git.
-  `make up` keeps building locally for development.
+  `ghcr.io/coast-guide/gen9-*`, and attests provenance and SBOM; the digests written down as a
+  lock. `make up` keeps building locally for development.
+  - [x] `docker-bake.hcl`; `scripts/check-images.py` in `make config` (bake and Compose agree).
+  - [x] `.github/workflows/images.yml`: Docker's bake workflow per image; on `main`, push and
+    attest; the lock as the run's artifact.
+  - [x] Verified here: `docker buildx bake --print`; all 7 built for linux/amd64 (24 s, 57 steps
+    from the Compose builds' cache), and gen9-postgres, the egress and execd images for
+    linux/arm64 under emulation (318 s; gen9-postgres took `pg-textsearch-…-arm64.zip` by
+    `TARGETARCH`); `make config` passes, and fails on a context changed on purpose.
+  - [x] Verified in CI: the pull request built all 7 for both platforms on native runners, 14
+    jobs, 36 to 115 s each, the run 3 min (run 36871230604 failed first: Surprises, "a Dockerfile
+    frontend that knows `source.git.checksum`"; then run 36871669043).
+  - [ ] After the owner merges: the run on `main` pushes, signs and attests;
+    `gh attestation verify` on each.
 - [ ] U1b Langfuse's S3 store: MinIO's repository is archived ("THIS REPOSITORY IS NO LONGER
   MAINTAINED"); choose a maintained store for both shapes (SeaweedFS, which Langfuse's chart
   bundles, or another), or keep Chainguard's build knowingly; any S3 stays a setting.
@@ -136,6 +148,15 @@ What the owner asked, restated before starting (they went on to "start the loop"
   gen9-learn); `make e2e` against Docker and kind from published images.
 
 ## Surprises & Discoveries
+
+- Docker's bake workflow builds from a git context pinned by checksum
+  (`https://github.com/coast-guide/gen9.git?ref=…&checksum=…&fetch-by-commit=true`), which needs a
+  Dockerfile frontend that knows BuildKit's `source.git.checksum`: the three Dockerfiles pinned to
+  `# syntax=docker/dockerfile:1.7` (gen9-postgres, the egress and execd images) failed on both
+  platforms with "failed to resolve dockerfile: unknown API capability source.git.checksum", while
+  those on `docker/dockerfile:1` (1.27.1) built. 1.7 was there as the floor for `ADD --checksum`;
+  all five now say `docker/dockerfile:1`. Local builds never showed it: they send the folder, not
+  a git URL.
 
 - OpenSandbox's Kubernetes runtime works with Gen9's egress and execd images unchanged (a command
   ran, the allowed host answered, an undeclared host and the metadata address were blocked), but
@@ -253,6 +274,33 @@ candidate); Temporal's chart temporal-1.7.0, Langfuse's langfuse-2.1.3.
 - Decision: how HTTP gets in is a setting with three answers: an HTTPRoute on a Gateway the cluster
   has (named in the settings), an Ingress of a class it has, or neither. Rationale: R2c, no cluster
   routes to a Gateway out of the box, and only k3s routes Ingress.
+
+- Decision: images are built by Docker's reusable bake workflow
+  (`docker/github-builder/.github/workflows/bake.yml`, v1.17.0, pinned by commit), one call per
+  image in a matrix, from `docker-bake.hcl` at the root. Rationale: Docker's docs now point to it
+  instead of "maintaining a custom matrix and merge job": it splits the platforms across native
+  runners (`ubuntu-24.04-arm` for arm64, free on public repositories), pushes by digest, merges the
+  manifest, and signs BuildKit's SLSA provenance (mode `max` on a public repository) with the
+  workflow's identity; its own actions are pinned by commit, as this repository requires
+  ([Docker, multi-platform](https://docs.docker.com/build/ci/github-actions/multi-platform/),
+  [docker/github-builder](https://github.com/docker/github-builder),
+  [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)).
+  One call builds one target (`target`, its `meta-images`), so 7 calls; Docker's maintainer of
+  these actions builds his images to GHCR the same way (`crazy-max/docker-fail2ban`,
+  `.github/workflows/build.yml`). GitHub's own attestation (`actions/attest@v4`) is added after it,
+  for `gh attestation verify`. Every base image Gen9 pins is a multi-platform index with amd64 and
+  arm64 (`docker buildx imagetools inspect --raw`), and gen9-postgres already picks its extension
+  by `TARGETARCH`.
+- Decision: the lock of digests is made by the build, not committed. The digests exist only after
+  CI builds, and builds aren't bit-for-bit reproducible, so git can't hold them before the build
+  without a bot committing after it (Flux's image automation pattern). Instead the workflow writes
+  the lock as an artifact of its run, and a release attaches it and bakes it into the chart and the
+  Compose bundle (U7): the release, immutable, declares what runs, and git declares how it was
+  built. This changes acceptance item `images.lock` into `images.lock-released`.
+- Decision: `docker-bake.hcl` names each image's context, which the Compose files name too
+  (`build:`); bake can't read Gen9's Compose files in CI, where no `.env` exists ("env file .env
+  not found"). `scripts/check-images.py`, run by `make config` and so by CI, fails when they
+  differ.
 
 ### Release management (R1)
 

@@ -196,14 +196,15 @@ logs:
 	done
 
 # Every profile, so opt-in services are checked too. Then, across all stacks: no stack may reach
-# another under one of its own service names on a shared network (scripts/check-networks.py).
+# another under one of its own service names on a shared network (scripts/check-networks.py), and
+# docker-bake.hcl must build each Gen9 image as the Compose files do (scripts/check-images.py).
 config:
 	@status=0; $(foreach s,$(SELECTED),printf '== gen9-$(s): '; \
 	  $(if $(call missing,$(s)),echo "not set up: missing $(call missing,$(s))"; status=1;, \
 	  (cd gen9-$(s) && docker compose --profile '*' config --quiet) && echo ok || status=1;)) \
 	  exit $$status
-	@if command -v python3 >/dev/null; then scripts/check-networks.py; \
-	  else echo "python3 not found: skipped the shared-network name check"; fi
+	@if command -v python3 >/dev/null; then scripts/check-networks.py && scripts/check-images.py; \
+	  else echo "python3 not found: skipped the shared-network name and image checks"; fi
 
 setup:
 	@scripts/doctor.sh --preflight $(SELECTED)

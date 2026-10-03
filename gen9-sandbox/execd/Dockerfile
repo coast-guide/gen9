@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1
 # OpenSandbox's execd (Apache-2.0), the daemon the server copies into every sandbox to run its
 # commands (config.toml's execd_image). OpenSandbox builds it with Go 1.25.9 and grpc 1.82.1, in
 # which govulncheck finds 21 vulnerabilities `/execd` reaches (docs/plans/manual-e2e.md, P6-D1c5c).

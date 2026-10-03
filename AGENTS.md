@@ -157,6 +157,7 @@ Only then implement. The same applies to design and UX work, and to any change o
   `reference.mjs` also after any change to gen9-agent, gen9-ui or gen9-cli code: the page points
   into it by line (`data-at`), and an edit above a pointer moves it.
 
-CI (`.github/workflows/checks.yml`) runs the non-interactive ones on every pull request and on `main`. Run them
+CI (`.github/workflows/checks.yml`) runs the non-interactive ones on every pull request and on `main`;
+`.github/workflows/images.yml` builds Gen9's images for both platforms (docs/development.md). Run them
 locally before each commit anyway: CI is the second net. The live checks (`make e2e`, gen9-learn's `run.mjs`) run only
 locally, on the stacks.
