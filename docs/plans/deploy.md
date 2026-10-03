@@ -61,9 +61,9 @@ What the owner asked, restated before starting (they went on to "start the loop"
 
 ## Progress
 
-- [ ] R0 This plan, its acceptance list, and AGENTS.md pointing at it.
-- [ ] R1 Release management, the research list the owner asked for: each item decided from
-  today's sources in the Decision Log ("Release management"), then built in U7.
+- [x] R0 This plan, its acceptance list, and AGENTS.md pointing at it.
+- [x] R1 Release management, the research list the owner asked for: each item decided from
+  today's sources in the Decision Log ("Release management (R1)"), then built in U7.
   - Versioning scheme and what one version covers (images, chart, Compose bundle, CLI).
   - Tags and their protection; immutable releases; release attestations; `gh release verify`.
   - Release notes and changelog with prose commit subjects (AGENTS.md's rule), PR labels.
@@ -124,8 +124,14 @@ What the owner asked, restated before starting (they went on to "start the loop"
   ClickHouse and S3, sandbox runtime), with a schema that rejects unknown keys.
 - [ ] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd
   images, its limits and closed network as on Docker; a chat's command runs in a pod.
-- [ ] U7 Releases: the workflow from R1, verified with a pre-release from a branch.
-- [ ] U8 The owner's: the first release tag, GHCR packages public.
+- [ ] U7 Releases, as R1 decided: labels and `.github/release.yml`; the release workflow (images,
+  chart, Compose bundle, SBOMs, attestations, a draft then published); the `release` environment;
+  the version in the API, the web app, the CLI and the images' labels; `SECURITY.md`'s supported
+  versions; "Releasing" in docs/development.md; Scorecard's workflow. Verified with a pre-release
+  from a branch.
+- [ ] U8 The owner's: the first release tag; GHCR packages public; the `release` environment's
+  reviewer; `v*` tags creatable only by them (the ruleset's creation rule); registering at
+  bestpractices.dev if they want the badge.
 - [ ] Z1 Docs in step (operations.md, development.md, README, each stack's README, e2e/README,
   gen9-learn); `make e2e` against Docker and kind from published images.
 
@@ -219,7 +225,7 @@ candidate); Temporal's chart temporal-1.7.0, Langfuse's langfuse-2.1.3.
   ("Protect release tags"). Immutability "will only apply to future releases"; tag and assets
   "cannot be changed" once published
   ([GitHub, immutable releases](https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/immutable-releases)).
-- Decision (open, R1): release notes. Gen9's commit subjects are prose (AGENTS.md, "Rules"), and
+- Decision (superseded by "Release management (R1)" below): release notes. Gen9's commit subjects are prose (AGENTS.md, "Rules"), and
   release-please "assumes you are using Conventional Commit messages"
   ([release-please](https://github.com/googleapis/release-please)); GitHub's generated notes are
   built from merged pull requests and grouped by labels in `.github/release.yml`
@@ -247,6 +253,66 @@ candidate); Temporal's chart temporal-1.7.0, Langfuse's langfuse-2.1.3.
 - Decision: how HTTP gets in is a setting with three answers: an HTTPRoute on a Gateway the cluster
   has (named in the settings), an Ingress of a class it has, or neither. Rationale: R2c, no cluster
   routes to a Gateway out of the box, and only k3s routes Ingress.
+
+### Release management (R1)
+
+The list of what a proper release needs, from today's sources, and what Gen9 does for each. What
+the repository already has: immutable releases on, `v*` tags protected from deletion and updates,
+`SECURITY.md` with private reporting, Dependabot for the Actions, CodeQL, secret scanning with
+push protection, Actions pinned by SHA, `contents: read` by default in `checks.yml`.
+
+1. **One version for all of Gen9.** SemVer 2.0.0, `vX.Y.Z`, pre-releases `vX.Y.Z-rc.N`; one
+   version covers the images, the chart, the Compose bundle, the CLI and the API, because they are
+   tested together. Start at 0.1.0, which `gen9-agent`, `gen9-cli` and `gen9-ui` already declare:
+   "Major version zero (0.y.z) is for initial development" ([semver.org](https://semver.org/)).
+   The public API SemVer speaks of: the agent's HTTP API, the CLI, the settings (chart values,
+   Compose settings) and the stored data's migrations.
+2. **Immutable releases, drafted first.** Once published, a release's "assets can't be added,
+   modified, or deleted" and its tag can't move; GitHub recommends creating it as a draft,
+   attaching every asset, then publishing
+   ([managing releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository),
+   [immutable releases, generally available](https://github.blog/changelog/2025-10-28-immutable-releases-are-now-generally-available/)).
+   Publishing makes a release attestation; anyone checks with `gh release verify <tag>` and
+   `gh release verify-asset <tag> <file>`
+   ([verifying a release](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/verifying-the-integrity-of-a-release)).
+   Those commands came in gh 2.75 to 2.81 (gh v2.102.0 is current); this machine's apt build is
+   2.45.0 and lacks them, so the docs name the version needed.
+3. **Release notes on the GitHub Release, no CHANGELOG.md.** GitHub generates them from the pull
+   requests merged since the last release, grouped by labels in `.github/release.yml`. Gen9's
+   pull request titles are already sentences for people, which is what a changelog needs
+   ("Changelogs are for humans … Using commit log diffs as changelogs is a bad idea",
+   [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)); its groups (Added, Changed,
+   Deprecated, Removed, Fixed, Security) become the labels. Each release adds, by hand, an
+   "Upgrading" section when a setting or a migration needs the reader. One place for it: the
+   release. release-please (v17.11.2) is not used: it "assumes you are using Conventional Commit
+   messages", which AGENTS.md's commit rules don't produce.
+4. **The release workflow** (`.github/workflows/release.yml`, on a `v*` tag): build the 7 images
+   once with bake for linux/amd64 and linux/arm64 and push them by digest to GHCR; attest
+   provenance and SBOM for each (`actions/attest@v4`, `push-to-registry`); package the chart with
+   the version and the digests, push it to `oci://ghcr.io/coast-guide/charts/gen9`, attest it by
+   digest ("invoke the action with the `subject-name` and `subject-digest` inputs",
+   [actions/attest](https://github.com/actions/attest)); write the Compose bundle and the SBOMs as
+   assets, with the attestation bundles as `*.sigstore.json` (what Scorecard's Signed-Releases
+   looks for); create the draft with generated notes, upload, publish. The publishing job runs in
+   a `release` environment with the owner as required reviewer.
+5. **What runs says what it is.** The version and the commit in the images' OCI labels
+   (`org.opencontainers.image.version`, `revision`, `source`), in the API (a version endpoint),
+   the web app and `gen9 --version`, so a person and the drift check can see which release runs.
+6. **Upgrades.** The migrations run themselves (gen9-agent's migrate job, Temporal's schema jobs,
+   Keycloak's realm), as they do with `make up`; `docs/operations.md`, "Upgrade", covers going from
+   one release to the next in both shapes; a check upgrades the previous release to the new one on
+   kind before a release (U7).
+7. **Support.** While 0.y: only the latest release gets fixes, as a patch release; `SECURITY.md`
+   says so and how long a reporter waits (it already says 7 days, 90 days to disclosure).
+8. **Scorecard.** `ossf/scorecard-action` v2.4.4 on `main` weekly and on push, results to code
+   scanning; then fix what it finds. Its checks
+   ([docs/checks.md](https://github.com/ossf/scorecard/blob/main/docs/checks.md)) Gen9 would meet
+   after U7: Branch-Protection, CI-Tests, Code-Review, Dangerous-Workflow,
+   Dependency-Update-Tool, License, Pinned-Dependencies, SAST, SBOM, Security-Policy,
+   Signed-Releases, Token-Permissions, Packaging (the GHCR packages). The OpenSSF Best Practices
+   badge (CII-Best-Practices) needs the owner to register the project.
+9. **Cadence.** A release when `main` is green and `make e2e` passed against both shapes from the
+   release candidate's images; no backport branches while 0.y.
 
 ### Third-party guides (R3)
 
