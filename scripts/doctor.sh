@@ -129,7 +129,7 @@ fi
 # named in one and not the other would leave gen9-agent at the wrong one
 if ! $BEFORE_SETUP && [ -f gen9-postgres/.env ] && [ -f gen9-agent/.env ] &&
   [[ " ${STACKS[*]} " == *" agent "* || " ${STACKS[*]} " == *" postgres "* ]]; then
-  for key in GEN9_POSTGRES_SERVER GEN9_POSTGRES_SERVER_PORT GEN9_POSTGRES_SSLMODE; do
+  for key in GEN9_POSTGRES_SERVER GEN9_POSTGRES_SERVER_PORT GEN9_POSTGRES_SSLMODE GEN9_POSTGRES_SSLROOTCERT; do
     if [ "$(sed -n "s/^$key=//p" gen9-postgres/.env | tail -n 1)" != "$(sed -n "s/^$key=//p" gen9-agent/.env | tail -n 1)" ]; then
       fail "gen9-agent/.env's $key differs from gen9-postgres/.env's: make setup STACKS=\"postgres agent\" copies it"
     fi

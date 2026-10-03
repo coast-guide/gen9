@@ -21,10 +21,12 @@ class DatabaseSettings(BaseSettings):
     database_name: str = "gen9_agent"
     database_user: str = "gen9_agent"
     database_password: SecretStr
-    # libpq's sslmode: prefer takes TLS when the server offers it; require insists on it
+    # libpq's sslmode: prefer takes TLS when the server offers it; require insists on it;
+    # verify-full checks its certificate against sslrootcert, a CA file, and its name too
     database_sslmode: Literal[
         "disable", "allow", "prefer", "require", "verify-ca", "verify-full"
     ] = "prefer"
+    database_sslrootcert: str = ""
 
     @computed_field
     @property
@@ -36,7 +38,12 @@ class DatabaseSettings(BaseSettings):
             host=self.database_host,
             port=self.database_port,
             database=self.database_name,
-            query={"sslmode": self.database_sslmode},
+            query={"sslmode": self.database_sslmode}
+            | (
+                {"sslrootcert": self.database_sslrootcert}
+                if self.database_sslrootcert
+                else {}
+            ),
         )
 
     @property

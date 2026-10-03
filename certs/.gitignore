@@ -1,0 +1,4 @@
+# The CAs this Gen9 trusts when it reaches a store elsewhere over TLS (docs/operations.md, "External
+# services"): files of yours, mounted read-only at /etc/gen9/certs, never committed
+*
+!.gitignore

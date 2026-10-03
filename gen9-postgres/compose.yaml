@@ -72,10 +72,13 @@ services:
       PGHOST: ${GEN9_POSTGRES_SERVER:-postgres}
       PGPORT: ${GEN9_POSTGRES_SERVER_PORT:-5432}
       PGSSLMODE: ${GEN9_POSTGRES_SSLMODE:-prefer}
+      # The CA its certificate is checked against: a file of certs/ at the repository's root
+      PGSSLROOTCERT: ${GEN9_POSTGRES_SSLROOTCERT:-}
       POSTGRES_USER: ${GEN9_POSTGRES_ADMIN_USER:-postgres}
       PGPASSWORD: ${POSTGRES_PASSWORD:?run ./init-env.sh first}
     volumes:
       - ./scripts:/scripts:ro
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     depends_on:
       postgres:
         condition: service_healthy
@@ -94,6 +97,7 @@ services:
       GEN9_AGENT_APP_DB_PASSWORD: ${GEN9_AGENT_APP_DB_PASSWORD:?run make setup, which adds it}
     volumes:
       - ./scripts:/scripts:ro
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     depends_on:
       postgres:
         condition: service_healthy

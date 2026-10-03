@@ -524,6 +524,51 @@ What the owner asked, restated before starting (they went on to "start the loop"
       gives (Keycloak's `KC_DB_TLS_MODE=verify-server` and trust store, Temporal's `SQL_CA` and host
       verification, libpq's `sslrootcert`, Prisma's `sslcert`), which needs that CA file in the
       containers in both shapes, a published chart included.
+      Research, 2026-10-03, each client's own source or docs: Prisma's engine (prisma-engines,
+      `quaint/src/connector/postgres/url.rs`) takes `sslmode` prefer, disable or require, accepts
+      any certificate unless `sslaccept=strict` (`SslAcceptMode::AcceptInvalidCerts` by default),
+      then checks against `sslcert`, a CA file, and drops parameters it doesn't know; libpq's
+      `sslcert` is instead the client's certificate, its CA `sslrootcert`, and an unknown
+      parameter fails the connection, so one URL can't serve gen9-models' LiteLLM (Prisma) and its
+      keys job and admin API (psycopg); libpq's `sslrootcert=system` makes `verify-full` the least
+      mode; Keycloak 26.7.5's `--db-tls-mode=verify-server` with `--db-tls-trust-store-file` (a
+      PEM); Temporal 1.32.0's server `SQL_CA` and `SQL_HOST_VERIFICATION`, its schema tool's own
+      `SQL_TLS_CA_FILE` and `SQL_TLS_DISABLE_HOST_VERIFICATION`. Node (Langfuse's ClickHouse, S3
+      and Redis clients; gen9-ui's node-redis) takes extra CAs from `NODE_EXTRA_CA_CERTS`. In
+      three units:
+      - [x] U5c-5a The CA in the containers, in both shapes: each stack's `certs/` folder (its CA
+        files, not in git) mounted read-only at `/etc/gen9/certs` where a store is reached; on
+        Kubernetes, `make k8s-up` makes the ConfigMap `certs` from the same folder and the library
+        mounts that, optional, instead of files packed in the chart, so a published chart takes
+        the cluster's own. First users, libpq's: gen9-agent (`DATABASE_SSLROOTCERT`, with
+        `verify-full`) and gen9-postgres's jobs. Verify against a server whose certificate a test
+        CA signed: `verify-full` with the CA connects; without it, or under a name the
+        certificate doesn't hold, refused.
+        Done 2026-10-03. Built: `certs/` (its `.gitignore` keeps out every file but itself),
+        mounted `../certs:/etc/gen9/certs:ro` by gen9-agent's services and gen9-postgres's jobs;
+        `GEN9_POSTGRES_SSLROOTCERT` (libpq's `PGSSLROOTCERT` for the jobs; gen9-agent's new
+        `DATABASE_SSLROOTCERT`, in every connection's URL, tests), copied by `make setup` and
+        compared by `make up` as the other three; the library mounts a folder of the
+        repository's root (`../certs`) as the ConfigMap of its name, optional, its content's hash in
+        the pods' `gen9/settings`; `make k8s-up` makes the ConfigMap `certs` in each namespace
+        from the folder's files and `make k8s-diff` compares it. Verified, gen9-agent built from
+        this branch: on Docker with a TLS-only server on Gen9's image, its certificate signed by a
+        test CA for `gen9-u5c-pg3` and `host.docker.internal`: `verify-full` with the CA, the jobs
+        and migrations ran, every connection TLS, `stacks.mjs` all passed; refused in both stacks
+        without the CA ("root certificate file … does not exist"), with a CA that didn't sign it
+        ("certificate verify failed"), and by an address the certificate doesn't name ("server
+        certificate for "gen9-u5c-pg3" (and 2 other names) does not match host name
+        "192.168.65.2""); the bundled server with the settings empty, as before. On k3d by the
+        server's container name: the ConfigMap made, the pods with `/etc/gen9/certs/db-ca.pem`,
+        every connection TLS, `stacks.mjs` through the Gateway all passed, `make k8s-diff` 0; a
+        file added to `certs/`: exit 2 and the pods' checksum changed, removed: 0. Both back on
+        the bundled server, every k3d stack updated, `make k8s-diff` 0 for seven, `make diff` 0.
+        The model calls cost $0.0015.
+      - [ ] U5c-5b Keycloak, Temporal (its schema tool's settings from the server's, in
+        `setup-schema.sh`) and the router (Prisma's `sslaccept=strict&sslcert=`, psycopg's
+        `sslrootcert`, each in its own URL).
+      - [ ] U5c-5c Langfuse (Prisma's in `DATABASE_URL`; `NODE_EXTRA_CA_CERTS`; ClickHouse's
+        migrations, Go's) and gen9-ui (`NODE_EXTRA_CA_CERTS` for `rediss://`).
 - [x] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd
   images, its limits and closed network as on Docker; a chat's command runs in a pod. Every part
   below verified on kind (acceptance `sandbox.k8s`); checked here 2026-10-03, when it was found

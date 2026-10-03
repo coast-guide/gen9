@@ -33,3 +33,17 @@ def test_a_server_elsewhere_with_tls_required():
 def test_an_unknown_sslmode_is_refused():
     with pytest.raises(ValidationError):
         settings(database_sslmode="on")
+
+
+def test_its_certificate_checked_against_a_ca_of_ones_own():
+    s = settings(
+        database_sslmode="verify-full",
+        database_sslrootcert="/etc/gen9/certs/db-ca.pem",
+    )
+    assert s.database_url.query == {
+        "sslmode": "verify-full",
+        "sslrootcert": "/etc/gen9/certs/db-ca.pem",
+    }
+    assert s.database_conninfo.endswith(
+        "?sslmode=verify-full&sslrootcert=%2Fetc%2Fgen9%2Fcerts%2Fdb-ca.pem"
+    )
