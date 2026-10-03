@@ -84,6 +84,10 @@ services:
         condition: service_started  # builds the image first
     ports:
       - "127.0.0.1:${GEN9_UI_SANDBOX_PORT:-14003}:3001"
+    networks:
+      default:
+      gen9-ui:
+        aliases: [gen9-ui-apps]  # gen9-edge serves it under the domain (U5b)
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]

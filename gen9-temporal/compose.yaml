@@ -188,7 +188,11 @@ services:
       namespace:
         condition: service_completed_successfully
     restart: unless-stopped
-    networks: [default, gen9-keycloak]
+    networks:
+      default:
+      gen9-keycloak:
+      gen9-temporal:
+        aliases: [gen9-temporal-ui]  # gen9-edge serves it under the domain (U5b)
     ports:
       - "127.0.0.1:${GEN9_TEMPORAL_UI_PORT:-18000}:8080"
     healthcheck:

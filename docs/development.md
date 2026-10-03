@@ -105,3 +105,5 @@ server over TLS (its realm's email settings) and gen9-agent at one with `smtps:/
 1. Create `gen9-<name>/` with a Compose file and a README; publish ports on `127.0.0.1` in the next free block (`15000–15099`, …).
 2. In the `Makefile`, add `<name>` to `ALL_STACKS` after the stacks it needs, describe it in `DESC_<name>` and list the files it can't start without in `NEEDS_<name>`. If it generates files, teach `scripts/setup.sh` and `scripts/wipe.sh` about them.
 3. Check with `make config STACKS=<name>`, then `make up STACKS=<name>`.
+
+A stack that runs only once set up (gen9-edge, with a domain) also goes in the `Makefile`'s `OPTIONAL`: `make up`, `config` and `diff` leave it out, with a note, until the files in its `NEEDS_<name>` exist. The scripts that list the stacks (`scripts/setup.sh`, `wipe.sh`, `backup.sh`, `doctor.sh`, `sbom.sh`, `check-networks.py`, `drift.py`) learn its name too.
