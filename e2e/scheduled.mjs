@@ -139,7 +139,8 @@ try {
   const soon = new Date(Date.now() + 120_000);
   const once = await newTask({ name: "e2e once", prompt: `Reply with exactly this and nothing else: ${PHRASE}`, kind: "once", time: `${pad(soon.getHours())}:${pad(soon.getMinutes())}` });
   if (!check(once.id && !once.refused, "a one-off two minutes ahead is scheduled", once.refused)) throw new Error(`not scheduled: ${once.refused}`);
-  check(/Next: in (1|2) minutes?/.test(await rowText("e2e once")), "its row says when it runs next", (await rowText("e2e once")).slice(0, 120));
+  // Its minute is 61 to 120 s ahead when it was set; a slow save leaves under a minute
+  check(/Next: in (under a minute|1 minute|2 minutes)/.test(await rowText("e2e once")), "its row says when it runs next", (await rowText("e2e once")).slice(0, 120));
   await until("the one-off's run", () => finishedRuns(once.id) === "1", 360);
   const [onceChat] = threadsOf(once.id);
   const onceThread = (await api(alan, "GET", `/v1/threads/${onceChat}`)).body;
