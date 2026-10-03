@@ -784,6 +784,15 @@ What the owner asked, restated before starting (they went on to "start the loop"
   bestpractices.dev if they want the badge.
 - [ ] Z1 Docs in step (operations.md, development.md, README, each stack's README, e2e/README,
   gen9-learn); `make e2e` against Docker and kind from published images.
+  - [x] Docs in step, 2026-10-03: the README's quick start points to every other way to run Gen9
+    (a release, Kubernetes, a domain, stores elsewhere) and its table names `deploy/` and
+    `certs/`; operations.md's opening says all it covers, and how to run and check a release moved
+    there from development.md's "Releasing" (now a link: one place for each fact); AGENTS.md's map
+    names Kubernetes, releases and the operations they need. Every relative link and heading anchor
+    in the four files checked (a script: none broken). The stacks' READMEs, e2e/README and
+    gen9-learn were kept in step by each unit as it landed.
+  - [ ] `make e2e` against Docker and kind from published images (after the owner's U8).
+
 
 ## Surprises & Discoveries
 

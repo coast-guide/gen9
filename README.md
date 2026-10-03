@@ -30,6 +30,8 @@ make setup     # generates every secret and setting; asks for your model provide
 make up        # starts every stack and waits until each is healthy
 ```
 
+Other ways to run it, all in [docs/operations.md](docs/operations.md): [a published release](docs/operations.md#run-a-release), [on Kubernetes](docs/operations.md#kubernetes), [under a domain, over TLS](docs/operations.md#under-a-domain-over-tls), [with your own databases and stores](docs/operations.md#external-services).
+
 Open http://localhost:14000 and sign in as `ada@gen9.test` (admin) or `alan@gen9.test`, with the passwords from `grep ^GEN9_SEED_ gen9-keycloak/.env` (Ada's code: `make admin-code`), or create an account. What `make setup` asks for, and why: [docs/operations.md, "First-time setup"](docs/operations.md#first-time-setup).
 
 ## How it is built
@@ -56,13 +58,15 @@ Also in the repository, none of them a stack:
 | [`gen9-design`](gen9-design/README.md) | The design system (tokens, font, logo) that the apps copy in |
 | [`gen9-cli`](gen9-cli/README.md) | The terminal client: `gen9 login` signs in with a one-time code confirmed in a browser, then `gen9 ask` |
 | [`e2e`](e2e/README.md) | End-to-end checks in real Chrome against the running stacks |
+| [`deploy`](deploy/) | Kubernetes: the library chart every stack's chart uses (`deploy/helm/gen9-lib`), the settings (`deploy/values.yaml`), and clusters to try it on (`kind.yaml`, `k3d.yaml`) |
+| [`certs`](certs/.gitignore) | The CAs of your stores elsewhere, when Gen9 reaches them over TLS (your own files, never committed) |
 | [`docs`](docs/) | How Gen9 is operated, developed, secured and designed; the plans of work |
 
 ## Documentation
 
 | To | Read |
 | --- | --- |
-| Install, run, upgrade, back up, stop the agents, start over | [docs/operations.md](docs/operations.md) |
+| Install, run (Docker or Kubernetes, a release, a domain, your own stores), upgrade, back up, stop the agents, start over | [docs/operations.md](docs/operations.md) |
 | Understand Gen9 end to end, by watching it work | [gen9-learn](gen9-learn/README.md) (open `gen9-learn/index.html`) |
 | Change Gen9: how the work is done, checked and proposed | [CONTRIBUTING.md](CONTRIBUTING.md), [docs/development.md](docs/development.md), [AGENTS.md](AGENTS.md) |
 | Identity and tokens; secrets; durable execution; the EU AI Act | [docs/auth-architecture.md](docs/auth-architecture.md), [docs/secrets.md](docs/secrets.md), [docs/temporal.md](docs/temporal.md), [docs/ai-act.md](docs/ai-act.md) |

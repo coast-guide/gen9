@@ -1,7 +1,8 @@
 # Operating Gen9
 
-How to install Gen9 on your own machine or server, run it day to day, upgrade it, back it up, stop
-its agents, and start over. What each stack does is in its own README (the table in the
+How to install Gen9 on your own machine or server, or on a Kubernetes cluster, from this
+repository or from a release; serve it under a domain, with its stores where you choose; run it day
+to day, upgrade it, back it up, stop its agents, and start over. What each stack does is in its own README (the table in the
 [README](../README.md#how-it-is-built) links to each); every command below is a `make` target
 (`make` lists them).
 
@@ -86,6 +87,23 @@ REGISTRY=registry.example/gen9 TAG=mine docker buildx bake --push   # both platf
 for i in gen9-agent gen9-ui gen9-keycloak gen9-postgres gen9-sandbox gen9-sandbox-egress gen9-sandbox-execd; do
   echo "registry.example/gen9/$i@$(docker buildx imagetools inspect registry.example/gen9/$i:mine --format '{{json .Manifest}}' | jq -r .digest)"
 done > images.lock
+```
+
+## Run a release
+
+Each release on GitHub (its tag `vX.Y.Z`; how one is cut: [docs/development.md, "Releasing"](development.md#releasing))
+carries the Compose bundle (`gen9-X.Y.Z.tar.gz`: the repository at the tag with its `images.lock`), the
+charts' lock, each image's SBOM and their attestations; the images are on `ghcr.io/coast-guide`,
+the charts on `oci://ghcr.io/coast-guide/charts`. Running one, and checking it first (a chart from
+GHCR runs its release's images even without `IMAGES`; its Secrets and settings come as `make
+k8s-up` makes them):
+
+```bash
+tar xzf gen9-0.1.0.tar.gz && cd gen9-0.1.0 && make setup && make up IMAGES=images.lock   # Docker
+make setup && make k8s-up IMAGES=images.lock                                              # Kubernetes, from the bundle
+helm show chart oci://ghcr.io/coast-guide/charts/gen9-ui --version 0.1.0                 # a release's chart: its images by digest
+gh release verify v0.1.0 && gh release verify-asset v0.1.0 gen9-0.1.0.tar.gz              # gh 2.81 or later
+gh attestation verify oci://ghcr.io/coast-guide/gen9-agent@sha256:… -R coast-guide/gen9  # an image or a chart
 ```
 
 ## Under a domain, over TLS
