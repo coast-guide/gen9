@@ -319,6 +319,19 @@ What the owner asked, restated before starting (they went on to "start the loop"
       networks of the stacks it serves; names on those networks for what has none yet (Temporal's
       UI, the connector apps' sandbox, Langfuse's media store has one); ACME with a public name,
       its own CA otherwise, its root exported for the machine's browsers.
+      Design notes: `make up` runs it only once `make setup DOMAIN=…` has written its `.env`
+      (else a note, so a localhost install takes no ports 80 and 443); its `tls` directive one
+      setting, `internal` or an ACME email; the apps' sandbox is one host per app (`{id}.apps.…`),
+      a wildcard, which ACME issues only by DNS challenge: Caddy's on-demand TLS, asked of
+      gen9-ui which ids exist, or a DNS provider's module, to choose. On Kubernetes no chart: the
+      Gateway does its job (U5b-3), whose pods each stack's NetworkPolicy must then let in.
+      The apps' hosts, found 2026-10-03: gen9-ui's sandbox server answers any host name, the id
+      opaque to it (`sandbox/server.ts`); Caddy's on-demand TLS needs an `ask` endpoint
+      ("restrictions are global"; caddyserver/website, automatic-https.md), and one that allowed
+      any label under `apps.` would let anyone spend the domain's ACME rate limit. Choices: ask
+      gen9-ui whether the id is one of its servers'; or a wildcard certificate by DNS challenge
+      (Caddy built with the DNS provider's module); or one the operator supplies. The other hosts
+      don't wait on it: their names are fixed.
     - [ ] U5b-2 `make setup DOMAIN=…`: every public address written from it (the web app, the
       issuer and the `*.local.env` that carry it, Keycloak's redirect addresses, Langfuse and its
       media, Temporal's UI and the codec, the API, the apps' sandbox); localhost ports stay the
