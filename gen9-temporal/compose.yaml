@@ -7,7 +7,8 @@
 # (github.com/temporalio/samples-server/tree/main/compose): a schema job, the server, a namespace job
 # and the web UI, on a Postgres that belongs to this stack alone.
 # The bundled Postgres, or another server by Temporal's own settings, with postgres left out of
-# COMPOSE_PROFILES in .env (docs/operations.md, "External services"); SQL_TLS_ENABLED=true for TLS
+# COMPOSE_PROFILES in .env (docs/operations.md, "External services"); SQL_TLS_ENABLED=true for TLS,
+# and SQL_HOST_VERIFICATION=true with SQL_CA=/etc/gen9/certs/<CA> to check the server's certificate
 x-temporal-db: &temporal-db
   DB: postgres12
   DB_PORT: ${DB_PORT:-5432}
@@ -15,6 +16,8 @@ x-temporal-db: &temporal-db
   POSTGRES_USER: temporal
   POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:?run ./init-env.sh first}
   SQL_TLS_ENABLED: ${SQL_TLS_ENABLED:-false}
+  SQL_CA: ${SQL_CA:-}
+  SQL_HOST_VERIFICATION: ${SQL_HOST_VERIFICATION:-false}
 
 # Logs rotate: three files of 10 MB a container, compressed (Docker's local driver). Docker's
 # default, json-file, keeps a container's log for as long as the container lives, unbounded, with
@@ -62,12 +65,13 @@ services:
     environment:
       <<: *temporal-db
       SQL_PASSWORD: ${TEMPORAL_DB_PASSWORD:?run ./init-env.sh first}
-      # temporal-sql-tool's own names for TLS: encrypted, the certificate not verified, as the server
+      # temporal-sql-tool's own name for TLS; its CA and host verification setup-schema.sh takes
+      # from the server's (SQL_CA, SQL_HOST_VERIFICATION)
       SQL_TLS: ${SQL_TLS_ENABLED:-false}
-      SQL_TLS_DISABLE_HOST_VERIFICATION: "true"
     entrypoint: ["/bin/sh", "/scripts/setup-schema.sh"]
     volumes:
       - ./scripts:/scripts:ro
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     depends_on:
       postgres:
         condition: service_healthy
@@ -115,6 +119,7 @@ services:
       TEMPORAL_TLS_EXPIRATION_CHECKS_CHECK_INTERVAL: 24h
     volumes:
       - ./dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     depends_on:
       schema:
         condition: service_completed_successfully
