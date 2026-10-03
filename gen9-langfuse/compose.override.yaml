@@ -28,6 +28,16 @@ services:
       # Next.js listens on $HOSTNAME, which Docker sets to the container ID: that is one address on
       # one network. Listen on every interface, so gen9-agent reaches it on the gen9-langfuse network.
       HOSTNAME: 0.0.0.0
+      <<: &tls
+        # Stores elsewhere over TLS, checked against a CA of certs/ (docs/operations.md, "External
+        # services"): Node's own NODE_EXTRA_CA_CERTS for ClickHouse's and S3's clients, Langfuse's
+        # REDIS_TLS_CA_PATH (what Langfuse reads; its Compose file passes REDIS_TLS_CA) and its
+        # migrations' CLICKHOUSE_MIGRATION_SSL (encrypted, which Langfuse never checks)
+        NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-}
+        REDIS_TLS_CA_PATH: ${REDIS_TLS_CA_PATH:-}
+        CLICKHOUSE_MIGRATION_SSL: ${CLICKHOUSE_MIGRATION_SSL:-false}
+    volumes: &certs
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     # Each bundled store may be elsewhere instead, left out of COMPOSE_PROFILES in .env
     # (docs/operations.md, "External services")
     depends_on: &stores
@@ -56,6 +66,8 @@ services:
       - "127.0.0.1:${LANGFUSE_WORKER_PORT:-13003}:3030"  # worker health check
     environment:
       HOSTNAME: 0.0.0.0  # as langfuse-web
+      <<: *tls
+    volumes: *certs
     depends_on:
       <<: *stores
       # The raw events' expiry in place before any are written (and Compose's --wait then expects
