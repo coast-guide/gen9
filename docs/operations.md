@@ -159,6 +159,15 @@ settings files from `make setup` become Secrets in its namespace (`.env` the Sec
 `keycloak.local.env` the Secret `keycloak-local-env`), applied server-side so no copy of a value
 lands in an annotation.
 
+Under a domain: `global.domain` (the same as `make setup DOMAIN=…`, which also writes each
+stack's public addresses into the settings files the Secrets come from) and `global.gateway` (the
+`name` and `namespace` of a Gateway the cluster has, whose listener holds the certificate) give
+each service people reach an HTTPRoute, with the hosts gen9-edge serves on Docker
+(`scripts/check-charts.sh` fails if the two differ), and open its port to the Gateway's proxy in
+the stack's NetworkPolicy. On kind, `cloud-provider-kind` provides a Gateway (GatewayClass
+`cloud-provider-kind`; where Docker runs in a VM, with `--enable-lb-port-mapping`); on k3s,
+Traefik's Gateway provider.
+
 To try it here: `kind create cluster --config deploy/kind.yaml` makes a cluster whose containerd
 can pull from a registry on this machine (kind's [local registry](https://kind.sigs.k8s.io/docs/user/local-registry/)
 recipe: connect the registry to the `kind` network and give each node a `hosts.toml`); `k3d

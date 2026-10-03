@@ -11,6 +11,7 @@ services:
   langfuse-web:
     kind: Deployment
     ports: {http: 3000}
+    public: {host: traces, port: http}
   langfuse-worker:
     kind: Deployment
     ports: {http: 3030}
@@ -22,6 +23,7 @@ services:
   minio:
     kind: StatefulSet
     ports: {s3: 9000, console: 9001}
+    public: {host: traces-media, port: s3}  # the media browsers fetch
     storage: {langfuse_minio_data: 20Gi}
   minio-lifecycle: {kind: Job}
   postgres:

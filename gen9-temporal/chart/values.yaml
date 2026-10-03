@@ -19,3 +19,4 @@ services:
   ui:
     kind: Deployment
     ports: {http: 8080}
+    public: {host: temporal, port: http}

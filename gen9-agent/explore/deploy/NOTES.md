@@ -256,3 +256,26 @@ under `gen9.localhost`, each `reverse_proxy` to the name the stack gives on its 
   denied"), from the home folder it worked.
 - Streaming: Caddy's `reverse_proxy` docs, `flush_interval`: responses with
   `Content-Type: text/event-stream` are flushed to the client immediately, whatever is set.
+
+## The charts' routes on kind's Gateway (U5b-3)
+
+cloud-provider-kind v0.12.0 as a container on the `kind` network with Docker's socket
+(its README's way): it created Gateway API's standard CRDs itself and the GatewayClass
+`cloud-provider-kind` (Accepted). Its Gateway is an Envoy container outside the cluster
+(`kindccm-gw-…`). With Docker in a VM (Docker Desktop here) the listener's port was published only
+with `--enable-lb-port-mapping` (on a random host port): without it, only Envoy's admin port was;
+the README's "automatically enabled on platforms where this is required" didn't apply, Docker
+Desktop on Linux being taken for plain Linux.
+
+A Gateway `gen9` in `gen9-gateway`, an HTTPS listener on 443 terminating with a self-signed
+certificate for `gen9.localhost`, `*.gen9.localhost` and `*.apps.gen9.localhost`, routes from all
+namespaces; the five public stacks installed with `global.domain=gen9.localhost` and that Gateway:
+seven HTTPRoutes, each Accepted; every host answered 200 through Envoy's published port, the
+certificate verified against the test one (`curl --cacert … --connect-to`).
+
+The stacks' NetworkPolicies must let the Gateway's proxy in, and kind's isn't a pod: with
+Keycloak's rule for its public port removed and the Gateway made again (so every connection new),
+the API answered 200 and Keycloak 503; the rule back (`make k8s-reset`), 200 within 5 s. Removed
+with the Gateway's connections already open, nothing changed: the policy is checked only on new
+connections. Restarting Envoy's container left it answering 503 until the Gateway was made again:
+cloud-provider-kind configures it once.

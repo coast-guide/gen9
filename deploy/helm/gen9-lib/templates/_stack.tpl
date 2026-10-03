@@ -49,6 +49,8 @@ settings are checked across every stack by scripts/k8s.sh */}}
 {{- end }}
 {{- /* Files bind-mounted from the stack's folder: one ConfigMap each */}}
 {{- $files := dict -}}
+{{- /* Each ConfigMap's content, hashed, for the pods that mount it (below) */}}
+{{- $contents := dict -}}
 {{- range $name := keys $services | sortAlpha }}
 {{- if ne (toString (index $services $name).kind) "none" }}
 {{- range $v := (index $compose.services $name).volumes | default list }}
@@ -64,12 +66,16 @@ metadata:
   labels: {{- include "gen9.labels" (dict "root" $root "component" $name) | nindent 4 }}
 data:
 {{- $glob := $root.Files.Glob (printf "%s/*" $path) }}
+{{- $content := "" }}
 {{- if $glob }}
 {{- range $file, $_ := $glob }}
+{{- $content = printf "%s%s=%s;" $content $file ($root.Files.Get $file) }}
   {{ base $file }}: {{ $root.Files.Get $file | quote }}
 {{- end }}
+{{- $_ := set $contents (include "gen9.filesName" $m.source) (sha256sum $content) }}
 {{- else }}
 {{- with $root.Files.Get $path }}
+{{- $_ := set $contents (include "gen9.filesName" $m.source) (sha256sum .) }}
   {{ base $path }}: {{ . | quote }}
 {{- else }}
 {{- fail (printf "%s mounts %s: link it into the chart (chart/%s -> ../%s)" $name $m.source $path $path) }}
@@ -119,6 +125,41 @@ spec:
   {{- end }}
 {{- end }}
 {{- end }}
+{{- /* Reached from outside under the domain, as gen9-edge serves it on Docker: an HTTPRoute on the
+cluster's Gateway (global.gateway), its host the service's prefix on global.domain */}}
+{{- $g := $root.Values.global | default dict }}
+{{- if and $k.public $g.domain }}
+{{- $gateway := $g.gateway | default dict }}
+{{- if not $gateway.name }}{{ fail "global.domain needs global.gateway.name: the Gateway the routes attach to" }}{{ end }}
+{{- $port := index ($k.ports | default dict) $k.public.port }}
+{{- if not $port }}{{ fail (printf "services.%s.public.port: %s isn't one of its ports" $name $k.public.port) }}{{ end }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $name }}
+  labels: {{- include "gen9.labels" $c | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ $gateway.name }}
+      {{- with $gateway.namespace }}
+      namespace: {{ . }}
+      {{- end }}
+      {{- with $gateway.sectionName }}
+      sectionName: {{ . }}
+      {{- end }}
+  hostnames:
+    - {{ ternary $g.domain (printf "%s.%s" $k.public.host $g.domain) (eq $k.public.host "") | quote }}
+  rules:
+    # No limit of the Gateway's on a request: an answer streams for as long as it takes (Envoy's
+    # default, 15 s, cut it on kind), as through gen9-edge on Docker; the apps keep their own.
+    # "0s SHOULD disable the timeout completely" (Gateway API, HTTPRouteTimeouts; Extended)
+    - timeouts:
+        request: "0s"
+      backendRefs:
+        - name: {{ $name }}
+          port: {{ $port }}
+{{- end }}
 ---
 {{- if eq $k.kind "Job" }}
 apiVersion: batch/v1
@@ -148,8 +189,21 @@ spec:
     matchLabels: {{- include "gen9.selector" $c | nindent 6 }}
   template:
 {{- end }}
+    {{- /* What its containers read, Secrets (the settings files make k8s-up makes them of, hashed
+    by scripts/k8s.sh: secretHashes) and ConfigMaps: one changed, the pods roll, as Compose
+    recreates a container whose settings changed (Helm's "Automatically Roll Deployments") */}}
+    {{- $read := list }}
+    {{- range $ctr := concat (list $main.container) $inits }}
+    {{- range $e := $ctr.envFrom | default list }}{{ with $e.secretRef }}{{ $read = append $read (printf "secret/%s=%s" .name (index ($root.Values.secretHashes | default dict) .name | default "none")) }}{{ end }}{{ end }}
+    {{- range $e := $ctr.env | default list }}{{ with $e.valueFrom }}{{ with .secretKeyRef }}{{ $read = append $read (printf "secret/%s=%s" .name (index ($root.Values.secretHashes | default dict) .name | default "none")) }}{{ end }}{{ end }}{{ end }}
+    {{- end }}
+    {{- range $v := $volumes }}{{ with $v.configMap }}{{ $read = append $read (printf "configmap/%s=%s" .name (index $contents .name | default "none")) }}{{ end }}{{ end }}
     metadata:
       labels: {{- include "gen9.labels" $c | nindent 8 }}
+      {{- with $read }}
+      annotations:
+        gen9/settings: {{ . | uniq | sortAlpha | join ";" | sha256sum }}
+      {{- end }}
     spec:
       {{- if eq $k.kind "Job" }}
       {{- /* A new pod may start before the network policy allows it anywhere ("pods must be

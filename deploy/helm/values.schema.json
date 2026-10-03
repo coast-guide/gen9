@@ -90,6 +90,23 @@
         },
         "serviceAccount": {
           "type": "string"
+        },
+        "public": {
+          "description": "Reached from outside under global.domain: its host's prefix ('' the domain itself, 'id', '*.apps'), as gen9-edge's Caddyfile names it, and the port (a name in ports)",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "host",
+            "port"
+          ],
+          "properties": {
+            "host": {
+              "type": "string"
+            },
+            "port": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -184,6 +201,26 @@
         },
         "clusterDomain": {
           "type": "string"
+        },
+        "domain": {
+          "description": "Gen9's domain (make setup DOMAIN=…'s): each public service's HTTPRoute, on global.gateway; empty, none",
+          "type": "string"
+        },
+        "gateway": {
+          "description": "The cluster's Gateway the routes attach to",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "namespace": {
+              "type": "string"
+            },
+            "sectionName": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -236,6 +273,13 @@
             "optional"
           ]
         }
+      }
+    },
+    "secretHashes": {
+      "description": "Each settings file's hash, by its Secret's name (scripts/k8s.sh): a change rolls the pods that read it",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
       }
     }
   }

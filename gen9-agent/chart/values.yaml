@@ -11,5 +11,6 @@ services:
   api:
     kind: Deployment
     ports: {http: 8000}
+    public: {host: api, port: http}
   worker:
     kind: Deployment

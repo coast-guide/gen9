@@ -361,8 +361,28 @@ What the owner asked, restated before starting (they went on to "start the loop"
       (`E2E_INSECURE_CERTS=1`), every check passed, back-channel logout included; then `make setup
       DOMAIN=localhost`: every key as it was, by hash, those added holding the ports' addresses;
       `make up`, gen9-edge left out with its note, and `stacks.mjs` on the ports passed.
-    - [ ] U5b-3 The charts: an HTTPRoute per public service with the same hosts, on the Gateway
+    - [x] U5b-3 The charts: an HTTPRoute per public service with the same hosts, on the Gateway
       the settings name, or an Ingress of a class, or none (the default); TLS the Gateway's.
+      Read 2026-10-03: cloud-provider-kind's Gateway is an Envoy container outside the cluster,
+      which, where Docker runs in a VM (Docker Desktop, here), it publishes on a random host port
+      (`--enable-lb-port-mapping`, "automatically enabled on platforms where this is required");
+      its GatewayClass is `cloud-provider-kind`. k3s's Traefik is a pod in `kube-system`, behind
+      k3d's load balancer, whose ports the cluster's config publishes. Design: `global.domain`
+      (empty: no routes, the default) and `global.gateway` (`name`, `namespace`) in the values;
+      each chart's public services name their host's prefix, as gen9-edge's sites do; an
+      HTTPRoute each, on that Gateway; and their ports open to any source in each stack's
+      NetworkPolicy, as anyone already reaches them through the Gateway, whose proxy may not be a
+      pod at all (kind's). An Ingress instead: after, if a cluster needs it.
+      Built: `services.<name>.public` (host prefix, port) on the seven, `global.domain` and
+      `global.gateway` in the values and the schema; the library's HTTPRoute, and in each stack's
+      NetworkPolicy the public ports open to any source, only under a domain. `check-charts.sh`
+      renders each chart under a domain too, its routes against Gateway API 1.6.1's schema
+      (datreeio/CRDs-catalog, pinned by commit), and fails if gen9-edge's sites and the charts'
+      hosts differ (tried: `workflows` for `temporal`, "hosts differ"). Verified on kind with
+      cloud-provider-kind's Gateway (explore/deploy/NOTES.md, U5b-3): seven routes Accepted, every
+      host 200 over TLS, certificate verified; Keycloak's public rule removed and the Gateway made
+      again, Keycloak 503 and the API 200, the rule put back by `make k8s-reset`, 200 again;
+      `make k8s-diff` 0.
     - [ ] U5b-4 Verified through the domain: `stacks.mjs` and a sign-in in Chrome on Docker behind
       `gen9-edge`, on kind (`cloud-provider-kind`'s Gateway) and on k3d (Traefik's).
   - [ ] U5c External services: which settings point a stack at its own Postgres, Valkey,
@@ -536,6 +556,23 @@ What the owner asked, restated before starting (they went on to "start the loop"
   waited, then "Finished upserting default model prices in 2113ms", 185 prices, gpt-6 among them;
   on Docker, a fresh throwaway project of gen9-langfuse (its own volumes): `migrated` waited, exited
   0, and the worker, started 20 s after the web, "Finished upserting default model prices in 2102ms".
+- A settings file changed reached its Secret (`make k8s-up`), but no pod restarted: Kubernetes
+  rolls pods only when their template changes. Under a domain on kind, Keycloak kept its old
+  issuer and no `KC_PROXY_HEADERS` while `make k8s-diff` said 0, as the Secret and the chart
+  matched what was declared. On Docker, Compose recreates a container whose settings changed.
+  Helm's "Automatically Roll Deployments" (a checksum in the pod template): `scripts/k8s.sh` hands
+  the chart each settings file's hash (`secretHashes`), and every workload's pod template carries
+  `gen9/settings`, a checksum of the Secrets and ConfigMaps its containers read. Verified on kind:
+  every pod rolled once and Keycloak had the domain's settings; a key added to `gen9-ui/.env`,
+  `make k8s-diff` named `prod`'s and `sandbox`'s checksum, `make k8s-up` rolled them; removed, 0.
+- On kind, under a domain, `stacks.mjs` passed but for the streamed answer ("Lost the connection to
+  this answer"; saved, the reload showed it): cloud-provider-kind's Envoy has a 15 s route timeout
+  (`upstream_rq_timeout: 8` on the web app's cluster). The routes now ask for none
+  (`timeouts.request: "0s"`, which "SHOULD disable the timeout completely", Gateway API's
+  HTTPRouteTimeouts, Extended), as gen9-edge sets none on Docker; cloud-provider-kind v0.12.0
+  ignores it (its route action reads no timeouts, and its GatewayClass doesn't list
+  `HTTPRouteRequestTimeout`), so on kind a stream longer than 15 s is cut. A Gateway that honours
+  it is the operator's choice; k3s's Traefik is tried next (U5b-4).
 - Not a difference between the shapes, kept for a follow-up: `runs.mjs`'s "a task with steps"
   failed once on kind and passed when run again. The failing run took the long way (13 tools
   live, "Used the research brief skill"; "Used 6 tools and a plan" when done; "Made a plan" after
