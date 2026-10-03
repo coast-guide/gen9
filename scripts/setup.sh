@@ -101,6 +101,7 @@ if selected postgres; then
   echo "gen9-postgres"
   if [ -f gen9-postgres/.env ]; then
     kept gen9-postgres/.env
+    bundled gen9-postgres/.env postgres GEN9_POSTGRES_SERVER
     # An .env from before gen9-agent's services had a role of their own: add its
     # password; gen9-postgres creates the role on its next start
     if ! grep -Eq '^GEN9_AGENT_APP_DB_PASSWORD=.+' gen9-postgres/.env; then
@@ -356,6 +357,20 @@ if [ -n "${DOMAIN:-}" ]; then
     public_addresses "$DOMAIN"
     echo "  Gen9 under $DOMAIN: every address in the stacks' settings files, one host per service (gen9-edge/README.md)"
   fi
+fi
+
+# Where gen9-agent reaches its database: gen9-postgres/.env's server of one's own, if it names one
+# (docs/operations.md, "External services"), copied into gen9-agent/.env, so both stacks agree
+if { selected postgres || selected agent; } && [ -f gen9-postgres/.env ] && [ -f gen9-agent/.env ]; then
+  for key in GEN9_POSTGRES_SERVER GEN9_POSTGRES_SERVER_PORT GEN9_POSTGRES_SSLMODE; do
+    value=$(sed -n "s/^$key=//p" gen9-postgres/.env | tail -n 1)
+    if [ -n "$value" ]; then
+      [ "$(sed -n "s/^$key=//p" gen9-agent/.env | tail -n 1)" = "$value" ] ||
+        { set_env gen9-agent/.env "$key" "$value"; echo "  gen9-agent/.env: $key as in gen9-postgres/.env"; }
+    elif grep -q "^$key=" gen9-agent/.env; then
+      unset_env gen9-agent/.env "$key"; echo "  gen9-agent/.env: no $key, as in gen9-postgres/.env"
+    fi
+  done
 fi
 
 # Settings files one stack writes for another: without them `make up` stops at that stack

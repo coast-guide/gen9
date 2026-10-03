@@ -32,7 +32,9 @@ From another stack's container, join the `gen9-postgres` network and use `gen9-p
 
 ## What gets created (first start only)
 
-`initdb/10-app-databases.sh` runs once, on an empty data directory:
+`initdb/10-app-databases.sh` runs once, on an empty data directory. On a Postgres of your own
+instead, by `GEN9_POSTGRES_SERVER`, you create the role and database, and this stack's jobs the
+rest ([docs/operations.md, "External services"](../docs/operations.md#external-services)):
 
 | Object | Details |
 | --- | --- |
