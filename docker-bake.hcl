@@ -16,6 +16,13 @@ variable "TAG" {
   default = "dev"
 }
 
+# The commit the images are built from, for gen9-agent and gen9-ui to say (GEN9_COMMIT): every
+# GitHub Actions job sets GITHUB_SHA, which bake takes for this variable; empty when built here.
+# Their OCI labels (version, revision) come from CI's metadata (set-meta-labels)
+variable "GITHUB_SHA" {
+  default = ""
+}
+
 group "default" {
   targets = [
     "gen9-agent",
@@ -39,12 +46,14 @@ target "_common" {
 target "gen9-agent" {
   inherits = ["_common"]
   context  = "gen9-agent"
+  args     = { GEN9_COMMIT = GITHUB_SHA }
   tags     = ["${REGISTRY}/gen9-agent:${TAG}"]
 }
 
 target "gen9-ui" {
   inherits = ["_common"]
   context  = "gen9-ui"
+  args     = { GEN9_COMMIT = GITHUB_SHA }
   tags     = ["${REGISTRY}/gen9-ui:${TAG}"]
 }
 

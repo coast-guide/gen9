@@ -1,14 +1,34 @@
 import asyncio
+from importlib.metadata import version
 
 from alembic.script import ScriptDirectory
 from fastapi import APIRouter, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlalchemy import text
 
 from ..agent import CHECKPOINT_SCHEMA
+from ..auth import CurrentPrincipal
 from ..deps import Session
 from ..migrate import MIGRATIONS_DIR
 
 router = APIRouter(tags=["health"])
+
+# This build's version: one for all of Gen9, its packages and images alike, a release's tag
+# (docs/plans/deploy.md, R1). Read once, at import, from the installed package's metadata
+VERSION = version("gen9-agent")
+
+
+class Version(BaseModel):
+    version: str
+    commit: str
+
+
+@router.get("/v1/version", summary="Which Gen9 runs: its version and commit")
+async def get_version(_: CurrentPrincipal, request: Request) -> Version:
+    """For someone signed in only: to anyone else a version names the vulnerabilities to try."""
+    return Version(
+        version=VERSION, commit=request.app.state.runtime.settings.gen9_commit
+    )
 
 
 async def schema_head() -> str | None:

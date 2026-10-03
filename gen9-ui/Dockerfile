@@ -67,4 +67,9 @@ USER node
 
 EXPOSE 3000
 
+# The commit it was built from, which Gen9 shows with its version (docker-bake.hcl: CI's
+# GITHUB_SHA; empty when built here). Last, so a new commit changes no layer above
+ARG GEN9_COMMIT=""
+ENV GEN9_COMMIT=$GEN9_COMMIT
+
 CMD ["node", "server.js"]

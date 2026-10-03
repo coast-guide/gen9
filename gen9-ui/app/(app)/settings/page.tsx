@@ -21,6 +21,7 @@ import { PluginSettings, SkillList } from "@/components/settings/plugins";
 import { MemorySettings } from "@/components/settings/memory";
 import { ControlSwitch } from "@/components/settings/controls";
 import { type Limit, limitWords } from "@/lib/limit";
+import { type Version, versionWords } from "@/lib/version";
 import { agentJson, type Connector, type Controls, type Credential, type EnvironmentSecret, type Me, type Memory, type MyPlugin, type MySkill, type Notifications, type RecoveryCodes, type Security } from "@/lib/agent";
 import { appsWithAccess, signedInBrowsers } from "@/lib/auth/account";
 import { whatItMayDo } from "@/lib/app-scopes";
@@ -94,7 +95,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         : text(signIn) === "failed"
           ? { ok: false, message: text(reason) || "The sign-in didn’t finish. Try again." }
           : null;
-  const [me, security, memory, connectors, secrets, plugins, skills, notifications, controls, browsers, limit, apps] = await Promise.all([
+  const [me, security, memory, connectors, secrets, plugins, skills, notifications, controls, browsers, limit, apps, version] = await Promise.all([
     agentJson<Me>(session, "/v1/me"),
     agentJson<Security>(session, "/v1/me/security").catch(() => null),
     agentJson<Memory>(session, "/v1/me/memory").catch(() => null),
@@ -113,6 +114,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       console.error("[settings] apps with access", error);
       return null;
     }),
+    agentJson<Version>(session, "/v1/version").catch(() => null),
   ]);
   // Just set up a first authenticator app: without recovery codes, losing the phone locks the person out
   // (Forgot password asks for the app's code too), so saving them comes next (found by hand: P2-J4)
@@ -358,6 +360,12 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             }
           />
         </Section>
+
+        {version && (
+          <Section title="About Gen9">
+            <Row label="Version" value={versionWords(version)} />
+          </Section>
+        )}
 
         {me.email && (
           <Section title="Delete account">

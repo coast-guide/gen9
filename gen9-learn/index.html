@@ -1503,7 +1503,7 @@ after Ada agrees: research-brief · Gen9’s own   <mark>gen9-learn-greeting</ma
         <p>Keycloak's <code>email</code> event listener tells you whenever how you sign in changes (a password set, an app, a passkey or recovery codes added or removed), as NIST SP 800-63B-4 asks; not failed sign-ins, which anyone could send you by the dozen.</p>
         <div class="where code">In the code</div>
         <ul><li><code data-at="const ACCOUNT_ACTIONS" data-to="const DELETE_CREDENTIAL">gen9-ui/lib/auth/account-actions.ts:3-11</code>: the only actions the app will start (a whitelist), and <code>delete_credential:&lt;id&gt;</code> for removing one; below them, what each one did as <code>?updated=</code> names it (taken from the app's own transaction, not from Keycloak's redirect) and the words Settings then shows.</li>
-          <li><code data-at="text(next) ===" data-to="action=CONFIGURE_RECOVERY_AUTHN_CODES">gen9-ui/app/(app)/settings/page.tsx:119-122</code>: <code>next=recovery-codes</code> starts the codes when there is an app and no codes, carrying <code>updated=authenticator</code> along; <code data-at="/settings?next=recovery-codes">:234</code>: only a first app's <em>Set up</em> returns there.</li></ul>
+          <li><code data-at="text(next) ===" data-to="action=CONFIGURE_RECOVERY_AUTHN_CODES">gen9-ui/app/(app)/settings/page.tsx:121-124</code>: <code>next=recovery-codes</code> starts the codes when there is an app and no codes, carrying <code>updated=authenticator</code> along; <code data-at="/settings?next=recovery-codes">:236</code>: only a first app's <em>Set up</em> returns there.</li></ul>
       </div>
     </li>
 
@@ -1943,7 +1943,7 @@ no token, no sealed value anywhere in it</div>
         <p>One request, after the fresh sign-in. The agent's 401 never shows in this flow, because gen9-ui checks first; it's there for any client that doesn't.</p>
         <div class="where code">In the code</div>
         <ul>
-          <li><code data-at="export function signedInRecently">gen9-ui/lib/auth/recent-sign-in.ts:7</code>: the rule. <code data-at="recentlySignedIn={signedInRecently">gen9-ui/app/(app)/settings/page.tsx:370</code>: the dialog's <code>recentlySignedIn</code>; <code data-at="if (!signedInRecently(session.authTime))">settings/actions.ts:72</code>: the action's check, and <code data-at="await agentFetch(session," data-to="return reauth;">:74-76</code>: the agent's 401 turned into <em>Sign in again</em>.</li>
+          <li><code data-at="export function signedInRecently">gen9-ui/lib/auth/recent-sign-in.ts:7</code>: the rule. <code data-at="recentlySignedIn={signedInRecently">gen9-ui/app/(app)/settings/page.tsx:378</code>: the dialog's <code>recentlySignedIn</code>; <code data-at="if (!signedInRecently(session.authTime))">settings/actions.ts:72</code>: the action's check, and <code data-at="await agentFetch(session," data-to="return reauth;">:74-76</code>: the agent's 401 turned into <em>Sign in again</em>.</li>
           <li><code data-at="authorizationParams.max_age">gen9-ui/app/auth/login/route.ts:53</code>: <code>reauth=1</code> becomes <code>max_age=0</code>. <code data-at="def require_recent_authentication" data-to="return dependency">gen9-agent/src/gen9_agent/auth.py:173-188</code>: <code>require_recent_authentication</code>, tested in <code>gen9-agent/tests/test_step_up.py</code>.</li>
         </ul>
       </div>
@@ -2559,6 +2559,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>GET /v1/me/controls</code></td><td>What you let Gen9 do with your chats</td></tr>
       <tr><td><code>PUT /v1/me/controls</code></td><td>Choose what Gen9 may do with your chats</td></tr>
       <tr><td><code>GET /v1/me/limit</code></td><td>How much of your model usage limit you've used, and when it resets</td></tr>
+      <tr><td><code>GET /v1/version</code></td><td>Which Gen9 runs: its version, one for all of Gen9, and the commit its images were built from (signed in only); shown in Settings, "About Gen9", and by <code>gen9 whoami</code></td></tr>
       <tr><td><code>GET /v1/me/security</code></td><td>The caller's sign-in methods (no secrets)</td></tr>
       <tr><td><code>POST /v1/me/recovery-codes/prune</code></td><td>Remove the caller's recovery codes once no authenticator app is left</td></tr>
       <tr><td><code>POST /v1/me/sign-out-everywhere</code></td><td>End all of the caller's Keycloak sessions (every device and app)</td></tr>
@@ -2830,6 +2831,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>FILES_MAX_BYTES_PER_PERSON</code></td><td>10 GiB</td><td>What a person's chats' files may add up to</td></tr>
       <tr><th colspan="3" scope="colgroup">Other programs</th></tr>
       <tr><td><code>GEN9_API_PUBLIC_URL</code></td><td>:17000</td><td>The API as callers outside reach it: trigger URLs, and <code>/mcp</code> and <code>/a2a</code> as tokens' audiences</td></tr>
+      <tr><td><code>GEN9_COMMIT</code></td><td>empty</td><td>The commit the image was built from, set by its build (CI's <code>GITHUB_SHA</code>; empty when built here), shown with the version (<code>/v1/version</code>)</td></tr>
       <tr><td><code>MCP_ASK_WAIT_S</code></td><td>120</td><td>How long <code>ask</code> waits before saying the run is still working</td></tr>
       <tr><td><code>MCP_ALLOWED_ORIGINS</code></td><td>none</td><td>Browser origins that may call <code>/mcp</code>; any other is refused (403)</td></tr>
       <tr><td><code>A2A_WAIT_S</code></td><td>120</td><td>How long a blocking A2A <code>SendMessage</code> waits</td></tr>

@@ -7,7 +7,8 @@ It is not a Docker stack: it runs on your machine against the running stacks (Ke
 ```bash
 cd gen9-cli && uv sync
 uv run gen9 login                 # prints a link and a code; confirm them in a browser
-uv run gen9 whoami
+uv run gen9 whoami                # who you are, and which Gen9 you reached: its version and commit
+uv run gen9 --version             # this terminal's own version
 uv run gen9 ask "What does RFC 8628 say about slow_down?"
 uv run gen9 ask --thread <id> "And about expired_token?"
 uv run gen9 ask --attach data.csv "Plot it"  # a file for the chat's environment; --attach again for more

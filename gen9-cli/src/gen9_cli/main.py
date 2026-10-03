@@ -26,6 +26,7 @@ import sys
 import traceback
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from importlib.metadata import version
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -114,6 +115,15 @@ async def cmd_whoami(keycloak: Keycloak, http: httpx2.AsyncClient, _args) -> int
     print(
         f"Signed in as {body.get('name') or body.get('email')} ({body.get('email')})."
     )
+    # Which Gen9 it reached (docs/plans/deploy.md, U7); an older one can't say, so nothing then
+    reached = await api_request(keycloak, http, "GET", "/v1/version")
+    if reached.is_success:
+        about = reached.json()
+        commit = about.get("commit") or ""
+        print(
+            f"Gen9 {about.get('version')}, "
+            + (f"commit {commit[:7]}." if commit else "built from local code.")
+        )
     return 0
 
 
@@ -695,6 +705,10 @@ def limit(value: str) -> int:
 def parse(argv: list[str] | None = None) -> argparse.Namespace:
     """The command line, with a message or query of several words joined: quotes are optional."""
     parser = argparse.ArgumentParser(prog="gen9", description="Gen9 from the terminal.")
+    # The terminal's own version, asked of no server; `gen9 whoami` names the Gen9 it reaches
+    parser.add_argument(
+        "--version", action="version", version=f"gen9 {version('gen9-cli')}"
+    )
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("login", help="sign in on a browser with a one-time code")
     commands.add_parser("whoami", help="who you're signed in as")
