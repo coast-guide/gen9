@@ -36,7 +36,7 @@ services:
   migrate:
     logging: *logging
     build: .
-    image: gen9-agent:dev
+    image: ${GEN9_AGENT_IMAGE:-gen9-agent:dev}
     command: ["gen9-agent-migrate"]
     restart: "no"
     # The database alone (settings.DatabaseSettings): this one-shot holds no other secret. It is
@@ -68,7 +68,7 @@ services:
       SMTP_URL: ""
       SMTP_FROM: ""
       EMAIL_NOTICES: ${SMTP_URL:+true}
-    image: gen9-agent:dev
+    image: ${GEN9_AGENT_IMAGE:-gen9-agent:dev}
     labels:  # where to open it; the root Makefile lists these after make up
       gen9.name: Agent API docs
       gen9.url: http://localhost:${GEN9_AGENT_PORT:-17000}/docs
@@ -114,7 +114,7 @@ services:
       # 26 s, so a restart no longer loses the traces of turns ending meanwhile (manual-e2e.md,
       # P3-C10). A longer outage, such as make backup's, still does; chats never are affected
       LANGFUSE_TIMEOUT: ${LANGFUSE_TIMEOUT:-35}
-    image: gen9-agent:dev
+    image: ${GEN9_AGENT_IMAGE:-gen9-agent:dev}
     command: ["gen9-agent-worker"]
     depends_on:
       migrate:

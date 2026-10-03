@@ -17,12 +17,14 @@ level = "INFO"
 [runtime]
 type = "docker"
 # OpenSandbox's execd with /execd rebuilt with a current Go: built by compose.yaml's execd-image
-# from execd/Dockerfile, which pins OpenSandbox's image by digest
+# from execd/Dockerfile, which pins OpenSandbox's image by digest. launch.py sets it to that
+# service's image (GEN9_SANDBOX_EXECD_IMAGE), so a release's digest replaces this local tag
 execd_image = "gen9-sandbox-execd:v1.1.0"
 
 [egress]
 # A network policy per sandbox (default deny) and the credential vault need the sidecar in dns+nft.
-# The sidecar is OpenSandbox's, pinned, with Gen9's deny.always baseline (egress/, built by compose)
+# The sidecar is OpenSandbox's, pinned, with Gen9's deny.always baseline (egress/, built by compose);
+# launch.py sets it to egress-image's image (GEN9_SANDBOX_EGRESS_IMAGE), as execd_image above
 image = "gen9-sandbox-egress:release-1.1.0"
 mode = "dns+nft"
 readiness_timeout_seconds = 30.0

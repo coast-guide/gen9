@@ -17,7 +17,7 @@ services:
   opensandbox:
     logging: *logging
     build: .
-    image: gen9-sandbox:opensandbox-1.1.0
+    image: ${GEN9_SANDBOX_IMAGE:-gen9-sandbox:opensandbox-1.1.0}
     restart: unless-stopped
     depends_on:
       egress-image:
@@ -26,6 +26,10 @@ services:
         condition: service_completed_successfully
     environment:
       SANDBOX_CONFIG_PATH: /etc/opensandbox/config.toml
+      # The images every sandbox gets, those of execd-image and egress-image below; launch.py puts
+      # them in the server's config, which reads them from nowhere else
+      GEN9_SANDBOX_EXECD_IMAGE: ${GEN9_SANDBOX_EXECD_IMAGE:-gen9-sandbox-execd:v1.1.0}
+      GEN9_SANDBOX_EGRESS_IMAGE: ${GEN9_SANDBOX_EGRESS_IMAGE:-gen9-sandbox-egress:release-1.1.0}
       OPENSANDBOX_SERVER_API_KEY: ${SANDBOX_API_KEY:?run ./init-env.sh first}
       # Where sandboxes' ports are published (launch.py): loopback on Docker Desktop; on Linux, the
       # Docker bridge's gateway address (docker network inspect bridge)
@@ -63,7 +67,7 @@ services:
   egress-image:
     logging: *logging
     build: egress
-    image: gen9-sandbox-egress:release-1.1.0
+    image: ${GEN9_SANDBOX_EGRESS_IMAGE:-gen9-sandbox-egress:release-1.1.0}
     entrypoint: ["true"]
     restart: "no"
 
@@ -72,7 +76,7 @@ services:
   execd-image:
     logging: *logging
     build: execd
-    image: gen9-sandbox-execd:v1.1.0
+    image: ${GEN9_SANDBOX_EXECD_IMAGE:-gen9-sandbox-execd:v1.1.0}
     entrypoint: ["true"]
     restart: "no"
 

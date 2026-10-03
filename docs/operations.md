@@ -49,12 +49,41 @@ What each service logs, and the records kept on purpose (sign-in events, the aud
 
 Each stack's own setup (its `init-env.sh` options, such as other ports) is in its README; `make setup` runs them with the defaults. `make up` refuses to start a stack whose files are missing and says which `make setup` writes them.
 
+## Gen9's images: built here, or by digest from a lock
+
+`make up` builds Gen9's own 7 images on this machine from each stack's folder (the other images,
+Temporal's, Langfuse's, Postgres's and the rest, are pinned by digest in the Compose files). To
+run images built once elsewhere instead, the same ones on every machine, give it a lock: one line
+per image, `<registry>/<image>@sha256:<digest>`, as CI writes for each build of `main` (the
+`images.lock` artifact of the Images workflow, images in `ghcr.io/coast-guide`) and as a release
+will attach.
+
+```bash
+make up IMAGES=images.lock        # or a URL; pulls each by digest, builds nothing
+make up                           # keeps running the lock's images (images.env)
+make up IMAGES=local              # builds them here again
+```
+
+`IMAGES` writes `images.env` at the top of the repository (`scripts/images.sh` checks the lock has
+each image exactly once, by digest); `make up` reads it into every stack as `GEN9_AGENT_IMAGE`,
+`GEN9_UI_IMAGE`, `GEN9_KEYCLOAK_IMAGE`, `GEN9_POSTGRES_IMAGE`, `GEN9_SANDBOX_IMAGE`,
+`GEN9_SANDBOX_EGRESS_IMAGE` and `GEN9_SANDBOX_EXECD_IMAGE`, and starts them with `--no-build`.
+The machine still needs this repository at the same version as the lock: the stacks' settings and
+configuration files come from it. Images of your own, in your registry:
+
+```bash
+REGISTRY=registry.example/gen9 TAG=mine docker buildx bake --push   # both platforms (docker-bake.hcl)
+for i in gen9-agent gen9-ui gen9-keycloak gen9-postgres gen9-sandbox gen9-sandbox-egress gen9-sandbox-execd; do
+  echo "registry.example/gen9/$i@$(docker buildx imagetools inspect registry.example/gen9/$i:mine --format '{{json .Manifest}}' | jq -r .digest)"
+done > images.lock
+```
+
 ## Upgrade
 
 1. `make backup DIR=~/gen9-backup-before-upgrade`, to go back if you need to: an older Gen9 refuses a database a newer one migrated (its `/readyz` says so), and an older ClickHouse may not open the traces a newer one wrote (gen9-langfuse/README.md).
 2. `git pull`, or check out the version you want.
 3. `make setup`: it adds what the new version needs (new settings, a database role, a budget) and keeps every secret you have.
-4. `make up`: it builds the new images, applies the database's migrations before the agent starts, then replaces the containers. A turn that is running when its worker is replaced goes on in the new one, from its last checkpoint; the web app and the terminal say it restarted.
+4. `make up`: it builds the new images (or, with `IMAGES=<the new version's lock>`, pulls them), applies the database's migrations before the agent starts, then replaces the containers. A turn that is running when its worker is replaced goes on in the new one, from its last checkpoint; the web app and the terminal say it restarted.
 
 ## Images: SBOMs and known vulnerabilities
 

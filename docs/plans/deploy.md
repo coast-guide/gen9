@@ -127,6 +127,25 @@ What the owner asked, restated before starting (they went on to "start the loop"
   bundles, or another), or keep Chainguard's build knowingly; any S3 stays a setting.
 - [ ] U2 Docker from published images: one command deploys a version (or the lock) on any host
   with Docker, pulling by digest, building nothing; the settings in one place.
+  - [x] Probe: a service with `image: ${VAR:-local tag}` and `build:`, given a digest reference,
+    pulled by `up --no-build`, never built; `up --build` refuses it ("build tag cannot contain a
+    digest") (explore/deploy/NOTES.md, U2).
+  - [x] Each service on a Gen9 image takes it from `GEN9_<IMAGE>_IMAGE` (default: today's local
+    tag, so `make up` builds as before); `launch.py` gives OpenSandbox the execd and egress images
+    from the same variables, since its config takes no environment override for them.
+  - [x] `make up IMAGES=<lock file or URL>`: the variables from the lock into `images.env`, read
+    by every stack; pull by digest, build nothing. A lock of one's own images, in one's own
+    registry: docs/operations.md (the bake file's `REGISTRY` and `TAG`, then one line per image),
+    rather than a make target.
+  - [x] Verified here: the 7 images built from this branch and pushed to a throwaway registry
+    (`registry:3` on 127.0.0.1:25000), a lock of their digests; every stack down, Gen9's local
+    tags removed; `make up IMAGES=<lock>`: every Gen9 service pulled by digest, 0 builds, every
+    stack healthy; the sandbox server loaded the copy with the lock's execd and egress images
+    (after the fix in Surprises). `make e2e` against it, in three runs because the first stopped
+    at the failure the fix closed: 18 scripts, 208 checks; then `environments` to `background`,
+    112; then `background` to `a11y`, 404, none failed. The router's spend over all three:
+    $0.209642, 477 calls.
+  - [ ] From GHCR once `main` has pushed (after the owner merges U1).
 - [ ] U3 Kubernetes: a Helm 4 chart (or what R2b chooses), standard APIs only, the same images by
   digest, published to GHCR as an OCI chart; verified on kind and on k3d (k3s).
 - [ ] U4 Drift: one command per shape (`make drift`) that passes on a fresh deployment and names
@@ -148,6 +167,21 @@ What the owner asked, restated before starting (they went on to "start the loop"
   gen9-learn); `make e2e` against Docker and kind from published images.
 
 ## Surprises & Discoveries
+
+- `make e2e` didn't read `images.env`: `context.mjs` and `fairness.mjs` start a second worker with
+  `docker compose run`, which, without the lock's variables, would build `gen9-agent:dev` here
+  instead of running the lock's image. `make e2e` now reads it as `make up` does.
+- `background.mjs` failed once against the lock's deployment ("checked it: false; said:
+  kumquat-1e…": the chat model answered the code word itself instead of saying it had started the
+  task) and passed on the next run: the model's, not the deployment's (the check was loosened for
+  the same reason before, a6fb412).
+
+- The first `make e2e` from a lock failed `environments.mjs` ("printed 42: false; 0 container(s)"):
+  OpenSandbox's server read `/etc/opensandbox/config.toml` ("Loaded configuration from
+  /etc/opensandbox/config.toml"), not the copy with the lock's execd and egress images, because
+  the image starts it with `--config` (gen9-sandbox/Dockerfile's CMD), which wins over
+  `SANDBOX_CONFIG_PATH`; it then asked Docker for the local tag `gen9-sandbox-egress:release-1.1.0`,
+  removed for the test ("No such image"). `launch.py` now points `--config` at the copy.
 
 - Docker's bake workflow builds from a git context pinned by checksum
   (`https://github.com/coast-guide/gen9.git?ref=…&checksum=…&fetch-by-commit=true`), which needs a
@@ -301,6 +335,48 @@ candidate); Temporal's chart temporal-1.7.0, Langfuse's langfuse-2.1.3.
   (`build:`); bake can't read Gen9's Compose files in CI, where no `.env` exists ("env file .env
   not found"). `scripts/check-images.py`, run by `make config` and so by CI, fails when they
   differ.
+
+- Decision (for U3, refining "the chart is written by hand"): each chart's Kubernetes structure
+  (workloads, storage, probes, Services) is written by hand, but what drifts most is read from the
+  stack's `compose.yaml`, linked into the chart: third-party images and each container's
+  environment, through one helper in the library chart. `${X:?…}` (a secret from `.env`) becomes a
+  reference to the Secret `env`; `${X:-default}` the setting `X` from the settings file, else its
+  default; a secret inside a longer value Kubernetes' `$(X)`. So the settings have one vocabulary
+  in both shapes: `X` in a stack's `.env` on Docker, `settings.X` on Kubernetes. Rationale: Helm
+  parses Gen9's Compose files whole, anchors and merges included (explore/deploy/NOTES.md, U3, "A
+  chart that reads its stack's compose.yaml"); unlike Compose Bridge, the structure stays ours and
+  checked by `helm lint` and kubeconform.
+- Decision (for U3): each stack is a Helm chart of its own, installed as its own release in its own
+  namespace `gen9-<stack>`, in `make`'s stack order, as each is its own Compose project today. A
+  stack reaches another under the same name as on Docker (`gen9-keycloak`, `gen9-agent`,
+  `gen9-models`…) through an ExternalName Service in its own namespace, only for the stacks it
+  uses (the Makefile's `USES_*`); each stack's NetworkPolicy lets in only the namespaces that use
+  it, as the `gen9-<stack>` networks do; names inside a stack (`postgres`, `valkey`) stay its own.
+  Rationale: AGENTS.md, "Decoupled stacks"; the apps keep their settings unchanged; probed on kind
+  (explore/deploy/NOTES.md, U3: an ExternalName to another namespace's Service answered, and
+  kindnet enforced the policy). One file of settings is given to every release, each chart reading
+  its own part and the shared one (U5). Each chart sits in its stack's folder (`gen9-<stack>/chart/`)
+  and links to the configuration files Compose mounts, which Helm reads through the link and
+  packages as files (explore/deploy/NOTES.md, U3, "A chart in the stack's folder").
+- Decision: the lock's images go in `images.env` at the top of the repository, which `make up`
+  reads into every stack's environment, rather than into each stack's `.env`. Rationale: one file
+  says which images the whole install runs, a drift check (U4) reads one file, and `make setup`,
+  which writes the `.env` files, stays out of it; `IMAGES=local` removes it.
+- Decision: the Docker shape is the release's source (its git tag, or the source archive GitHub
+  attaches to every release) and its lock: `make up IMAGES=<lock>`. Compose's OCI artifacts
+  (`docker compose -f oci://…`) are not used. Rationale: R2a, a published Compose app carries a
+  bind mount's declaration without its files, and Gen9 mounts 16; it would be 8 artifacts, one per
+  stack, joined by networks only `make up` creates; and setup, backup, restore, doctor and wipe
+  live in the repository's scripts. So the host needs Docker, `make` and the source; the images
+  come by digest; what runs is the tag plus the lock. Compose pulls rather than builds when a
+  service has both `image` and `build` ("pulling the image is the default behavior",
+  [Compose, services](https://docs.docker.com/reference/compose-file/services/)); `--no-build`
+  makes sure. An override file with `build: !reset null`
+  ([Compose, merge](https://docs.docker.com/reference/compose-file/merge/)) would do the same with
+  a second file per stack to keep in step; a variable in the one file is simpler. OpenSandbox
+  reads `execd_image` and the egress image only from its TOML (its `config.py` overrides only the
+  API key, the database DSN and the secure-access keys from the environment), so `launch.py`
+  writes the server a copy of `config.toml` with them.
 
 ### Release management (R1)
 
