@@ -1,0 +1,19 @@
+{
+  "about": "Advisories npm audit reports that are accepted, each for one version of its package and in the projects named, with why (scripts/npm-audit.mjs). Only ones with no fixed release, from code that takes nothing from outside.",
+  "accepted": [
+    {
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "version": "3.0.3",
+      "in": ["gen9-ui", "scripts/updates"],
+      "reason": "no fixed release (micromatch/braces#72 unmerged); only build and development tools expand globs with it (shadcn's CLI, ESLint's Next.js plugin, ts-morph; Renovate for make updates), on the repository's own patterns, and the web app's image has none of it"
+    },
+    {
+      "advisory": "GHSA-ch52-4w7c-c8xp",
+      "package": "http-cache-semantics",
+      "version": "4.2.0",
+      "in": ["scripts/updates"],
+      "reason": "no fixed release; only in Renovate's HTTP client (got, cacheable-request) for make updates, a dry run one person makes on their own machine: no cache there is shared between users"
+    }
+  ]
+}
