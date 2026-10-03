@@ -13,7 +13,7 @@
 #
 # Works with GNU Make 3.81 (macOS default) and later.
 
-ALL_STACKS := postgres keycloak langfuse temporal models sandbox agent ui
+ALL_STACKS := postgres keycloak langfuse temporal models sandbox agent ui edge
 TAIL       ?= 50
 
 DESC_postgres := Postgres 18 + pgvector + pg_textsearch (BM25): the app database  [16000]
@@ -24,6 +24,7 @@ DESC_models   := Model router: every model by alias (LiteLLM), own Postgres  [19
 DESC_sandbox  := Environments: OpenSandbox runs the code of each chat in containers of its own  [20000]
 DESC_agent    := Agent API and workers: FastAPI + Deep Agents, checks Keycloak tokens  [17000]
 DESC_ui       := Web app: sign-in and chat, the sandbox for connector apps, Valkey sessions  [14000-14003]
+DESC_edge     := Optional: Gen9 under one domain, over TLS (Caddy), once make setup DOMAIN=… ran  [80, 443]
 
 # Files a stack can't start without: its .env, and the settings other stacks' setup writes for it
 NEEDS_postgres := .env
@@ -34,11 +35,13 @@ NEEDS_models   := .env
 NEEDS_sandbox  := .env
 NEEDS_agent    := .env postgres.local.env postgres-app.local.env keycloak.local.env models.local.env models-api.local.env sandbox.local.env
 NEEDS_ui       := .env keycloak.local.env
+NEEDS_edge     := .env
 
 # Stacks a stack calls while running. Only a note when they're down: each stack can point elsewhere.
 USES_temporal := keycloak
 USES_agent := postgres keycloak temporal models sandbox
 USES_ui    := keycloak agent
+USES_edge  := ui keycloak agent langfuse temporal
 
 # Which stacks a command covers: STACKS (default all), in start order; gen9- prefix optional
 STACKS   ?= $(ALL_STACKS)
@@ -48,6 +51,11 @@ ifneq ($(strip $(_unknown)),)
 $(error Unknown stack: $(_unknown). Stacks are: $(ALL_STACKS) (see make stacks))
 endif
 SELECTED := $(filter $(_asked),$(ALL_STACKS))
+# Stacks that run only once set up (gen9-edge: make setup DOMAIN=…): up, config and diff leave
+# them out until then, with a note. RUNNING: the selected stacks that run
+OPTIONAL := edge
+RUNNING   = $(foreach s,$(SELECTED),$(if $(and $(filter $(s),$(OPTIONAL)),$(call missing,$(s))),,$(s)))
+SKIPPED   = $(filter-out $(RUNNING),$(SELECTED))
 reverse   = $(if $(1),$(call reverse,$(wordlist 2,$(words $(1)),$(1))) $(firstword $(1)))
 
 # Needed files of stack $(1) that don't exist, and which stacks' setup writes them
@@ -57,9 +65,9 @@ owner   = $(firstword $(subst /, ,$(1:gen9-%=%)))
 prefix  = $(firstword $(subst -, ,$(notdir $(1:.local.env=))))
 writer  = $(if $(filter $(call prefix,$(1)),$(ALL_STACKS)),$(call prefix,$(1)),$(call owner,$(1)))
 writers = $(filter $(foreach f,$(1),$(if $(filter %.local.env,$(f)),$(call writer,$(f)),$(f:gen9-%/.env=%))),$(ALL_STACKS))
-MISSING = $(strip $(foreach s,$(SELECTED),$(call missing,$(s))))
+MISSING = $(strip $(foreach s,$(RUNNING),$(call missing,$(s))))
 # stack:used pairs where the used stack isn't in STACKS (up checks whether it's running)
-OUTSIDE = $(foreach s,$(SELECTED),$(foreach u,$(filter-out $(SELECTED),$(USES_$(s))),$(s):$(u)))
+OUTSIDE = $(foreach s,$(RUNNING),$(foreach u,$(filter-out $(RUNNING),$(USES_$(s))),$(s):$(u)))
 
 # down, logs and ps go by the project name Compose labels everything with, so they work whatever
 # the setup state. Run from / so Compose finds no compose file in a parent folder instead.
@@ -82,7 +90,7 @@ unexport COMPOSE_FILE COMPOSE_PROJECT_NAME COMPOSE_PROFILES
 # gen9-<stack>), and so do the stacks that call it. Compose files declare them external, so no stack
 # owns another's network; up creates all of them, as a stack's Compose file needs the networks of
 # the stacks it calls even when those aren't running.
-NETWORKS := $(addprefix gen9-,$(ALL_STACKS))
+NETWORKS := $(addprefix gen9-,$(filter-out $(OPTIONAL),$(ALL_STACKS)))
 
 # Where to open what is running: each stack labels its own services (gen9.name, gen9.url)
 list_urls = for s in $(SELECTED); do docker ps $(OWN) \
@@ -161,7 +169,8 @@ admin-code:
 # Gen9's own images: by digest from images.env when it exists (IMAGES=<lock> writes it, IMAGES=local
 # removes it: scripts/images.sh), so nothing is built; else built here from each stack's folder
 up:
-	@scripts/doctor.sh --preflight $(SELECTED)
+	@scripts/doctor.sh --preflight $(RUNNING)
+	@$(foreach s,$(SKIPPED),echo "note: gen9-$(s) isn't set up, so left out ($(DESC_$(s)))";)
 	@$(if $(IMAGES),scripts/images.sh $(IMAGES))
 	@$(if $(MISSING),printf 'Not set up yet. Missing:%b\nRun: make setup STACKS="%s"\n' \
 	  "$(foreach f,$(MISSING),\n  $(f))" "$(call writers,$(MISSING))" >&2; exit 1)
@@ -180,7 +189,7 @@ up:
 	@if [ -f images.env ]; then set -a; . ./images.env; set +a; how=--no-build; \
 	  echo "Gen9's images: by digest (images.env; make up IMAGES=local builds them here)"; \
 	else how=--build; fi; \
-	for s in $(SELECTED); do \
+	for s in $(RUNNING); do \
 	  echo "== gen9-$$s"; \
 	  sick=$$(for c in $$(docker ps -q $(OWN)); do \
 	    [ "$$(docker inspect -f '{{if .State.Health}}{{.State.Health.FailingStreak}}{{else}}0{{end}}' $$c)" = 0 ] || echo $$c; done); \
@@ -218,8 +227,9 @@ logs:
 # docker-bake.hcl must build each Gen9 image as the Compose files do (scripts/check-images.py).
 config:
 	@status=0; $(foreach s,$(SELECTED),printf '== gen9-$(s): '; \
+	  $(if $(filter $(s),$(SKIPPED)),echo "not set up (optional)";, \
 	  $(if $(call missing,$(s)),echo "not set up: missing $(call missing,$(s))"; status=1;, \
-	  (cd gen9-$(s) && docker compose --profile '*' config --quiet) && echo ok || status=1;)) \
+	  (cd gen9-$(s) && docker compose --profile '*' config --quiet) && echo ok || status=1;))) \
 	  exit $$status
 	@if command -v python3 >/dev/null; then scripts/check-networks.py && scripts/check-images.py; \
 	  else echo "python3 not found: skipped the shared-network name and image checks"; fi
@@ -227,10 +237,10 @@ config:
 # What runs against what's declared: Compose's hash of each service, its image, what docker update
 # changes, containers missing or not declared (scripts/drift.py). reset recreates what differs
 diff:
-	@scripts/drift.py $(SELECTED)
+	@scripts/drift.py $(RUNNING)
 
 reset:
-	@scripts/drift.py --reset $(SELECTED)
+	@scripts/drift.py --reset $(RUNNING)
 
 # Kubernetes (docs/operations.md, "Kubernetes"): each stack a Helm release of gen9-<stack>/chart in
 # its namespace, with the lock's images (images.env, as IMAGES=… writes it) and its settings files

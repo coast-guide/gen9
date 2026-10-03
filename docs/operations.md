@@ -88,6 +88,21 @@ for i in gen9-agent gen9-ui gen9-keycloak gen9-postgres gen9-sandbox gen9-sandbo
 done > images.lock
 ```
 
+## Under a domain, over TLS
+
+Each stack serves on its own `127.0.0.1` port, for this machine. To reach Gen9 from elsewhere, or
+under a name with a certificate, `gen9-edge` puts Caddy in front of the stacks, one host per
+service people reach (the web app at the domain itself, `id.`, `api.`, `traces.`, `temporal.`…):
+
+```bash
+make setup DOMAIN=gen9.example.com     # EDGE_TLS=you@example.com: certificates from Let's Encrypt
+make up                                # gen9-edge too, now that it's set up
+```
+
+The hosts, the certificates (Let's Encrypt, or Caddy's own CA and how a browser trusts it), and
+the settings: [gen9-edge/README.md](../gen9-edge/README.md). Without `DOMAIN`, `make up` leaves
+gen9-edge out with a note. On Kubernetes the cluster's Gateway serves the same hosts (below).
+
 ## Kubernetes
 
 The same Gen9 runs on any conformant cluster (kind or k3s on a laptop or a VM, or a managed one):

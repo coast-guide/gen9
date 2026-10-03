@@ -314,7 +314,7 @@ What the owner asked, restated before starting (they went on to "start the loop"
     - [x] Probe: Caddy in front of the running Docker stacks, one host each under
       `gen9.localhost`, TLS from its own CA: 200 from the web app, Keycloak, the API and Langfuse
       (explore/deploy/NOTES.md, U5b); event streams pass unbuffered (Caddy's docs).
-    - [ ] U5b-1 `gen9-edge`, a stack of its own (docs/development.md, "Adding a stack"): Caddy
+    - [x] U5b-1 `gen9-edge`, a stack of its own (docs/development.md, "Adding a stack"): Caddy
       pinned by digest, a site per public service from the domain setting, joining only the
       networks of the stacks it serves; names on those networks for what has none yet (Temporal's
       UI, the connector apps' sandbox, Langfuse's media store has one); ACME with a public name,
@@ -332,6 +332,18 @@ What the owner asked, restated before starting (they went on to "start the loop"
       gen9-ui whether the id is one of its servers'; or a wildcard certificate by DNS challenge
       (Caddy built with the DNS provider's module); or one the operator supplies. The other hosts
       don't wait on it: their names are fixed.
+      Built 2026-10-03: `gen9-edge` (Caddy 2.11.6 by digest; `make scan`: no vulnerabilities in
+      its 180 packages), a site per host under `GEN9_DOMAIN` (`gen9.localhost` by default), its
+      `tls` from `GEN9_EDGE_TLS`, the apps' wildcard from `GEN9_EDGE_APPS_TLS` (Caddy's own CA,
+      or files under `certs/`: the automatic way waits on the choice above); Temporal's UI and
+      the apps sandbox named on their stacks' networks (`gen9-temporal-ui`, `gen9-ui-apps`). The
+      `Makefile`'s `OPTIONAL`: `make up`, `config` and `diff` leave it out with a note until
+      `make setup DOMAIN=…` writes its `.env`; setup, wipe, backup, doctor, sbom, the network
+      check and the drift check know it. Verified on the Docker stacks: the seven hosts over TLS,
+      200 each (Temporal's UI and the apps once their stacks were recreated with the new names),
+      and with the root `docker compose cp` hands out, curl verified the certificates;
+      not set up, `make up` noted it and `make config` passed; setup with and without `DOMAIN`;
+      `make diff` "as declared"; the wipe listing; gen9-learn's checks.
     - [ ] U5b-2 `make setup DOMAIN=…`: every public address written from it (the web app, the
       issuer and the `*.local.env` that carry it, Keycloak's redirect addresses, Langfuse and its
       media, Temporal's UI and the codec, the API, the apps' sandbox); localhost ports stay the

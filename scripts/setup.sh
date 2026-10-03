@@ -4,7 +4,10 @@
 # overwrites or deletes anything (start over with `make distclean`), with one exception: a provider
 # key left in gen9-agent/.env from before the model router moves to gen9-models/.env.
 #
-#   scripts/setup.sh [STACK...]      default: postgres keycloak langfuse temporal models sandbox agent ui
+#   scripts/setup.sh [STACK...]      default: postgres keycloak langfuse temporal models sandbox agent ui edge
+#
+# gen9-edge is optional: DOMAIN=gen9.example.com sets it up to serve Gen9 under that domain over
+# TLS, EDGE_TLS its certificate (`internal`, Caddy's own CA, the default; or an email, for Let's Encrypt).
 #
 # gen9-langfuse's first user comes from LANGFUSE_EMAIL and LANGFUSE_NAME, or is asked for. Its
 # project keys go to gen9-agent/langfuse.local.env, which gen9-agent reads before its .env.
@@ -13,7 +16,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-ALL=(postgres keycloak langfuse temporal models sandbox agent ui)
+ALL=(postgres keycloak langfuse temporal models sandbox agent ui edge)
 [ $# -gt 0 ] || set -- "${ALL[@]}"
 for stack in "$@"; do
   case " ${ALL[*]} " in *" $stack "*) ;; *) echo "unknown stack: $stack (${ALL[*]})" >&2; exit 2 ;; esac
@@ -268,6 +271,20 @@ fi
 if selected ui; then
   echo "gen9-ui"
   if [ -f gen9-ui/.env ]; then kept gen9-ui/.env; else gen9-ui/init-env.sh; fi
+fi
+
+if selected edge; then
+  echo "gen9-edge"
+  if [ -n "${DOMAIN:-}" ]; then
+    [ -f gen9-edge/.env ] || (umask 077 && : >gen9-edge/.env)
+    set_env gen9-edge/.env GEN9_DOMAIN "$DOMAIN"
+    [ -z "${EDGE_TLS:-}" ] || set_env gen9-edge/.env GEN9_EDGE_TLS "$EDGE_TLS"
+    echo "  serves Gen9 under $DOMAIN (gen9-edge/.env)"
+  elif [ -f gen9-edge/.env ]; then
+    kept gen9-edge/.env
+  else
+    echo "  optional, left out: make setup DOMAIN=<domain> serves Gen9 under it, over TLS"
+  fi
 fi
 
 # Settings files one stack writes for another: without them `make up` stops at that stack

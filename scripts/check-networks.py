@@ -8,7 +8,7 @@ networks that looks up a name registered on both got the shared network's answer
 So a name one stack registers on a shared network must not be a service name of another stack
 with a service on that network. Run by `make config` and CI; reads each stack's Compose config.
 
-    scripts/check-networks.py [STACK...]      default: postgres keycloak langfuse temporal models sandbox agent ui
+    scripts/check-networks.py [STACK...]      default: postgres keycloak langfuse temporal models sandbox agent ui edge
 """
 import json
 import os
@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-stacks = sys.argv[1:] or ["postgres", "keycloak", "langfuse", "temporal", "models", "sandbox", "agent", "ui"]
+stacks = sys.argv[1:] or ["postgres", "keycloak", "langfuse", "temporal", "models", "sandbox", "agent", "ui", "edge"]
 
 configs = {}
 for stack in stacks:

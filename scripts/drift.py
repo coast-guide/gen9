@@ -34,7 +34,10 @@ ALL = [
     "sandbox",
     "agent",
     "ui",
+    "edge",
 ]
+# Run only once set up (gen9-edge: make setup DOMAIN=…): left out until its .env exists
+OPTIONAL = {"edge"}
 
 
 async def run(
@@ -171,11 +174,15 @@ async def reset(
     return ok
 
 
-async def main(env: dict[str, str], how: str) -> int:
+async def main(env: dict[str, str], how: str, unset: set[str]) -> int:
     args = sys.argv[1:]
     putting_back = args[:1] == ["--reset"]
     stacks = args[putting_back:] or ALL
-    results = await asyncio.gather(*(stack_drift(s, env) for s in stacks))
+    results = await asyncio.gather(
+        *(stack_drift(s, env) for s in stacks if s not in unset)
+    )
+    results = iter(results)
+    results = [None if s in unset else next(results) for s in stacks]
     drift = False
     for stack, problems in zip(stacks, results, strict=True):
         if problems is None:
@@ -197,4 +204,7 @@ async def main(env: dict[str, str], how: str) -> int:
 
 # Built here, or pulled by digest when images.env exists, as make up does
 HOW = "--no-build" if os.path.exists(os.path.join(ROOT, "images.env")) else "--build"
-sys.exit(asyncio.run(main({**os.environ, **images_env()}, HOW)))
+UNSET = {
+    s for s in OPTIONAL if not os.path.exists(os.path.join(ROOT, f"gen9-{s}", ".env"))
+}
+sys.exit(asyncio.run(main({**os.environ, **images_env()}, HOW, UNSET)))

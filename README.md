@@ -46,6 +46,7 @@ A set of decoupled services, one folder each. Every Docker-based service is its 
 | [`gen9-temporal`](gen9-temporal/README.md) | Temporal: durable execution for runs, approvals, schedules, deletions (own Postgres, web UI) | `18000–18001`           |
 | [`gen9-models`](gen9-models/README.md)   | The model router: every model by alias, wherever hosted (LiteLLM Proxy, own Postgres, Gen9's admin API) | `19000–19001`           |
 | [`gen9-sandbox`](gen9-sandbox/README.md)  | Environments: OpenSandbox runs each chat's commands and files in containers of its own | `20000`                  |
+| [`gen9-edge`](gen9-edge/README.md)   | Optional: Gen9 under one domain, over TLS (Caddy), once `make setup DOMAIN=…` has set it up | `80`, `443` |
 
 Also in the repository, none of them a stack:
 

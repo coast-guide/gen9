@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 TOOLS=gen9-sbom:syft-1.52.0-grype-0.119.0
 OUT=scripts/sbom/out
 DB=gen9-sbom-grype-db
-STACKS=${STACKS:-postgres keycloak langfuse temporal models sandbox agent ui}
+STACKS=${STACKS:-postgres keycloak langfuse temporal models sandbox agent ui edge}
 
 tools() { docker build -q -t "$TOOLS" scripts/sbom >/dev/null; }
 asked() { case " $STACKS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }

@@ -2450,6 +2450,13 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr data-service="gen9-ui/valkey"><td><code>valkey</code></td><td>Web sessions (sealed), 10-minute sign-in transactions, the refresh lock, and the replay guard for logout notices</td><td>14002 → 6379; <code>gen9-ui_valkey_data</code></td><td><a href="#b1-4">Back in the app</a></td></tr>
     </tbody>
   </table></div>
+  <h3>gen9-edge: Gen9 under a domain (optional)</h3>
+  <div class="table"><table>
+    <thead><tr><th>Service</th><th>What it does</th><th>Ports, volume</th><th>Seen in</th></tr></thead>
+    <tbody>
+      <tr data-service="gen9-edge/edge"><td><code>edge</code></td><td>Caddy in front of the other stacks, once <code>make setup DOMAIN=…</code> has set it up: one host per service people reach (the web app, <code>id.</code>, <code>api.</code>, <code>traces.</code>, <code>traces-media.</code>, <code>temporal.</code>, and <code>*.apps.</code> for the connector apps), over TLS from Let's Encrypt or its own CA</td><td>80, 443; <code>gen9-edge_edge_data</code>, <code>gen9-edge_edge_config</code></td><td></td></tr>
+    </tbody>
+  </table></div>
   <p>The networks they meet on, each named for the stack that owns it: <code>gen9-postgres</code>, <code>gen9-keycloak</code>, <code>gen9-langfuse</code>, <code>gen9-temporal</code>, <code>gen9-models</code>, <code>gen9-sandbox</code>, <code>gen9-agent</code> and <code>gen9-ui</code>. Who joins which: <a href="#b7-3">Who can reach whom</a>.</p>
 </section>
 
@@ -2771,6 +2778,8 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>gen9-sandbox_store</code></td><td>OpenSandbox's server state (<code>/var/lib/opensandbox</code>)</td></tr>
       <tr><td><code>gen9-sandbox_metadata</code></td><td>Each sandbox's renewals, so a restarted server still removes it on time</td></tr>
       <tr><td><code>gen9-ui_valkey_data</code></td><td>Web sessions</td></tr>
+      <tr><td><code>gen9-edge_edge_data</code></td><td>Its certificates, and its own CA (its root is what a machine's browsers trust)</td></tr>
+      <tr><td><code>gen9-edge_edge_config</code></td><td>Caddy's running configuration</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -2860,6 +2869,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>gen9-sandbox/.env</code></td><td><code>GEN9_SANDBOX_PORT</code>, <code>SANDBOX_API_KEY</code></td></tr>
       <tr><td><code>gen9-ui/.env</code></td><td><code>SESSION_SECRET</code> (seals web sessions), <code>VALKEY_PASSWORD</code>; optionally <code>PRIVACY_CONTROLLER</code>, <code>PRIVACY_CONTACT</code>, <code>PRIVACY_DPO</code>, <code>PRIVACY_AUTHORITY</code>, <code>PRIVACY_NOTICE_URL</code> (the privacy page)</td></tr>
       <tr><td><code>gen9-ui/keycloak.local.env</code></td><td><code>KEYCLOAK_ISSUER</code>, <code>KEYCLOAK_CLIENT_ID</code>, <code>KEYCLOAK_CLIENT_SECRET</code>: the web app's client. Its <code>compose.yaml</code> adds <code>APP_URL</code>, <code>SESSION_STORE_URL</code>, <code>GEN9_AGENT_URL</code>, <code>MCP_APPS_SANDBOX_URL</code></td></tr>
+      <tr><td><code>gen9-edge/.env</code></td><td><code>GEN9_DOMAIN</code> (what <code>make setup DOMAIN=…</code> gave), and <code>GEN9_EDGE_TLS</code> if <code>EDGE_TLS</code> was given</td></tr>
     </tbody>
   </table></div>
 
@@ -2877,6 +2887,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td>gen9-agent</td><td><code>GEN9_AGENT_PORT</code> (17000); <code>LANGFUSE_TIMEOUT</code> (35 s: long enough that a Langfuse restart loses no trace)</td></tr>
       <tr><td>Gen9's own images</td><td><code>GEN9_AGENT_IMAGE</code> (gen9-agent:dev), <code>GEN9_UI_IMAGE</code> (gen9-ui:prod), <code>GEN9_KEYCLOAK_IMAGE</code>, <code>GEN9_POSTGRES_IMAGE</code>, <code>GEN9_SANDBOX_IMAGE</code>, <code>GEN9_SANDBOX_EGRESS_IMAGE</code>, <code>GEN9_SANDBOX_EXECD_IMAGE</code>: unset, <code>make up</code> builds each here under its local tag; <code>make up IMAGES=&lt;lock&gt;</code> sets them all, by digest, in <code>images.env</code>, and builds nothing</td></tr>
       <tr><td>gen9-ui</td><td><code>GEN9_UI_PORT</code> (14000), <code>GEN9_UI_DEV_PORT</code> (14001), <code>GEN9_UI_VALKEY_PORT</code> (14002), <code>GEN9_UI_SANDBOX_PORT</code> (14003); <code>GEN9_UI_URL</code>, <code>GEN9_UI_DEV_URL</code>; <code>MCP_APPS_SANDBOX_URL</code>; <code>VALKEY_MAXMEMORY</code> (256mb); the privacy page's <code>PRIVACY_*</code></td></tr>
+          <tr><td>gen9-edge</td><td><code>GEN9_DOMAIN</code> (gen9.localhost, which resolves to this machine), <code>GEN9_EDGE_TLS</code> (internal: its own CA; or an email, for Let's Encrypt), <code>GEN9_EDGE_APPS_TLS</code> (internal; or "&lt;cert&gt; &lt;key&gt;" under <code>gen9-edge/certs</code>, a wildcard certificate for <code>*.apps.</code>), <code>GEN9_EDGE_ADDRESS</code> (127.0.0.1; 0.0.0.0 on a server)</td></tr>
     </tbody>
   </table></div>
 </section>

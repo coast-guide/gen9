@@ -4,7 +4,7 @@
 # Used by `make doctor`, and with --preflight by `make setup` and `make up`: then it prints only
 # problems, so up fails before starting anything instead of halfway through a stack.
 #
-#   scripts/doctor.sh [--preflight] [STACK...]     STACK: postgres keycloak langfuse temporal models sandbox agent ui (default all)
+#   scripts/doctor.sh [--preflight] [STACK...]     STACK: postgres keycloak langfuse temporal models sandbox agent ui edge (default all)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,7 +24,7 @@ for arg in "$@"; do
     *) STACKS+=("$arg") ;;
   esac
 done
-[ ${#STACKS[@]} -gt 0 ] || STACKS=(postgres keycloak langfuse temporal models sandbox agent ui)
+[ ${#STACKS[@]} -gt 0 ] || STACKS=(postgres keycloak langfuse temporal models sandbox agent ui edge)
 
 failed=false
 ok() { $PREFLIGHT || echo "ok    $*"; }

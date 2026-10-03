@@ -1,0 +1,66 @@
+# gen9-edge: Gen9 under one domain, over TLS, in front of the other stacks (README; docs/plans/
+# deploy.md, U5b). Caddy, one site per service people reach (Caddyfile), each to the name its
+# stack gives on its own network: it joins only the networks of the stacks it serves.
+#   make setup DOMAIN=gen9.example.com, then make up        -> https://gen9.example.com
+# Optional: without a domain (no .env) make up leaves it out, and the stacks stay on their
+# 127.0.0.1 ports. Ports 80 and 443 on GEN9_EDGE_ADDRESS: 127.0.0.1, or 0.0.0.0 on a server.
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  edge:
+    logging: *logging
+    image: caddy:2.11.6@sha256:907efba736324e43f891ccb9d760fe5abe545e313419b3d18d63d4ec670dad8d
+    labels:  # where to open it; the root Makefile lists these after make up
+      gen9.name: Gen9, under its domain
+      gen9.url: https://${GEN9_DOMAIN:-gen9.localhost}
+    environment:
+      # make setup DOMAIN=… writes it; gen9.localhost resolves to this machine without DNS
+      GEN9_DOMAIN: ${GEN9_DOMAIN:-gen9.localhost}
+      # `internal` (Caddy's own CA) or an email, for Let's Encrypt; the apps' wildcard host: its
+      # own CA, or "<cert> <key>" files under /certs (Caddyfile)
+      GEN9_EDGE_TLS: ${GEN9_EDGE_TLS:-internal}
+      GEN9_EDGE_APPS_TLS: ${GEN9_EDGE_APPS_TLS:-internal}
+    ports:
+      - "${GEN9_EDGE_ADDRESS:-127.0.0.1}:80:80"
+      - "${GEN9_EDGE_ADDRESS:-127.0.0.1}:443:443"
+      - "${GEN9_EDGE_ADDRESS:-127.0.0.1}:443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/certs:ro
+      - edge_data:/data  # certificates, and Caddy's own CA (its root: README)
+      - edge_config:/config
+    networks: [default, gen9-ui, gen9-keycloak, gen9-agent, gen9-langfuse, gen9-temporal]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+      start_interval: 1s
+
+volumes:
+  edge_data:
+  edge_config:
+
+networks:
+  # The networks of the stacks it serves (external: make up creates them)
+  gen9-ui:
+    name: gen9-ui
+    external: true
+  gen9-keycloak:
+    name: gen9-keycloak
+    external: true
+  gen9-agent:
+    name: gen9-agent
+    external: true
+  gen9-langfuse:
+    name: gen9-langfuse
+    external: true
+  gen9-temporal:
+    name: gen9-temporal
+    external: true
