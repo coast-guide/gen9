@@ -289,6 +289,44 @@ What the owner asked, restated before starting (they went on to "start the loop"
   - [ ] U5b Reaching Gen9 from outside, a domain and TLS: on Docker the stacks publish on
     127.0.0.1; on Kubernetes, Gateway API routes (Decision Log), the addresses the stacks give
     browsers (`GEN9_UI_URL`, `KC_HOSTNAME`, …) from one domain.
+    Research, 2026-10-03: Gateway API v1.6.2 (2026-09-03); k3s v1.37.1 installs its CRDs
+    (v1.6.1, standard) and Traefik v3, whose Gateway provider is one setting away
+    (`providers.kubernetesGateway.enabled`, a HelmChartConfig; k3s's docs: "compatible with
+    Gateway API v1.4"); kind's `cloud-provider-kind` v0.12.0 (2026-10-02) implements Gateway and
+    HTTPRoute and passes the conformance tests, standard channel on by default. What the outside
+    reaches today, each on its own 127.0.0.1 port: the web app, Keycloak (the issuer), the
+    agent's API (the terminal, MCP clients, the Temporal UI's codec), Langfuse and its media
+    store, Temporal's UI, and the connector apps' sandbox, one host per app (`{id}.apps.…`).
+    Containers already call Keycloak inside (`KEYCLOAK_INTERNAL_URL`, back-channel dynamic), so
+    only browsers and terminals need the public names. Langfuse can't move under a path without
+    its own build (`NEXT_PUBLIC_BASE_PATH`), so each gets a host of its own under one domain.
+    Design to probe: one domain setting from which `make setup` writes every public address
+    (`GEN9_UI_URL`, `KC_HOSTNAME` and the issuers in the `*.local.env`, `NEXTAUTH_URL`,
+    `LANGFUSE_MEDIA_PUBLIC_URL`, `GEN9_TEMPORAL_CODEC_URL`, `MCP_APPS_SANDBOX_URL`, the API's);
+    on Kubernetes each chart's HTTPRoutes for its public services, the host from the same
+    domain, on the Gateway the settings name (or an Ingress of a class, or none), TLS on the
+    Gateway's listener; on Docker an edge stack, a reverse proxy joining the networks of the
+    stacks it serves, with TLS (ACME, or its own CA on a machine with no public name).
+    Versions that day: Caddy v2.11.7 (2026-10-03), Traefik v3.7.13 (2026-09-04), cert-manager
+    v1.21.2 (2026-09-11; v1.20.4 of 2026-09-16 is a patch of the older line). The Docker edge:
+    Caddy, whose HTTPS is automatic (ACME, or its own CA for names like `*.localhost`) from one
+    short file; Traefik is what k3s routes with, which no other cluster promises.
+    - [x] Probe: Caddy in front of the running Docker stacks, one host each under
+      `gen9.localhost`, TLS from its own CA: 200 from the web app, Keycloak, the API and Langfuse
+      (explore/deploy/NOTES.md, U5b); event streams pass unbuffered (Caddy's docs).
+    - [ ] U5b-1 `gen9-edge`, a stack of its own (docs/development.md, "Adding a stack"): Caddy
+      pinned by digest, a site per public service from the domain setting, joining only the
+      networks of the stacks it serves; names on those networks for what has none yet (Temporal's
+      UI, the connector apps' sandbox, Langfuse's media store has one); ACME with a public name,
+      its own CA otherwise, its root exported for the machine's browsers.
+    - [ ] U5b-2 `make setup DOMAIN=…`: every public address written from it (the web app, the
+      issuer and the `*.local.env` that carry it, Keycloak's redirect addresses, Langfuse and its
+      media, Temporal's UI and the codec, the API, the apps' sandbox); localhost ports stay the
+      default.
+    - [ ] U5b-3 The charts: an HTTPRoute per public service with the same hosts, on the Gateway
+      the settings name, or an Ingress of a class, or none (the default); TLS the Gateway's.
+    - [ ] U5b-4 Verified through the domain: `stacks.mjs` and a sign-in in Chrome on Docker behind
+      `gen9-edge`, on kind (`cloud-provider-kind`'s Gateway) and on k3d (Traefik's).
   - [ ] U5c External services: which settings point a stack at its own Postgres, Valkey,
     ClickHouse or S3 elsewhere, and how the bundled one is left out, in both shapes.
 - [ ] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd

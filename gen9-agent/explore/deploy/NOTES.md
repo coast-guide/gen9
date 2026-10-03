@@ -238,3 +238,21 @@ Gen9's execd and egress images from the lock.
 - The init container ran `privileged: true` here too: `[egress] disable_ipv6` defaults to true
   (`config.py`: "egress IPv6 support is incomplete, especially on Kubernetes runtime"), and
   `prep_execd_init_for_egress` needs privilege to write `/proc/sys/.../disable_ipv6`.
+
+## A reverse proxy in front of the Docker stacks (U5b)
+
+Caddy 2.11.6 (the official image; v2.11.7, released that day, wasn't on Docker Hub yet) as its
+own Compose project, joining the shared networks `gen9-ui`, `gen9-keycloak`, `gen9-agent` and
+`gen9-langfuse`, publishing 127.0.0.1:80 and :443, `local_certs` (its own CA), one site per host
+under `gen9.localhost`, each `reverse_proxy` to the name the stack gives on its network:
+
+- `https://gen9.localhost` (gen9-ui:3000), `id.gen9.localhost/realms/gen9/.well-known/openid-configuration`
+  (gen9-keycloak:8080), `api.gen9.localhost/readyz` (gen9-agent:8000) and
+  `traces.gen9.localhost/api/public/health` (gen9-langfuse:3000): 200 each, over TLS.
+- Without `-k`, curl refused the certificate (`ssl_verify_result` 20): a client trusts Caddy's
+  root first (`/data/caddy/pki/authorities/local/root.crt` in its volume), as on any machine with
+  no public name; with one, Caddy gets an ACME certificate instead.
+- Docker Desktop mounts only the folders it shares: a bind mount from `/tmp` was refused ("mounts
+  denied"), from the home folder it worked.
+- Streaming: Caddy's `reverse_proxy` docs, `flush_interval`: responses with
+  `Content-Type: text/event-stream` are flushed to the client immediately, whatever is set.
