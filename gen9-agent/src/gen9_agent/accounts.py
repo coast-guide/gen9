@@ -58,6 +58,19 @@ async def delete_user_data(
     await session.commit()
 
 
+def sweep_holds(missing: int, known: int, limit: int) -> str | None:
+    """Why the sweep deletes nobody now, or None: more people missing from Keycloak at once than
+    `limit` (SWEEP_MAX_DELETIONS), or more than half of the people Gen9 knows (the only one too),
+    as a Keycloak on another realm or an empty database looks, rather than people deleted one by
+    one.
+    Microsoft Entra's sync stops the same way before a mass deletion (docs/plans/deploy.md, U5c-6)."""
+    if missing > limit:
+        return f"{missing} people missing from Keycloak at once, more than SWEEP_MAX_DELETIONS ({limit})"
+    if missing and missing * 2 > known:
+        return f"{missing} of the {known} people Gen9 knows missing from Keycloak, more than half"
+    return None
+
+
 async def find_deleted_users(
     session: AsyncSession, keycloak: KeycloakAdmin
 ) -> list[MissingUser]:

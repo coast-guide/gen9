@@ -520,10 +520,39 @@ What the owner asked, restated before starting (they went on to "start the loop"
       through the Gateway all passed, `make k8s-diff` 0 (after a fix: `make setup DOMAIN=` had
       rewritten the outside S3's address, Surprises). Both back on the bundled stores, `make diff`
       0, `make k8s-diff` 0 for seven stacks. The model calls cost $0.0015.
-    - [ ] U5c-6 gen9-agent's sweep refuses to delete what looks like a different Keycloak rather
+    - [x] U5c-6 gen9-agent's sweep refuses to delete what looks like a different Keycloak rather
       than deleted people: a realm that knows none (or few) of the people Gen9 knows (Surprises,
       2026-10-03), as identity provisioning services stop on mass deletions (to research: their
       thresholds, e.g. Microsoft Entra's accidental-deletions prevention), an admin's way to go on.
+      Research, 2026-10-03, Microsoft Learn: Entra Connect Sync's "prevent accidental deletes" is
+      "enabled by default and configured to not allow an export with more than 500 deletes"; over
+      it, "the export stops before deleting any object", and an admin disables it for one run and
+      enables it again. Entra provisioning's threshold puts the job "into quarantine", from which
+      an admin chooses "Allow deletes" or rejects them, "evaluated each cycle". A count alone
+      wouldn't have stopped the case here, two people of two. Planned: the sweep holds every
+      deletion when it would delete more than `SWEEP_MAX_DELETIONS` people (default 10) or more
+      than half of those Gen9 knows (its only one too), deleting nobody, as Entra's export does; an
+      error in the worker's log and the audit event `account.sweep.held` say how many and how to
+      go on; `gen9-agent-sweep` shows what the sweep would delete, and `--allow N` runs it once,
+      deleting them only if they number N or fewer (Entra's "Allow deletes", with the count
+      confirmed). Verify: unit tests; live, after `make backup`, gen9-keycloak on an empty database
+      with gen9-agent running: the sweep held, the audit event, nothing deleted; Keycloak back, every
+      chat still there.
+      Done 2026-10-03. Built: `accounts.sweep_holds` (more than `SWEEP_MAX_DELETIONS`, or more than
+      half of the people Gen9 knows, the only one too: a first version spared fewer than two, which
+      would have let a one-person install lose its only person, and this install had one); the
+      sweep's Activity holds every deletion then, logs an error and records `account.sweep.held`;
+      `SweepDeletedUsersWorkflow.run(allow)` passes an admin's allowance (`workflow.patched`);
+      `gen9-agent-sweep [--allow N]` (`sweep.py`), recorded as `account.sweep.allowed`; tests (the
+      rule, the hold, the allowance in the Activity and through the workflow); 621 pass. Verified
+      on Docker, gen9-agent built from this branch, after `make backup` of gen9-postgres,
+      gen9-keycloak and gen9-models (`~/gen9-backup-u5c6`): gen9-keycloak on an empty database
+      with gen9-agent running, `gen9-agent-sweep` "the sweep holds: 1 of the 1 people Gen9 knows
+      missing from Keycloak, more than half"; the Schedule triggered: "deleted-users sweep held,
+      nobody deleted …", `account.sweep.held` {"known": 1, "limit": 10, "missing": 1}, the person
+      still there, no DeleteAccountWorkflow started; `gen9-agent-sweep --allow 1`: "1 deletions
+      started", the person gone, `account.sweep.allowed` recorded. Keycloak back on its own
+      database: `stacks.mjs` all passed, `make diff` 0. The model calls cost $0.0007.
     - [ ] U5c-5 TLS to a store elsewhere, the server's certificate checked against a CA its owner
       gives (Keycloak's `KC_DB_TLS_MODE=verify-server` and trust store, Temporal's `SQL_CA` and host
       verification, libpq's `sslrootcert`, Prisma's `sslcert`), which needs that CA file in the

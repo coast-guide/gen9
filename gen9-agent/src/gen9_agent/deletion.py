@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 
 import httpx
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from temporalio import activity
 from temporalio.api.common.v1 import WorkflowExecution
 from temporalio.api.workflowservice.v1 import DeleteWorkflowExecutionRequest
@@ -180,11 +180,38 @@ class DeletionActivities:
                 raise
 
     @activity.defn(name=FIND_DELETED_USERS)
-    async def find_deleted_users(self) -> list[DeletedUser]:
+    async def find_deleted_users(self, allow: int = 0) -> list[DeletedUser]:
+        """The people to delete, or none while too many are missing at once (accounts.sweep_holds),
+        unless an admin allowed that many (gen9-agent-sweep --allow N)."""
         if self.keycloak is None:
             return []
         async with self.runtime.sessionmaker() as session:
             missing = await accounts.find_deleted_users(session, self.keycloak)
+            known = await session.scalar(select(func.count()).select_from(User)) or 0
+            limit = self.runtime.settings.sweep_max_deletions
+            held = accounts.sweep_holds(len(missing), known, limit)
+            if held and len(missing) > allow:
+                log.error(
+                    "deleted-users sweep held, nobody deleted: %s. People deleted on purpose: "
+                    "gen9-agent-sweep shows them, gen9-agent-sweep --allow %d deletes them",
+                    held,
+                    len(missing),
+                )
+                session.add(
+                    AuditEvent(
+                        actor="sweep",
+                        action="account.sweep.held",
+                        outcome="denied",
+                        where="SweepDeletedUsersWorkflow",
+                        detail={
+                            "missing": len(missing),
+                            "known": known,
+                            "limit": limit,
+                        },
+                    )
+                )
+                await session.commit()
+                return []
             # Each one's deletion recorded, as the person's or an admin's is: the record `make
             # restore` reads to delete it again, should a backup bring it back (P4-E5). A retried
             # attempt doesn't record one twice

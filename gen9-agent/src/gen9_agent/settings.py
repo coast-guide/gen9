@@ -185,6 +185,9 @@ class Settings(DatabaseSettings):
 
     # How often to remove Gen9's data of users deleted in Keycloak directly; 0 turns it off
     deleted_users_sweep_interval_s: int = 900
+    # The most people one sweep deletes; more, or more than half of the people Gen9 knows, and it
+    # deletes nobody until an admin allows it (gen9-agent-sweep --allow N; accounts.sweep_holds)
+    sweep_max_deletions: int = 10
 
     # gen9-temporal: its frontend and Gen9's namespace. Containers use gen9-temporal:7233
     # (compose.yaml); on the host, the port gen9-temporal publishes

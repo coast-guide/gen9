@@ -2850,6 +2850,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><th colspan="3" scope="colgroup">Runs, Temporal, tracing</th></tr>
       <tr><td><code>RUN_WAIT_S</code></td><td>7 days</td><td>How long a run waits for the person's answer</td></tr>
       <tr><td><code>DELETED_USERS_SWEEP_INTERVAL_S</code></td><td>900</td><td>The <code>sweep-deleted-users</code> Schedule</td></tr>
+      <tr><td><code>SWEEP_MAX_DELETIONS</code></td><td>10</td><td>The most people one sweep deletes; more, or more than half of the people Gen9 knows, and it deletes nobody until <code>gen9-agent-sweep --allow</code></td></tr>
       <tr><td><code>TEMPORAL_ADDRESS</code>, <code>TEMPORAL_NAMESPACE</code></td><td>:18001, gen9</td><td>Temporal's frontend (<code>gen9-temporal:7233</code>) and the namespace</td></tr>
       <tr><td><code>TEMPORAL_PAYLOAD_KEYS</code></td><td></td><td>The key ring payloads are encrypted with; the first encrypts</td></tr>
       <tr><td><code>TEMPORAL_UI_URL</code></td><td>:18000</td><td>The one browser origin allowed on the codec endpoint</td></tr>
@@ -2951,6 +2952,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>gen9-agent-worker</code></td><td>The worker (the <code>worker</code> service)</td></tr>
       <tr><td><code>gen9-agent-migrate</code></td><td>The migrations (the <code>migrate</code> job)</td></tr>
       <tr><td><code>gen9-agent-stop</code></td><td>Cancels every run and pauses every task's Schedule; <code>--resume</code> undoes it. <code>make stop-agents</code> runs it</td></tr>
+      <tr><td><code>gen9-agent-sweep</code></td><td>How many people Gen9 knows Keycloak no longer has, and whether the sweep holds; <code>--allow N</code> runs the sweep once, deleting them if they're N or fewer</td></tr>
       <tr><td><code>gen9-agent-erase</code></td><td>Deletes accounts and chats again by id (<code>--users</code>, <code>--threads</code>), as <code>make restore</code> does</td></tr>
       <tr><td><code>gen9-agent-reseal</code></td><td>Seals every kept secret again with the current key of <code>GEN9_SECRET_KEYS</code>, so an old key can go (<code>--check</code>, <code>--verify</code>)</td></tr>
     </tbody>
