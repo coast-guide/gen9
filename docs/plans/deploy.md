@@ -557,6 +557,24 @@ What the owner asked, restated before starting (they went on to "start the loop"
       still there, no DeleteAccountWorkflow started; `gen9-agent-sweep --allow 1`: "1 deletions
       started", the person gone, `account.sweep.allowed` recorded. Keycloak back on its own
       database: `stacks.mjs` all passed, `make diff` 0. The model calls cost $0.0007.
+    - [x] U5c-7 (follow-up of U5c-5c's Surprise) gen9-ui answers at once when its session store
+      can't be reached, instead of waiting. node-redis 6.2.1's own docs (docs/client-configuration.md
+      and FAQ.md at `redis@6.2.1`): the client reconnects by `reconnectStrategy`, whose Error
+      "close[s] the client"; commands "remain queued in memory until a new socket is established"
+      unless `disableOfflineQueue`, which rejects them instead. `store()` awaits `connect()`, which
+      kept retrying a server that refused its certificate. Planned: before the client was ever
+      ready, give up at once, so `connect()` rejects and the next request tries anew; once ready,
+      node-redis's own backoff, with the offline queue off. Verify: unit test of the strategy; on
+      Docker and k3d, the session store stopped or refused: `/auth/login` answers within a second
+      or two; back, sign-in works again with no restart.
+      Done 2026-10-03. Built: `reconnectDelay` in `lib/auth/store.ts` (tested), the client with
+      `disableOfflineQueue`. Verified with gen9-ui built from this branch: on Docker, the bundled
+      Valkey stopped, `/auth/login` 303 in 0.06 s (to `/auth/error?reason=temporarily_unavailable`),
+      then 0.01 s; started again, 307 with no restart of gen9-ui; a TLS Valkey whose certificate it
+      can't check (U5c-5c's case, no answer in 10 s before), 303 in 0.04 s, `/api/health` 503
+      "session store unavailable" at once, so `make up` stops on it; on k3d, Valkey scaled to 0,
+      303 in 0.03 s, back at 1, 307. `stacks.mjs` all passed; gen9-ui's 170 tests; `make diff` 0,
+      `make k8s-diff` 0. The model calls cost $0.0007.
     - [x] U5c-5 TLS to a store elsewhere, the server's certificate checked against a CA its owner
       gives (Keycloak's `KC_DB_TLS_MODE=verify-server` and trust store, Temporal's `SQL_CA` and host
       verification, libpq's `sslrootcert`, Prisma's `sslcert`), which needs that CA file in the

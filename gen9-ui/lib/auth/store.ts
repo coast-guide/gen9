@@ -5,9 +5,30 @@ import { createClient } from "redis";
 import { hashId, seal, unseal } from "@/lib/auth/crypto";
 import { env } from "@/lib/env";
 
+/**
+ * What the client does when the store can't be reached (node-redis's `reconnectStrategy`). Before
+ * it was ever ready: give up at once, so `connect()` rejects, the request fails now instead of
+ * waiting on a store that keeps refusing it (a wrong address, a certificate it can't check), and the
+ * next request tries again. Once it was ready: reconnect with node-redis's own backoff (2^n × 50 ms,
+ * at most 2 s, plus up to 200 ms), while requests fail at once (`disableOfflineQueue`) rather than
+ * queueing in memory until it's back.
+ */
+export function reconnectDelay(wasReady: boolean, retries: number, cause: Error): number | Error {
+  if (!wasReady) return cause;
+  return Math.min(2 ** retries * 50, 2000) + Math.floor(Math.random() * 200);
+}
+
 function connect() {
-  return createClient({ url: env().SESSION_STORE_URL })
+  let ready = false;
+  return createClient({
+    url: env().SESSION_STORE_URL,
+    disableOfflineQueue: true,
+    socket: { reconnectStrategy: (retries: number, cause: Error) => reconnectDelay(ready, retries, cause) },
+  })
     .on("error", (error: Error) => console.error("[session-store]", error.message))
+    .on("ready", () => {
+      ready = true;
+    })
     .connect();
 }
 
