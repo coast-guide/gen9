@@ -1139,7 +1139,8 @@ Deleting a chat or an account is a Temporal workflow (`workflows/deletion.py`, A
   so it outlives a deleted account. Admins read it at `GET /v1/admin/audit`, newest first,
   filtered by `actor`, an `action` prefix and `outcome`, and paged with `before`.
 
-  Each record is also one line of the API's log, written just before the row: `audit {"actor":
+  Each record is also one line of the API's log (the worker's, for an account its sweep finds
+  deleted in Keycloak), written just before the row: `audit {"actor":
   …, "action": …, "outcome": …, "target": …, "where": …, "detail": …}`, valid JSON whatever a name
   holds. That line is what an operator sends to a separate system, where it outlasts a break-in
   here ([docs/logging.md, "Sending the logs elsewhere"](../docs/logging.md#sending-the-logs-elsewhere)).
