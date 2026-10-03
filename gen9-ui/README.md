@@ -58,7 +58,8 @@ Containers reach Keycloak over the `gen9-keycloak` network (`KEYCLOAK_INTERNAL_U
 | --- | --- | --- |
 | `KEYCLOAK_ISSUER`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` | `keycloak.local.env` | OIDC client |
 | `SESSION_SECRET`, `VALKEY_PASSWORD` | `.env` (`init-env.sh`) | Session encryption (64 hex characters), session store |
-| `APP_URL`, `KEYCLOAK_INTERNAL_URL`, `SESSION_STORE_URL`, `GEN9_AGENT_URL` | `compose.yaml` | Per container (prod `:14000`, dev `:14001`) |
+| `SESSION_STORE_URL` | `compose.yaml`, or `.env` | The session store: the bundled Valkey, or another Valkey or Redis given by its URL, with `valkey` taken out of `COMPOSE_PROFILES` in `.env` ([docs/operations.md, "External services"](../docs/operations.md#external-services)) |
+| `APP_URL`, `KEYCLOAK_INTERNAL_URL`, `GEN9_AGENT_URL` | `compose.yaml` | Per container (prod `:14000`, dev `:14001`) |
 | `MCP_APPS_SANDBOX_URL` | `compose.yaml` | Where connectors' Views run: an origin template, `{id}` naming each connector (default `http://{id}.apps.localhost:14003`: Chrome resolves `*.localhost` to this machine, and it is another site than `localhost`). Unset, Views aren't shown |
 | `PRIVACY_CONTROLLER`, `PRIVACY_CONTACT`, `PRIVACY_DPO`, `PRIVACY_AUTHORITY`, `PRIVACY_NOTICE_URL` | `.env` (optional) | The privacy page, `/privacy` (GDPR Art. 13), readable before signing up and linked from Settings and the sign-up page. The page states what Gen9 itself does: what it keeps and why, who else receives it (the model providers, search engines, email, connected services), for how long, and what a person can do. The organization running Gen9 fills in who it is and where to write (`PRIVACY_CONTROLLER`, `PRIVACY_CONTACT`), optionally its data protection officer and supervisory authority, or points to its own notice instead (`PRIVACY_NOTICE_URL`). Unset, the page says the organization hasn't named itself yet |
 
@@ -73,7 +74,7 @@ Tokens, font and logo come from `gen9-design` (copies: `app/gen9-theme.css`, `ap
 | File | Purpose |
 | --- | --- |
 | `Dockerfile`, `Dockerfile.dev` | Production image (standalone output, non-root) and dev image |
-| `compose.yaml` | `prod`, `sandbox`, `dev` (profile) and `valkey` services |
+| `compose.yaml` | `prod`, `sandbox`, `dev` (profile) and `valkey` (profile, in `.env`'s `COMPOSE_PROFILES`) services |
 | `sandbox/server.ts` | The MCP Apps sandbox proxy (`node:http`, run from the prod image): one page, its CSP from the View's declared domains, framed by this app only |
 | `init-env.sh` | Generates `.env` |
 | `proxy.ts` | Optimistic route guard |

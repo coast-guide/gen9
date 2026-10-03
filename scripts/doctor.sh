@@ -2,9 +2,10 @@
 # Check what Gen9 needs: Docker running, Docker Compose new enough, the tools the stacks' init-env.sh
 # scripts use, the host ports of stacks that aren't running and (make doctor only) Docker's memory.
 # Used by `make doctor`, and with --preflight by `make setup` and `make up`: then it prints only
-# problems, so up fails before starting anything instead of halfway through a stack.
+# problems, so up fails before starting anything instead of halfway through a stack. make setup's
+# adds --before-setup: what setup itself writes isn't checked yet.
 #
-#   scripts/doctor.sh [--preflight] [STACK...]     STACK: postgres keycloak langfuse temporal models sandbox agent ui edge (default all)
+#   scripts/doctor.sh [--preflight [--before-setup]] [STACK...]     STACK: postgres keycloak langfuse temporal models sandbox agent ui edge (default all)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -16,10 +17,11 @@ MIN_COMPOSE=2.24.0
 # (https://langfuse.com/self-hosting/deployment/docker-compose).
 MIN_MEMORY_MIB_LANGFUSE=8192
 
-PREFLIGHT=false STACKS=()
+PREFLIGHT=false BEFORE_SETUP=false STACKS=()
 for arg in "$@"; do
   case $arg in
     --preflight) PREFLIGHT=true ;;
+    --before-setup) BEFORE_SETUP=true ;;
     -*) echo "unknown option: $arg" >&2; exit 2 ;;
     *) STACKS+=("$arg") ;;
   esac
@@ -93,6 +95,29 @@ if $docker_ok; then
         fail "gen9-$stack needs port $port, which another program uses (see: lsof -nP -iTCP:$port -sTCP:LISTEN)"
       done
     fi
+  done
+fi
+
+# A bundled store left out of the stack's COMPOSE_PROFILES needs the setting its label gen9.external
+# names, which points the stack at another one (docs/operations.md, "External services"); else what
+# uses it starts with nothing to reach. The services Compose would start, and the environment it
+# interpolates with (values only tested, never printed), from Compose itself
+if $docker_ok && ! $BEFORE_SETUP; then
+  for stack in "${STACKS[@]}"; do
+    [ -f "gen9-$stack/.env" ] || continue
+    # "store SETTING" for each service labelled so, from the stack's Compose files
+    stores=$(awk '/^  [a-z][a-z0-9-]*:[[:space:]]*$/ { s = $1; sub(/:$/, "", s) }
+      /^[[:space:]]+gen9\.external:/ { print s, $2 }' gen9-"$stack"/compose*.yaml)
+    [ -n "$stores" ] || continue
+    active=" $(cd "gen9-$stack" && docker compose config --services 2>/dev/null | tr '\n' ' ') "
+    while read -r service setting; do
+      [[ "$active" == *" $service "* ]] && continue
+      if (cd "gen9-$stack" && docker compose config --environment 2>/dev/null) | grep -Eq "^$setting=."; then
+        ok "gen9-$stack: $service is elsewhere ($setting)"
+      else
+        fail "gen9-$stack leaves out its $service (COMPOSE_PROFILES in gen9-$stack/.env), and $setting names no other: set $setting, or add $service to COMPOSE_PROFILES (docs/operations.md, \"External services\")"
+      fi
+    done <<<"$stores"
   done
 fi
 

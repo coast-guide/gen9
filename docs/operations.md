@@ -7,7 +7,7 @@ its agents, and start over. What each stack does is in its own README (the table
 
 ## Requirements
 
-Docker with Compose 2.24 or newer, GNU Make (macOS's built-in 3.81 is enough), bash, openssl. With gen9-langfuse, give Docker at least 8 GiB of memory: all stacks idle used 5.8 GiB after a day of use (Langfuse 2.9, Keycloak 1.4, the model router 0.6, Temporal 0.5, measured). `make doctor` checks all of this and the ports each stack needs; `make setup` and `make up` run the same checks first and stop before starting anything. It stops a start if a secret is missing from gen9-langfuse/.env (Langfuse's own compose file would fall back to a published default). On a running install it also checks Temporal's certificate, and warns of a deletion still running after a day (a step that keeps failing).
+Docker with Compose 2.24 or newer, GNU Make (macOS's built-in 3.81 is enough), bash, openssl. With gen9-langfuse, give Docker at least 8 GiB of memory: all stacks idle used 5.8 GiB after a day of use (Langfuse 2.9, Keycloak 1.4, the model router 0.6, Temporal 0.5, measured). `make doctor` checks all of this and the ports each stack needs; `make setup` and `make up` run the same checks first and stop before starting anything. It stops a start if a secret is missing from gen9-langfuse/.env (Langfuse's own compose file would fall back to a published default), or if a stack leaves a bundled store out with no setting naming another ([External services](#external-services)). On a running install it also checks Temporal's certificate, and warns of a deletion still running after a day (a step that keeps failing).
 
 ## First-time setup
 
@@ -176,6 +176,30 @@ cluster create --config deploy/k3d.yaml` makes a k3s one (a registry of your own
 80 and 443 (a listener on its entry points' ports, 8443 for HTTPS). `make
 k8s-e2e` runs `make e2e` against the cluster: it forwards each port a stack publishes on Docker to
 the same port on 127.0.0.1, and puts `e2e/k8s` first on `PATH`, whose `docker` reaches the pods.
+
+## External services
+
+Each stack runs the stores it needs, as containers with volumes on Docker and as StatefulSets on
+Kubernetes. A store can be elsewhere instead (a managed service, a cluster's operator, a server
+of your own): one setting points the stack at it, and the bundled one is left out.
+
+- On Docker, the stack's `.env` lists the bundled stores it runs in `COMPOSE_PROFILES`, Compose's
+  own setting, which `make setup` writes. Take the store out of that list and put the setting in
+  the same `.env`, then `make up`. `make diff` then names the bundled container still running, and
+  `make reset` removes it; its volume stays, for `make backup` or `make wipe`.
+- On Kubernetes, `<stack>: {services: {<store>: {kind: none}}}` in the values file, and the
+  setting in the stack's `.env` (the Secret `env`, since it holds a password) or in
+  `<stack>.settings`. The StatefulSet goes; its PersistentVolumeClaim stays, as Kubernetes keeps
+  them.
+- Either way, a store left out with nothing in its setting is refused: `make up` stops before
+  starting anything, and the chart doesn't install, each naming the setting.
+
+| Stack | Store | Setting | What it needs |
+| --- | --- | --- | --- |
+| gen9-ui | `valkey`: sessions, sign-ins in progress, the logout notices already used | `SESSION_STORE_URL`, `redis://:<password>@<host>:6379/0` (`rediss://` over TLS) | Valkey or Redis. Every key has a time to live, so the bundled one evicts the keys closest to expiring when full (`maxmemory-policy volatile-ttl`, 256 MB, about 60,000 sessions); give another the same |
+
+A store elsewhere is backed up by whoever runs it: `make backup` copies the bundled stores'
+volumes.
 
 ## Upgrade
 
