@@ -105,6 +105,10 @@ Put a TLS reverse proxy in front of `127.0.0.1:13000` (UI/API) and `127.0.0.1:13
   --url https://langfuse.example.com --media-url https://media.langfuse.example.com
 ```
 
+Its Postgres, Redis, ClickHouse and S3 can each be elsewhere instead (a managed service, a
+cluster's operator): Langfuse's own settings in `.env`, the store left out of `COMPOSE_PROFILES`
+([docs/operations.md, "External services"](../docs/operations.md#external-services)).
+
 ## Upgrade
 
 1. Read the release's upgrade notes, then replace the upstream file:

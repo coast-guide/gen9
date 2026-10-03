@@ -62,28 +62,40 @@ if [ "$from_lock" -ge 3 ]; then echo "a release's chart: its images from its pac
   echo "a release's chart doesn't take its images from its packed lock ($from_lock of 3)"; status=1; fi
 
 # A bundled store left out (kind: none) is refused unless the setting its label gen9.external names
-# is given, and with it renders without the store (docs/operations.md, "External services")
+# is given, naming another host than the store itself, and with it renders without the store and
+# what shares its profile (docs/operations.md, "External services")
 # shellcheck disable=SC2016,SC2086 # Python, in single quotes on purpose; images, a list of flags
-for pair in $(python3 -c '
+for line in $(python3 -c '
 import glob, re
-for f in sorted(glob.glob("gen9-*/compose*.yaml")):
-    service = None
-    for line in open(f):
-        m = re.match(r"^  ([a-z][a-z0-9-]*):\s*$", line)
-        if m: service = m.group(1)
-        m = re.match(r"^\s+gen9\.external: *([A-Z0-9_]+)", line)
-        if m and service: print("%s/%s/%s" % (f.split("/")[0], service, m.group(1)))
+for stack in sorted({f.split("/")[0] for f in glob.glob("gen9-*/compose*.yaml")}):
+    labels, profiles = {}, {}
+    for f in sorted(glob.glob(stack + "/compose*.yaml")):
+        service = None
+        for line in open(f):
+            m = re.match(r"^  ([a-z][a-z0-9-]*):\s*$", line)
+            if m: service = m.group(1)
+            m = re.match(r"^\s+gen9\.external: *([A-Z0-9_]+)", line)
+            if m and service: labels[service] = m.group(1)
+            m = re.match(r"^\s+profiles: *\[([a-z0-9, -]+)\]", line)
+            if m and service: profiles[service] = [p.strip() for p in m.group(1).split(",")]
+    for store, setting in labels.items():
+        along = [s for s, ps in profiles.items() if s != store and store in ps]
+        print("%s/%s/%s/%s" % (stack, store, setting, ",".join([store] + along)))
 '); do
-  stack=${pair%%/*}; rest=${pair#*/}; store=${rest%%/*}; setting=${rest#*/}; key=${stack#gen9-}
-  if helm template check "$stack/chart" -f deploy/values.yaml $images --set "$key.services.$store.kind=none" >/dev/null 2>&1; then
+  stack=${line%%/*}; rest=${line#*/}; store=${rest%%/*}; rest=${rest#*/}; setting=${rest%%/*}; gone=${rest#*/}
+  key=${stack#gen9-}
+  none="--set $key.services.$store.kind=none"
+  if helm template check "$stack/chart" -f deploy/values.yaml $images $none >/dev/null 2>&1; then
     echo "$stack: $store left out with no $setting wasn't refused"; status=1
-  elif ! out=$(helm template check "$stack/chart" -f deploy/values.yaml $images --set "$key.services.$store.kind=none" \
+  elif helm template check "$stack/chart" -f deploy/values.yaml $images $none --set "$key.settings.$setting=$store" >/dev/null 2>&1; then
+    echo "$stack: $store left out with $setting naming $store itself wasn't refused"; status=1
+  elif ! out=$(helm template check "$stack/chart" -f deploy/values.yaml $images $none \
     --set "$key.settings.$setting=elsewhere" 2>/dev/null); then
     echo "$stack: $store left out with $setting set doesn't render"; status=1
-  elif printf '%s\n' "$out" | grep -q "^  name: $store$"; then
-    echo "$stack: $store left out with $setting set still renders it"; status=1
+  elif printf '%s\n' "$out" | grep -Eq "^  name: ($(echo "$gone" | tr , '|'))$"; then
+    echo "$stack: $store left out with $setting set still renders $gone"; status=1
   else
-    echo "$stack: $store elsewhere when $setting is set, refused without it"
+    echo "$stack: $store elsewhere when $setting names another host (left out: $gone), refused without it"
   fi
 done
 
