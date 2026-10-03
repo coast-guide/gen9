@@ -468,9 +468,15 @@ What the owner asked, restated before starting (they went on to "start the loop"
     commit and run from a lock: unsigned 401; signed in `{"version":"0.1.0","commit":"6c258db…"}`;
     `gen9 --version` "gen9 0.1.0"; `gen9 whoami` "Gen9 0.1.0, commit 6c258db."; Settings "About
     Gen9 Version 0.1.0, commit 6c258db". Tests in gen9-agent, gen9-cli and gen9-ui.
-  - [ ] U7b Release notes: `.github/release.yml` grouping merged pull requests by labels (Added,
+  - [x] U7b Release notes: `.github/release.yml` grouping merged pull requests by labels (Added,
     Changed, Deprecated, Removed, Fixed, Security; Keep a Changelog's groups); the labels made by
-    the owner (U8), with the commands in "Releasing".
+    the owner (U8), with the commands in "Releasing". Built: those groups in that order, then
+    Dependencies (Dependabot's label) and "Other changes" (`*`); `skip-release-notes` leaves one
+    out; GitHub's own `enhancement` and `bug`, which the repository has, count as Added and Fixed.
+    Checked with GitHub's API, which writes notes without making a release
+    (`POST /repos/…/releases/generate-notes`, `configuration_file_path` on this branch): the
+    configuration read (its "Other changes" heading; without it, one plain list), every merged
+    pull request in it, none being labelled yet.
   - [ ] U7c The release workflow on a `v*` tag: the tag checked against the version; the 7 images
     built and pushed (images.yml, called), attested; the lock; the charts packaged with the version
     and the lock's digests, pushed to `oci://ghcr.io/coast-guide/charts`, attested by digest; the
