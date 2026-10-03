@@ -23,7 +23,12 @@ from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool, tool
 from langchain_openai import ChatOpenAI
 
+from . import partial_json
 from .settings import Settings
+
+# A streamed tool call's arguments parsed in linear time, wherever langchain-core parses them: a
+# model that ran away inside one held the worker's event loop for minutes (partial_json.py)
+partial_json.install()
 
 END_USER_HEADER = "x-litellm-end-user-id"
 # The model that served a call. The router answers with the alias in the body of a chat completion

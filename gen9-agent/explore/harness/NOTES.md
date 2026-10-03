@@ -111,6 +111,34 @@ from a running event loop"). Gen9 keeps workflow definitions in their own module
 
 Decision: runs move to Temporal as planned (docs/plans/harness.md).
 
+## A runaway tool call stalls the worker
+
+On k3d (`make k8s-e2e`, agents.mjs) the agent's model, gpt-6-luna through the router, ran away
+inside a `task` call: 32,000 output tokens, its limit, over four minutes. The arguments began well
+(`{"subagent_type":"fact-checker","description":"…","`), then held 190,000 characters of the model's
+own deliberation in a JSON key it never closed. When the stream ended, the worker's event loop
+stopped for over two minutes: its readiness probe failed from 20:59:21 to 21:00:51 (the alive
+file older than 30 s), so `keep_token_fresh` (every 15 s, a new token once under 30 s were left)
+never ran; Temporal refused the expired token from 20:59:42 ("Token is expired"), the core worker's
+polls got PermissionDenied, and the worker stopped ("Worker failed, shutting down", 21:01). Idle,
+the same worker ran 15 minutes without a refusal.
+
+The cause is langchain-core. Once a stream ends it parses each tool call's arguments
+(`AIMessageChunk.init_tool_calls`, `parse_partial_json`) on the event loop, and repairs text that
+doesn't parse by closing what is open, then retrying `json.loads` once per character it drops from
+the end, each retry reading the whole text: quadratic. `runaway_tool_call_probe.py` streams a Deep
+Agent as the worker does (v2 parts, messages and updates, subgraphs) on a fake model with that
+shape: one parse of the whole arguments, holding the loop throughout, 3.7 s for 40,000 characters
+and 85 s for 193,000 (the loop stalled 85.4 s). langchain-ai/langchain#40826 (open) is the same function's cost on
+another path; langchain-core 1.6.6, the latest, has it unchanged.
+
+Gen9's `partial_json.py` is that function cutting straight back to where `json.loads` failed, since
+no longer candidate parses past it: 193,000 characters in 0.03 s, the loop's longest stall 0.1 s.
+On every prefix of a set of documents and on 4,000 random corruptions, strict or not, it returns
+or raises what langchain-core's does (tests/test_partial_json.py), and on 60,000 more in a seeded
+run (compared by `repr`: a NaN is never equal to itself, which flagged 22 equal results). And `keep_token_fresh` now keeps half the token's 5 minutes, so the event loop may
+stall up to 2.5 minutes, whatever stalls it, with Temporal still shown a valid token.
+
 ## Model router
 
 LiteLLM Proxy v1.102.1 behind LangChain and the OpenAI SDK: a Deep Agent with tools, vision,
