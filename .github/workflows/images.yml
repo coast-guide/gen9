@@ -20,6 +20,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch: {}
+  # A release (release.yml) builds its images here, on its tag: they get the version's tag too
+  workflow_call: {}
 
 permissions:
   contents: read
@@ -50,6 +52,7 @@ jobs:
       meta-images: ghcr.io/coast-guide/${{ matrix.image }}
       meta-tags: |
         type=ref,event=branch
+        type=semver,pattern={{version}}
         type=sha,format=long
     secrets:
       registry-auths: |
@@ -86,14 +89,19 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           echo "ghcr.io/coast-guide/${{ matrix.image }}@$digest" > lock-line
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        id: attest
         with:
           subject-name: ghcr.io/coast-guide/${{ matrix.image }}
           subject-digest: ${{ steps.digest.outputs.digest }}
           push-to-registry: true
+      # The attestation itself, which a release attaches (*.sigstore.json)
+      - run: cp "${{ steps.attest.outputs.bundle-path }}" "${{ matrix.image }}.sigstore.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lock-${{ matrix.image }}
-          path: lock-line
+          path: |
+            lock-line
+            ${{ matrix.image }}.sigstore.json
 
   lock:
     if: github.event_name != 'pull_request'

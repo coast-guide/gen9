@@ -484,6 +484,20 @@ What the owner asked, restated before starting (they went on to "start the loop"
     `release` environment. Verified without publishing anything: the workflow's jobs run on a
     branch up to the draft, and the parts here (charts packaged, bundle made, `make up IMAGES=` from
     it).
+    Built 2026-10-03: `.github/workflows/release.yml` (the version checked; `images.yml` called,
+    now `workflow_call` with the version's tag too and its attestations kept; the charts and the
+    bundle attested, one attestation for the eight charts by `subject-checksums`, the bundle by
+    `subject-path`, per actions/attest v4.2.2's README; each image's SBOM read from GHCR; a draft
+    with `--generate-notes`, the assets, published in the `release` environment). What a release's
+    chart runs: the library reads `images.lock` packed inside when no values give the images
+    (`gen9.lockImages`), values first. Verified here: `scripts/release-charts.sh` packaged and
+    pushed the eight charts to the local registry; `helm show chart` gave the version and
+    appVersion, `helm template` the lock's digests, and k3d's gen9-ui upgraded from
+    `oci://127.0.0.1:25000/charts/gen9-ui` with no images in its values ran the lock's digest;
+    `scripts/release-bundle.sh` made the same bytes twice, its lock taken by `scripts/images.sh`;
+    the SBOM read (`imagetools inspect --format '{{ json .SBOM }}'`) on an image built with one;
+    `check-charts.sh` now renders a chart from a packed stand-in lock; actionlint. Not yet run:
+    the workflow itself, which needs a tag (the owner's first pre-release, U8).
   - [ ] U7d `SECURITY.md`'s supported versions; "Releasing" in docs/development.md; Scorecard's
     workflow.
 - [ ] U8 The owner's: the first release tag; GHCR packages public; the `release` environment's

@@ -48,6 +48,19 @@ for doc in sys.stdin.read().split("\n---\n"):
 ')
   [ -z "$left" ] || { echo "$chart: Compose variables left unresolved in: $left"; status=1; }
 done
+# A release's chart takes its images from the images.lock packed inside (scripts/release-charts.sh)
+# when no values give them: gen9-sandbox, which reads three, rendered with a stand-in lock only
+packed=$(mktemp -d)
+cp -RL gen9-sandbox/chart "$packed/gen9-sandbox"
+sed "s|file://../../deploy/helm/gen9-lib|file://$PWD/deploy/helm/gen9-lib|" gen9-sandbox/chart/Chart.yaml > "$packed/gen9-sandbox/Chart.yaml"
+for image in sandbox sandbox-egress sandbox-execd; do echo "registry.invalid/lock/gen9-$image@sha256:$digest"; done > "$packed/gen9-sandbox/images.lock"
+helm dependency update "$packed/gen9-sandbox" >/dev/null 2>&1
+from_lock=$(helm template check "$packed/gen9-sandbox" -f deploy/values.yaml \
+  --api-versions admissionregistration.k8s.io/v1/MutatingAdmissionPolicy 2>/dev/null | grep -c 'registry.invalid/lock/gen9-' || true)
+rm -rf "$packed"
+if [ "$from_lock" -ge 3 ]; then echo "a release's chart: its images from its packed lock"; else
+  echo "a release's chart doesn't take its images from its packed lock ($from_lock of 3)"; status=1; fi
+
 # The hosts people reach Gen9 by, the same in both shapes: gen9-edge's sites (Docker) and the
 # charts' public services (Kubernetes' routes)
 # shellcheck disable=SC2016 # Python, in single quotes on purpose
