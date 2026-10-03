@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from gen9_agent.accounts import MissingUser, find_deleted_users
+from gen9_agent.accounts import MissingUser, find_deleted_users, sweep_holds
 
 pytestmark = pytest.mark.asyncio
 
@@ -78,6 +78,9 @@ async def test_each_swept_account_is_recorded_once(monkeypatch):
         async def scalars(self, statement):
             return [a.target for a in added]
 
+        async def scalar(self, statement):
+            return 10  # the people Gen9 knows: two of ten gone is no mass deletion
+
         def add(self, row):
             added.append(row)
 
@@ -88,7 +91,9 @@ async def test_each_swept_account_is_recorded_once(monkeypatch):
         return [MissingUser("gone-1", CREATED), MissingUser("gone-2", CREATED)]
 
     monkeypatch.setattr(deletion.accounts, "find_deleted_users", missing)
-    runtime = SimpleNamespace(sessionmaker=Session)
+    runtime = SimpleNamespace(
+        sessionmaker=Session, settings=SimpleNamespace(sweep_max_deletions=10)
+    )
     activities = deletion.DeletionActivities(runtime, None, object())  # ty: ignore[invalid-argument-type]
     first = await activities.find_deleted_users()
     await activities.find_deleted_users()  # retried
@@ -96,4 +101,80 @@ async def test_each_swept_account_is_recorded_once(monkeypatch):
     assert [(a.actor, a.action, a.target) for a in added] == [
         ("sweep", "account.sweep", "gone-1"),
         ("sweep", "account.sweep", "gone-2"),
+    ]
+
+
+async def test_the_sweep_holds_a_mass_deletion():
+    """Too many people missing at once is a Keycloak that changed (another realm, an empty
+    database), not people deleted one by one: the sweep deletes nobody (U5c-6)."""
+    # The only person Gen9 knows, missing: a Keycloak that changed as likely as not
+    assert "1 of the 1 people" in (sweep_holds(missing=1, known=1, limit=10) or "")
+    assert sweep_holds(missing=1, known=2, limit=10) is None
+    assert sweep_holds(missing=2, known=4, limit=10) is None  # half, not more
+    assert "2 of the 2 people" in (sweep_holds(missing=2, known=2, limit=10) or "")
+    assert "more than half" in (sweep_holds(missing=2, known=3, limit=10) or "")
+    assert "SWEEP_MAX_DELETIONS (10)" in (
+        sweep_holds(missing=11, known=100, limit=10) or ""
+    )
+    assert sweep_holds(missing=0, known=0, limit=10) is None
+
+
+def held_sweep(monkeypatch, known: int, gone: list[str]):
+    """The sweep's Activity on a fake database that knows `known` people, of whom `gone` are
+    missing from Keycloak; returns it and the audit rows it adds."""
+    from types import SimpleNamespace
+
+    from gen9_agent import deletion
+
+    added: list = []
+
+    class Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            pass
+
+        async def scalars(self, statement):
+            return [a.target for a in added]
+
+        async def scalar(self, statement):
+            return known
+
+        def add(self, row):
+            added.append(row)
+
+        async def commit(self):
+            pass
+
+    async def missing(session, keycloak):
+        return [MissingUser(sub, CREATED) for sub in gone]
+
+    monkeypatch.setattr(deletion.accounts, "find_deleted_users", missing)
+    runtime = SimpleNamespace(
+        sessionmaker=Session, settings=SimpleNamespace(sweep_max_deletions=10)
+    )
+    return deletion.DeletionActivities(runtime, None, object()), added  # ty: ignore[invalid-argument-type]
+
+
+async def test_a_held_sweep_deletes_nobody_and_says_so(monkeypatch):
+    # Keycloak on an empty database: both people Gen9 knows are missing
+    activities, added = held_sweep(monkeypatch, known=2, gone=["ada", "alan"])
+    assert await activities.find_deleted_users() == []
+    assert [(a.action, a.outcome, a.detail) for a in added] == [
+        ("account.sweep.held", "denied", {"missing": 2, "known": 2, "limit": 10})
+    ]
+
+
+async def test_an_admin_allows_that_many(monkeypatch):
+    activities, added = held_sweep(monkeypatch, known=2, gone=["ada", "alan"])
+    # Fewer allowed than are missing: still held
+    assert await activities.find_deleted_users(allow=1) == []
+    # As many as are missing: deleted, each recorded
+    found = await activities.find_deleted_users(allow=2)
+    assert [u.sub for u in found] == ["ada", "alan"]
+    assert [a.action for a in added] == [
+        "account.sweep.held",
+        "account.sweep",
+        "account.sweep",
     ]

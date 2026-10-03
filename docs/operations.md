@@ -231,12 +231,13 @@ them a day after they're written (`minio-lifecycle`). Give a bucket elsewhere th
 own tools take it: `{"Rules":[{"ID":"gen9-expire-raw-events","Status":"Enabled","Filter":{"Prefix":"events/"},"Expiration":{"Days":1}}]}`
 (S3's lifecycle configuration; `mc ilm import` for MinIO).
 
-**Move gen9-keycloak's database with its data, never to an empty one while gen9-agent runs.**
-gen9-agent removes the data of people Keycloak no longer has (its `sweep-deleted-users` schedule,
-every 15 minutes), and to an empty realm every person is gone: it ran the account deletion for
-each, which erased their chats and the router's records of them within minutes (found while
-testing this, docs/plans/deploy.md, Surprises). Stop gen9-agent first (`make down STACKS=agent`), or copy Keycloak's database before
-the switch.
+**Move gen9-keycloak's database with its data.** gen9-agent removes the data of people Keycloak no
+longer has (its `sweep-deleted-users` schedule, every 15 minutes), and to an empty realm everyone
+is gone. Before its guard it ran the account deletion for each, erasing their chats (found while
+testing this, docs/plans/deploy.md, Surprises); now a sweep that would delete more than half of the
+people Gen9 knows deletes nobody and says so, in gen9-agent's log and as `account.sweep.held`
+(gen9-agent/README.md, "Mass deletions held"). Still, copy Keycloak's database before the switch,
+or stop gen9-agent first (`make down STACKS=agent`): an empty realm signs everyone out.
 
 The other store starts empty: a stack moved to it starts over (gen9-agent with no chats,
 Keycloak with its seeded users only, the router with its keys made again, Temporal with no

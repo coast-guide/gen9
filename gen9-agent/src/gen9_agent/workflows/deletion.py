@@ -209,9 +209,14 @@ class SweepDeletedUsersWorkflow:
     to finish on its own (ParentClosePolicy.ABANDON). Returns how many deletions it started."""
 
     @workflow.run
-    async def run(self) -> int:
+    async def run(self, allow: int = 0) -> int:
+        """`allow`: an admin's allowance past the guard against mass deletions (gen9-agent-sweep
+        --allow N); the Schedule gives none."""
+        # Added later: the allowance passed on; sweeps already in flight replay without it
+        args = [allow] if workflow.patched("sweep-allow") else []
         users = await workflow.execute_activity(
             FIND_DELETED_USERS,
+            args=args,
             task_queue=SYSTEM_QUEUE,
             result_type=list[DeletedUser],
             start_to_close_timeout=QUICK.start_to_close,
