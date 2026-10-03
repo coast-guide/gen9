@@ -418,7 +418,9 @@ What the owner asked, restated before starting (they went on to "start the loop"
   too. gen9-langfuse's `compose.override.yaml` now has `migrated`, a one-shot from the worker's
   image that waits for the web's health (served only once migrated), which the worker waits for:
   `depends_on` on Docker, its init container on Kubernetes. A fresh Langfuse on k3d: the one-shot
-  waited, then "Finished upserting default model prices in 2113ms", 185 prices, gpt-6 among them.
+  waited, then "Finished upserting default model prices in 2113ms", 185 prices, gpt-6 among them;
+  on Docker, a fresh throwaway project of gen9-langfuse (its own volumes): `migrated` waited, exited
+  0, and the worker, started 20 s after the web, "Finished upserting default model prices in 2102ms".
 - Not a difference between the shapes, kept for a follow-up: `runs.mjs`'s "a task with steps"
   failed once on kind and passed when run again. The failing run took the long way (13 tools
   live, "Used the research brief skill"; "Used 6 tools and a plan" when done; "Made a plan" after
