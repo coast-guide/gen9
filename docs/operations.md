@@ -33,6 +33,8 @@ make up         # start every stack, wait until healthy, then list where to open
 make ps         # containers of every stack, and where to open them
 make logs       # last 50 log lines of every stack
 make down       # stop every stack (data volumes are kept)
+make diff       # what runs that differs from what's declared: exit 2, naming each
+make reset      # put back what differs
 ```
 
 Every command covers all stacks. `STACKS` narrows it to some, by name from `make stacks` (`gen9-ui` works too); they start in dependency order and stop in reverse, whatever order you list them in:
@@ -44,6 +46,14 @@ make config STACKS=agent          # validate its Compose file
 ```
 
 Each stack labels the services you open (`gen9.name`, `gen9.url` in its Compose file), from the same settings the stack itself uses, so the list stays right when you change a port. `make up` also notes when a stack it starts calls another that isn't running, and restarts a container failing its health check, unhealthy or on its way there (the agent's API after its database was wiped, say), before waiting for it: Compose's `--wait` fails at once on an unhealthy container it doesn't replace (docker/compose#9092), while a restarted one gets its start period again.
+
+`make diff` compares every container with what `make up` would create from the Compose files, the
+settings and `images.env`: Compose's hash of its service's configuration (a changed setting,
+image, command, mount or port), the image it runs, what `docker update` changes without Compose
+knowing (memory, CPUs, processes, restart policy), a service with no container, and a container
+no Compose file declares. `make reset` recreates only the services that differ, and removes such
+containers. Not compared: files changed inside a running container (`docker diff` lists them,
+among what each service writes as it runs). On Kubernetes: `make k8s-diff`, below.
 
 What each service logs, and the records kept on purpose (sign-in events, the audit record, traces), who can read, change or erase them, for how long, and how to send the logs to a separate system: [docs/logging.md](logging.md).
 

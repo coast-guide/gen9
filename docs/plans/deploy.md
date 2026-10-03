@@ -206,13 +206,19 @@ What the owner asked, restated before starting (they went on to "start the loop"
     Langfuse fix, Surprises), `search` (a one-off container), `environments` (sandboxes under
     kube-router's policies), `retry` (the router down), `stop`, `context` (a second worker): all
     passed. The router: $0.025507 over 71 calls.
+  - [x] The same digests in both shapes (acceptance `same-digests`), one lock
+    (`gen9-int.lock`: U2's, with gen9-agent rebuilt with #65 and #67): on k3d, every Gen9
+    container's `imageID` the lock's digest, the sandboxes' egress and execd included; on Docker
+    after `make up`, every Gen9 container's reference and its image's `RepoDigests` the lock's
+    for the five that always run (egress and execd run only in a sandbox: U2 saw the server take
+    the lock's, the same two digests).
   - [x] A check that every Compose service has a chart entry and every bind source a link: the
     template's own, run by CI's `charts` job on every pull request and by `make k8s-up`, rather
     than in `make config`, which would need Helm of everyone on Docker alone. Tried on a copy of
     gen9-ui's chart: a service added to its `compose.yaml` failed the render ("compose.yaml's
     extra has no entry in services: give it a kind (none to leave it out)"), and given a kind,
     its unlinked file did ("extra mounts ./not-linked.conf: link it into the chart").
-- [ ] U4 Drift: one command per shape (`make diff`, `make k8s-diff`) that passes on a fresh
+- [x] U4 Drift: one command per shape (`make diff`, `make k8s-diff`) that passes on a fresh
   deployment and names the service after a change by hand; and one that puts it back (`make
   reset`, `make k8s-reset`).
   - [x] Kubernetes, `make k8s-diff`: helm-diff's three-way merge without hooks (the one-shot Jobs
@@ -232,13 +238,21 @@ What the owner asked, restated before starting (they went on to "start the loop"
   - [x] Kubernetes again, the names now search domains: `kubectl patch` removing gen9-agent's
     API's `dnsConfig`, `make k8s-diff` exit 2 naming its four search domains; `make k8s-reset`,
     then 0.
-  - [ ] Docker, `make diff` and `make reset` (`scripts/drift.py`): each container against Compose's
+  - [x] Docker, `make diff` and `make reset` (`scripts/drift.py`): each container against Compose's
     hash of its service, its image, what `docker update` changes (memory, CPUs, processes, restart
     policy), services with no container and containers not declared; `reset` recreates only the
     services that differ (`up --force-recreate --no-deps`, built or by digest as `make up`) and
     removes the undeclared. Verify: 0 on a fresh `make up`; after `docker update`, a setting
     changed in a `.env`, a stopped service and a stray container, exit 2 naming each; `make
     reset`, then 0.
+    Verified 2026-10-03, every stack up from the lock by `make up`: 0 ("as declared", eight
+    stacks in 0.25 s). Then `docker update --memory 512m` on gen9-ui's `prod`, gen9-temporal's
+    `ui` stopped, a container labelled as gen9-ui's, and `VALKEY_MAXMEMORY=300mb` in the
+    environment: exit 2, "prod: Memory is 536870912, declared 0", "ui: exited, not running",
+    "gen9-ui-stray: not a service of gen9-ui's Compose file", "valkey: its configuration changed
+    since it was created". `make reset` (6.5 s): those three recreated, the stray removed; Valkey's
+    `maxmemory` 314572800, then 0. Without the setting: exit 2 naming valkey; `make reset`, back to
+    268435456; 0.
 - [ ] U5 The configuration surface: every setting listed once (domain and TLS, storage class and
   sizes, replicas and resources, secrets source, bundled or external Postgres, Valkey,
   ClickHouse and S3, sandbox runtime), with a schema that rejects unknown keys.
