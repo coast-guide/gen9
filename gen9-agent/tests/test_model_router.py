@@ -19,6 +19,7 @@ from gen9_agent.model_router import (
     budget_exceeded,
     chat_model,
     embed,
+    http_client,
     on_behalf_of,
     over_rate_limit,
     query_terms,
@@ -455,6 +456,31 @@ async def test_a_traced_answer_names_the_model_that_served_it_and_keeps_no_heade
     # Without tracing the headers aren't asked for, and the body names only the alias
     assert "headers" not in untraced.response_metadata
     assert untraced.response_metadata["model_name"] == "chat"
+
+
+async def test_a_chat_call_keeps_the_router_clients_timeouts():
+    """A router that doesn't answer fails the call in seconds: the OpenAI client langchain-openai
+    makes would send every request with no timeout at all, in place of the HTTP client's, and an
+    unanswered connection then waited for the kernel to give up, two minutes and more (U3,
+    docs/plans/deploy.md)."""
+    settings = Settings.model_construct(
+        gen9_models_url="http://router", gen9_models_key=SecretStr("sk-agent")
+    )
+    sent: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request.extensions["timeout"])
+        return httpx.Response(503)
+
+    async with http_client() as made:
+        expected = made.timeout
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), timeout=expected
+    ) as client:
+        with pytest.raises(openai.APIStatusError):
+            await chat_model(settings, client, "chat").ainvoke("hi")
+    assert sent == [expected.as_dict()]
+    assert expected.connect == 10
 
 
 async def test_a_streamed_answer_asks_for_its_usage_and_carries_cached_input():
