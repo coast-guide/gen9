@@ -30,7 +30,8 @@ const env = Object.fromEntries(
 );
 const APP = process.env.APP_URL ?? "http://localhost:14000";
 const API = process.env.GEN9_API ?? "http://localhost:17000";
-const SANDBOX_PORT = process.env.GEN9_UI_SANDBOX_PORT ?? "14003";
+// Where connectors' Views run, as gen9-ui's MCP_APPS_SANDBOX_URL (under a domain, `https://{id}.apps.<domain>`)
+const SANDBOX = process.env.MCP_APPS_SANDBOX_URL ?? `http://{id}.apps.localhost:${process.env.GEN9_UI_SANDBOX_PORT ?? "14003"}`;
 const AXE = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
 const PORT = 17803;
 const SERVER = `http://host.docker.internal:${PORT}/mcp`;
@@ -137,7 +138,7 @@ try {
   if (!check(added.status === 201 && moveTool?.app?.visibility?.join() === "app", "the test server is connected, its move marked for the View only", `HTTP ${added.status} ${JSON.stringify(added.body?.detail ?? moveTool ?? "")}`)) {
     throw new Error(`add host.docker.internal:${PORT} to CONNECTORS_ALLOWED_HOSTS in gen9-agent/.env (make setup does), then make up STACKS=agent`);
   }
-  const origin = `http://${connector.replaceAll("-", "")}.apps.localhost:${SANDBOX_PORT}`;
+  const origin = SANDBOX.replaceAll("{id}", connector.replaceAll("-", ""));
 
   const browser = await launch({ headless: !process.env.HEADED, defaultViewport: { width: 1280, height: 900 } });
   try {

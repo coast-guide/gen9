@@ -286,7 +286,7 @@ What the owner asked, restated before starting (they went on to "start the loop"
     k8s-up` with `ui.settings.VALKEY_MAXMEMRY` on k3d, "UPGRADE FAILED … gen9-ui's Compose files
     don't read VALKEY_MAXMEMRY", the release still at revision 1; `settings.GEN9_UI_ULR` beside
     three real keys, exit 2 naming it alone; `make k8s-diff` 0 on k3d with the new template.
-  - [ ] U5b Reaching Gen9 from outside, a domain and TLS: on Docker the stacks publish on
+  - [x] U5b Reaching Gen9 from outside, a domain and TLS: on Docker the stacks publish on
     127.0.0.1; on Kubernetes, Gateway API routes (Decision Log), the addresses the stacks give
     browsers (`GEN9_UI_URL`, `KC_HOSTNAME`, …) from one domain.
     Research, 2026-10-03: Gateway API v1.6.2 (2026-09-03); k3s v1.37.1 installs its CRDs
@@ -383,8 +383,31 @@ What the owner asked, restated before starting (they went on to "start the loop"
       host 200 over TLS, certificate verified; Keycloak's public rule removed and the Gateway made
       again, Keycloak 503 and the API 200, the rule put back by `make k8s-reset`, 200 again;
       `make k8s-diff` 0.
-    - [ ] U5b-5 (follow-up) The apps' hosts certified automatically on Docker with ACME: Caddy's
+    - [x] U5b-5 (follow-up) The apps' hosts certified automatically on Docker with ACME: Caddy's
       on-demand TLS, its `ask` answered by gen9-agent for connectors that exist (Decision Log).
+      Planned 2026-10-03 (Decision Log, U5b-5): gen9-agent's `GET /internal/apps-host?domain=`
+      answers 200 when the host's first label is a connector's id (gen9-ui's `<id without
+      hyphens>.apps.…`, lib/apps.ts), else 404, unauthenticated as Caddy asks and outside the
+      OpenAPI document; gen9-edge asks it (`on_demand_tls`), its apps' site `tls … { on_demand }`
+      with the same issuer as the other sites unless `GEN9_EDGE_APPS=own` takes the operator's
+      wildcard (`GEN9_EDGE_APPS_TLS`), and its `api.` site doesn't serve `/internal/`. Verify on
+      Docker under `gen9.localhost` with Caddy's own CA (an ACME CA needs a public name): a
+      connector's app shown (`apps.mjs`), its host's certificate made on its first handshake; a
+      made-up id's handshake refused and gen9-agent asked; `/internal/` 404 from outside.
+      Done 2026-10-03. Built: `api/apps_host.py` (tests), gen9-edge's `on_demand_tls` and apps'
+      snippets (`GEN9_EDGE_APPS`: `on-demand` by default, `own`; `make setup` keeps an `.env`
+      that names its own wildcard on it), `api.`'s `respond /internal/* 404`; `apps.mjs` takes
+      `MCP_APPS_SANDBOX_URL` and the terminal sign-in's Chrome `E2E_INSECURE_CERTS`, which it
+      lacked (e2e/README.md). Verified on Docker under `gen9.localhost`, gen9-agent built from
+      this branch: `caddy adapt` gave per-host on-demand policies for Caddy's CA and for ACME
+      (Let's Encrypt and ZeroSSL), and the operator's files with `own`; `/internal/apps-host` 404
+      from outside; with the old wildcard removed from the edge's storage and Caddy restarted, no
+      certificate for the apps' hosts at start; a made-up id's handshake refused (curl exit 35)
+      after gen9-agent's 404; `apps.mjs` all passed under the domain, its View from
+      `https://<id>.apps.gen9.localhost`, whose own certificate Caddy made at 15:08:29 right after
+      gen9-agent's 200. Not run: an ACME CA, which needs a public name. Back on the ports, `make
+      diff` 0. The model calls cost $0.0037 (a first run stopped at the terminal's sign-in, a
+      second at the check's localhost origin).
     - [x] U5b-4 Verified through the domain: `stacks.mjs` and a sign-in in Chrome on Docker behind
       `gen9-edge`, on kind (`cloud-provider-kind`'s Gateway) and on k3d (Traefik's).
       Done 2026-10-03, `stacks.mjs` with `APP_URL`, `KEYCLOAK_URL` and `LANGFUSE_URL` under
@@ -501,8 +524,10 @@ What the owner asked, restated before starting (they went on to "start the loop"
       gives (Keycloak's `KC_DB_TLS_MODE=verify-server` and trust store, Temporal's `SQL_CA` and host
       verification, libpq's `sslrootcert`, Prisma's `sslcert`), which needs that CA file in the
       containers in both shapes, a published chart included.
-- [ ] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd
-  images, its limits and closed network as on Docker; a chat's command runs in a pod.
+- [x] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd
+  images, its limits and closed network as on Docker; a chat's command runs in a pod. Every part
+  below verified on kind (acceptance `sandbox.k8s`); checked here 2026-10-03, when it was found
+  left open after its last item.
   - [x] Choose the workload provider from evidence: OpenSandbox's own `BatchSandbox` (its CRDs
     and controller) or `kubernetes-sigs/agent-sandbox` (SIG Apps, v1.0.4, `Sandbox` CRD), which
     OpenSandbox's server also drives (`workload_provider = "agent-sandbox"`); each tried on kind
@@ -1165,6 +1190,21 @@ OpenSandbox `docs/guides/secure-container.md` and `manifests/charts` at `release
   that exist (else anyone spends the domain's ACME rate limit), which gen9-ui's sandbox server
   can't know without a new gen9-agent endpoint: kept as a follow-up (Progress, U5b-5), as the
   other hosts don't wait on it.
+
+- Decision (U5b-5, certificates for the apps' hosts, 2026-10-03): Caddy's on-demand TLS, as its
+  docs give it (caddyserver/website, `automatic-https.md` and `caddyfile/options.md`, read that
+  day): "On-demand TLS must be both enabled and restricted"; the restriction is an `ask` URL, to
+  which Caddy sends `?domain=` and takes a 2xx as permission, and it should answer "in a few
+  milliseconds … a constant-time lookup in a database with an index". gen9-agent answers it from
+  `connectors` by primary key. Connector ids are random (`gen_random_uuid()`), so the answer, a
+  yes or no for one guessed 128-bit id and never whose, needs no sign-in, which Caddy can't give;
+  gen9-edge still keeps `/internal/` from the outside. Each host's certificate counts against an
+  ACME CA's limits (Let's Encrypt's per registered domain), which a person with many connectors
+  could use up: a wildcard by DNS challenge, or the operator's own, avoids it (`GEN9_EDGE_APPS=own`).
+  Caddy substitutes `{$VAR}` "before Caddyfile parsing begins" (its concepts page), so the apps'
+  site imports a snippet named by a setting. Rejected: a secret in the ask URL (a value shared
+  across two stacks, for a yes or no that gives nothing away); a DNS module (a custom Caddy build,
+  per DNS provider).
 
 - Decision (order, 2026-10-03): U7 (releases) before U5c (external stores). The owner asked for
   release management by name; it is what lets anyone run a published version, and R1 decided its

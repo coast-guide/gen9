@@ -20,7 +20,8 @@ services:
       # `internal` (Caddy's own CA) or an email, for Let's Encrypt; the apps' wildcard host: its
       # own CA, or "<cert> <key>" files under /certs (Caddyfile)
       GEN9_EDGE_TLS: ${GEN9_EDGE_TLS:-internal}
-      GEN9_EDGE_APPS_TLS: ${GEN9_EDGE_APPS_TLS:-internal}
+      GEN9_EDGE_APPS: ${GEN9_EDGE_APPS:-on-demand}
+      GEN9_EDGE_APPS_TLS: ${GEN9_EDGE_APPS_TLS:-}
     ports:
       - "${GEN9_EDGE_ADDRESS:-127.0.0.1}:80:80"
       - "${GEN9_EDGE_ADDRESS:-127.0.0.1}:443:443"

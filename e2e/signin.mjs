@@ -5,7 +5,7 @@
 // users) and search.mjs (a throwaway user). Never prints a token.
 import { spawn } from "node:child_process";
 import puppeteer from "puppeteer-core";
-import { CHROME } from "./browser.mjs";
+import { CHROME, INSECURE } from "./browser.mjs";
 import { secondStep } from "./second-step.mjs";
 
 export const ROOT = new URL("..", import.meta.url).pathname;
@@ -13,7 +13,8 @@ export const ROOT = new URL("..", import.meta.url).pathname;
 // Resolves to gen9 login's "Signed in as …" line, or null when it didn't finish. `otpSecret`: the
 // person's authenticator app, when not the seeded admin's
 export async function signInTerminal({ email, password, configDir, otpSecret }) {
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true });
+  // Chrome confirms the code: under a domain on gen9-edge's own CA, with E2E_INSECURE_CERTS as every check
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, ...INSECURE });
   async function confirm(url) {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: "networkidle0" });

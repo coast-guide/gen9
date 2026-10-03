@@ -18,6 +18,7 @@ from . import a2a_server, audit, mcp_server
 from .api import (
     admin,
     agui,
+    apps_host,
     connectors,
     directory,
     environment_secrets,
@@ -175,6 +176,7 @@ async def refused_are_recorded(
 
 
 app.include_router(health.router)
+app.include_router(apps_host.router)
 app.include_router(me.router)
 app.include_router(export.router)
 app.include_router(connectors.router)

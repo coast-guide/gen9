@@ -367,6 +367,11 @@ if [ -n "${DOMAIN:-}" ]; then
     [ -f gen9-edge/.env ] || (umask 077 && : >gen9-edge/.env)
     set_env gen9-edge/.env GEN9_DOMAIN "$DOMAIN"
     [ -z "${EDGE_TLS:-}" ] || set_env gen9-edge/.env GEN9_EDGE_TLS "$EDGE_TLS"
+    # A wildcard of one's own for the apps' hosts, given before they had certificates on demand
+    if [ "$(value_of gen9-edge/.env GEN9_EDGE_APPS_TLS internal)" != internal ] && ! grep -q '^GEN9_EDGE_APPS=' gen9-edge/.env; then
+      set_env gen9-edge/.env GEN9_EDGE_APPS own
+      echo "  gen9-edge/.env: GEN9_EDGE_APPS=own, so the apps' hosts keep the wildcard in GEN9_EDGE_APPS_TLS"
+    fi
     # Keycloak behind the edge reads its forwarded headers (gen9-keycloak/compose.yaml)
     (umask 077 && printf 'KC_PROXY_HEADERS=xforwarded\n' >gen9-keycloak/edge.local.env)
     public_addresses "$DOMAIN"

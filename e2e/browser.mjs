@@ -12,7 +12,7 @@ export const CHROME =
 // E2E_INSECURE_CERTS=1: Gen9 under a domain whose certificates come from gen9-edge's own CA,
 // which this machine's browser doesn't trust (gen9-edge/README.md); only the certificate's check
 // goes: what is served, redirects and cookies are the same
-const INSECURE = process.env.E2E_INSECURE_CERTS === "1" ? { acceptInsecureCerts: true } : {};
+export const INSECURE = process.env.E2E_INSECURE_CERTS === "1" ? { acceptInsecureCerts: true } : {};
 
 /** puppeteer.launch with Chrome's options, carried over to Firefox when it's the one asked for. */
 export async function launch(options = {}) {
