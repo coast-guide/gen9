@@ -361,8 +361,28 @@ What the owner asked, restated before starting (they went on to "start the loop"
       (`E2E_INSECURE_CERTS=1`), every check passed, back-channel logout included; then `make setup
       DOMAIN=localhost`: every key as it was, by hash, those added holding the ports' addresses;
       `make up`, gen9-edge left out with its note, and `stacks.mjs` on the ports passed.
-    - [ ] U5b-3 The charts: an HTTPRoute per public service with the same hosts, on the Gateway
+    - [x] U5b-3 The charts: an HTTPRoute per public service with the same hosts, on the Gateway
       the settings name, or an Ingress of a class, or none (the default); TLS the Gateway's.
+      Read 2026-10-03: cloud-provider-kind's Gateway is an Envoy container outside the cluster,
+      which, where Docker runs in a VM (Docker Desktop, here), it publishes on a random host port
+      (`--enable-lb-port-mapping`, "automatically enabled on platforms where this is required");
+      its GatewayClass is `cloud-provider-kind`. k3s's Traefik is a pod in `kube-system`, behind
+      k3d's load balancer, whose ports the cluster's config publishes. Design: `global.domain`
+      (empty: no routes, the default) and `global.gateway` (`name`, `namespace`) in the values;
+      each chart's public services name their host's prefix, as gen9-edge's sites do; an
+      HTTPRoute each, on that Gateway; and their ports open to any source in each stack's
+      NetworkPolicy, as anyone already reaches them through the Gateway, whose proxy may not be a
+      pod at all (kind's). An Ingress instead: after, if a cluster needs it.
+      Built: `services.<name>.public` (host prefix, port) on the seven, `global.domain` and
+      `global.gateway` in the values and the schema; the library's HTTPRoute, and in each stack's
+      NetworkPolicy the public ports open to any source, only under a domain. `check-charts.sh`
+      renders each chart under a domain too, its routes against Gateway API 1.6.1's schema
+      (datreeio/CRDs-catalog, pinned by commit), and fails if gen9-edge's sites and the charts'
+      hosts differ (tried: `workflows` for `temporal`, "hosts differ"). Verified on kind with
+      cloud-provider-kind's Gateway (explore/deploy/NOTES.md, U5b-3): seven routes Accepted, every
+      host 200 over TLS, certificate verified; Keycloak's public rule removed and the Gateway made
+      again, Keycloak 503 and the API 200, the rule put back by `make k8s-reset`, 200 again;
+      `make k8s-diff` 0.
     - [ ] U5b-4 Verified through the domain: `stacks.mjs` and a sign-in in Chrome on Docker behind
       `gen9-edge`, on kind (`cloud-provider-kind`'s Gateway) and on k3d (Traefik's).
   - [ ] U5c External services: which settings point a stack at its own Postgres, Valkey,

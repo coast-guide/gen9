@@ -10,6 +10,7 @@ services:
   keycloak:
     kind: Deployment
     ports: {http: 8080, management: 9000}
+    public: {host: id, port: http}
     podSecurityContext: {fsGroup: 1000}
   configure: {kind: Job}
   ready: {kind: none}

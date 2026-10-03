@@ -73,6 +73,21 @@ spec:
         - port: {{ $port }}
       {{- end }}
     {{- end }}
+    {{- /* Under a domain, the ports of the services reached from outside: from anywhere, as anyone
+    reaches them through the Gateway already, whose proxy may not be a pod at all (kind's is a
+    container outside the cluster) */}}
+    {{- $public := list }}
+    {{- if (.Values.global | default dict).domain }}
+    {{- range $name, $k := include "gen9.services" $ | fromJson }}
+    {{- with $k.public }}{{ $public = append $public (index $k.ports .port) }}{{ end }}
+    {{- end }}
+    {{- end }}
+    {{- with $public }}
+    - ports:
+      {{- range $port := . | uniq }}
+        - port: {{ $port }}
+      {{- end }}
+    {{- end }}
 {{- end }}
 
 {{/*

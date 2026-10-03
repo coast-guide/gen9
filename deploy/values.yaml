@@ -9,3 +9,10 @@ global:
   storageClass: ""
   # The cluster's DNS domain, for the names one stack calls another by
   clusterDomain: cluster.local
+  # Gen9 under a domain, as `make setup DOMAIN=…` gives it on Docker: an HTTPRoute for each service
+  # people reach (gen9.example.com, id., api., traces., traces-media., temporal., *.apps.), on the
+  # cluster's Gateway named below, whose listeners hold the certificate. Empty: no routes
+  domain: ""
+  gateway:
+    name: ""
+    namespace: ""

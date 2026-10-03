@@ -10,9 +10,11 @@ services:
   prod:
     kind: Deployment
     ports: {http: 3000}
+    public: {host: "", port: http}  # the domain itself
   sandbox:
     kind: Deployment
     ports: {http: 3001}
+    public: {host: "*.apps", port: http}  # one host per connector's app
   dev: {kind: none}  # the dev server: development only
   valkey:
     kind: StatefulSet
