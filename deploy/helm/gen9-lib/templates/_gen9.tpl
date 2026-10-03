@@ -294,5 +294,15 @@ serves every release without one stack's change reaching another's.
 */}}
 {{- define "gen9.services" -}}
 {{- $own := (index .Values .Values.stack | default dict).services | default dict -}}
-{{- toJson (mergeOverwrite (deepCopy .Values.services) $own) -}}
+{{- $services := mergeOverwrite (deepCopy .Values.services) $own -}}
+{{- /* A bundled store's profile is its name: left out (kind none), it takes along what is in
+that profile only (gen9-langfuse's minio-lifecycle), as COMPOSE_PROFILES without it does */ -}}
+{{- range $name, $svc := (include "gen9.compose" . | fromJson).services -}}
+{{- range $p := $svc.profiles | default list -}}
+{{- if and (ne $p $name) (eq (toString (index $services $p | default dict).kind) "none") (hasKey $services $name) -}}
+{{- $_ := set (index $services $name) "kind" "none" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- toJson $services -}}
 {{- end }}

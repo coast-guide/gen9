@@ -349,3 +349,22 @@ gen9-agent's migrations made 22 tables as `gen9_agent`, and every connection of
 migrations were refused ("pg_hba.conf rejects connection … no encryption"): the setting reaches
 libpq in both stacks. gen9-agent's image has libpq 18.6 (`psycopg.pq.version()`), which knows
 `sslrootcert=system` (U5c-5).
+
+## Langfuse's four stores elsewhere (U5c-4)
+
+Langfuse 4.48.0's own requirements, from its infrastructure guides that day: Postgres 15 or later
+for v4 (16 recommended), Redis 7 or Valkey 8 with `maxmemory-policy=noeviction`, ClickHouse 25.12
+or later (`CLICKHOUSE_CLUSTER_ENABLED=false` for one node; the user's grants listed), every part at
+UTC, a lifecycle rule recommended for the event bucket. Outside the stack, each on the image
+gen9-langfuse pins: Postgres 17.11 TLS only (a role and database `langfuse`), Redis 7.4.11
+(`--maxmemory-policy noeviction`), ClickHouse 26.8.13.2, Chainguard's MinIO with the bucket made
+by `mc mb`. Langfuse's own settings in `.env` (its upstream file reads them all), plus its
+worker's `LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT` (upstream default `http://minio:9000`, apart from the
+web's, which Gen9 takes from `LANGFUSE_MEDIA_PUBLIC_URL`): Prisma took `?sslmode=require`, every
+connection of `langfuse` TLS; the web applied its migrations to both databases (14 tables in
+ClickHouse's `default`); `stacks.mjs`'s trace (15 observations) went through all four: the event
+file in the bucket, 112 keys in Redis. On k3d the same by container name, and 14 observations.
+
+`make setup DOMAIN=…` had rewritten `LANGFUSE_MEDIA_PUBLIC_URL` to the domain's media host with
+MinIO left out: `value_of` gives its default for an empty value, so `COMPOSE_PROFILES=` read as
+`minio`. It now reads the line itself (none at all still means every store bundled).

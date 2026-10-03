@@ -479,7 +479,24 @@ What the owner asked, restated before starting (they went on to "start the loop"
       refused by the server in both stacks; on k3d with `kind: none`, `stacks.mjs` through the
       Gateway all passed, `make k8s-diff` 0. Both back on the bundled server with its data (its two
       threads), `make diff` 0, `make k8s-diff` 0 for the six stacks. The model calls cost $0.0015.
-    - [ ] U5c-4 Langfuse's Postgres, Redis, ClickHouse and S3, by Langfuse's own variables.
+    - [x] U5c-4 Langfuse's Postgres, Redis, ClickHouse and S3, by Langfuse's own variables.
+      Done 2026-10-03. Built: the four a profile each in Gen9's `compose.override.yaml`, labelled
+      with Langfuse's `DATABASE_URL`, `REDIS_HOST`, `CLICKHOUSE_URL` and
+      `LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT`; the web's and worker's dependencies on them optional;
+      `minio-lifecycle` in `minio`'s profile, and the library now leaves out what shares a left-out
+      store's profile, as Compose does; the media store's internal address a setting. Since
+      gen9-langfuse's `.env` always holds `DATABASE_URL`, a store counts as elsewhere only when its
+      setting names another host than the store's own service, in `make up`'s preflight, `make
+      setup` and the chart (`check-charts.sh` checks a setting naming the store is refused too);
+      `make setup` gives an `.env` without `COMPOSE_PROFILES` every store, as all ran before; `make
+      setup DOMAIN=…` leaves the media addresses of an S3 elsewhere alone. Verified
+      (explore/deploy/NOTES.md, U5c-4): this install's `.env` refused for all four, then migrated,
+      `make diff` 0; the four outside the stack, Postgres TLS only: Langfuse migrated there,
+      `make diff`/`reset` removed five bundled containers, `stacks.mjs` all passed, its trace
+      through all four; on k3d, the four `kind: none` (no StatefulSet, no media route), `stacks.mjs`
+      through the Gateway all passed, `make k8s-diff` 0 (after a fix: `make setup DOMAIN=` had
+      rewritten the outside S3's address, Surprises). Both back on the bundled stores, `make diff`
+      0, `make k8s-diff` 0 for seven stacks. The model calls cost $0.0015.
     - [ ] U5c-5 TLS to a store elsewhere, the server's certificate checked against a CA its owner
       gives (Keycloak's `KC_DB_TLS_MODE=verify-server` and trust store, Temporal's `SQL_CA` and host
       verification, libpq's `sslrootcert`, Prisma's `sslcert`), which needs that CA file in the
@@ -602,6 +619,10 @@ What the owner asked, restated before starting (they went on to "start the loop"
 
 ## Surprises & Discoveries
 
+- `value_of` in `scripts/setup.sh` gives its default for an empty value as for a missing one, so
+  `COMPOSE_PROFILES=` (every store elsewhere) read as the default `minio`, and `make setup DOMAIN=`
+  rewrote an outside S3's media address (U5c-4, found on k3d). A setting whose empty value means
+  something is read from its line, not through `value_of`.
 - Moving gen9-keycloak to an empty database makes a new realm with new signing keys, and
   gen9-agent's cached token for Temporal is then refused ("Request unauthorized") until gen9-agent
   restarts (U5c-2). Copying the data first (operations.md, "External services") keeps the keys.

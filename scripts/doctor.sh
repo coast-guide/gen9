@@ -112,7 +112,11 @@ if $docker_ok && ! $BEFORE_SETUP; then
     active=" $(cd "gen9-$stack" && docker compose config --services 2>/dev/null | tr '\n' ' ') "
     while read -r service setting; do
       [[ "$active" == *" $service "* ]] && continue
-      if (cd "gen9-$stack" && docker compose config --environment 2>/dev/null) | grep -Eq "^$setting=."; then
+      # Its value, held here only: the host it names, which mustn't be the store's own service
+      # (Langfuse's DATABASE_URL names the bundled postgres until it's changed)
+      value=$(cd "gen9-$stack" && docker compose config --environment 2>/dev/null | sed -n "s/^$setting=//p" | tail -n 1)
+      host=${value#*://}; host=${host##*@}; host=${host%%/*}; host=${host%%\?*}; host=${host%:*}
+      if [ -n "$value" ] && [ "$host" != "$service" ]; then
         ok "gen9-$stack: $service is elsewhere ($setting)"
       else
         fail "gen9-$stack leaves out its $service (COMPOSE_PROFILES in gen9-$stack/.env), and $setting names no other: set $setting, or add $service to COMPOSE_PROFILES (docs/operations.md, \"External services\")"

@@ -54,15 +54,21 @@ unset_env() {
   mv -f "$tmp" "$file"
 }
 
+# The host a setting names: a URL's (its scheme, user and password, port and path dropped), or
+# the value itself. A store's setting that names the store's own service names no other
+host_of() { local v=${1#*://}; v=${v##*@}; v=${v%%/*}; v=${v%%\?*}; printf '%s\n' "${v%:*}"; }
+
 # A bundled store (a Compose profile named after its service) in FILE's COMPOSE_PROFILES, as
 # init-env.sh writes it, unless FILE's SETTING points the stack at another one (docs/operations.md,
-# "External services"): an .env from before the stores were profiles gets it, other profiles kept
+# "External services"). An .env from before the stores were profiles (no COMPOSE_PROFILES) gets
+# it in any case, as every store ran then; other profiles are kept
 bundled() {
-  local file=$1 store=$2 setting=$3 profiles
+  local file=$1 store=$2 setting=$3 profiles value
   [ -f "$file" ] || return 0
-  ! grep -Eq "^$setting=.+" "$file" || return 0
   profiles=$(sed -n 's/^COMPOSE_PROFILES=//p' "$file" | tail -n 1)
   case ",$profiles," in *",$store,"*) return 0 ;; esac
+  value=$(sed -n "s/^$setting=//p" "$file" | tail -n 1)
+  if grep -q '^COMPOSE_PROFILES=' "$file" && [ -n "$value" ] && [ "$(host_of "$value")" != "$store" ]; then return 0; fi
   set_env "$file" COMPOSE_PROFILES "${profiles:+$profiles,}$store"
   echo "  $file: COMPOSE_PROFILES now lists $store, the bundled one ($setting names no other)"
 }
@@ -156,6 +162,10 @@ if selected langfuse; then
   echo "gen9-langfuse"
   if [ -f gen9-langfuse/.env ]; then
     kept gen9-langfuse/.env
+    bundled gen9-langfuse/.env postgres DATABASE_URL
+    bundled gen9-langfuse/.env redis REDIS_HOST
+    bundled gen9-langfuse/.env clickhouse CLICKHOUSE_URL
+    bundled gen9-langfuse/.env minio LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT
   else
     gen9-langfuse/init-env.sh --email "$LANGFUSE_EMAIL" --name "$LANGFUSE_NAME" \
       --agent-env-file gen9-agent/langfuse.local.env
@@ -336,8 +346,13 @@ public_addresses() {
   set_if_there gen9-agent/.env GEN9_API_PUBLIC_URL "$api"
   set_if_there gen9-agent/.env TEMPORAL_UI_URL "$temporal"
   set_if_there gen9-langfuse/.env NEXTAUTH_URL "$traces"
-  set_if_there gen9-langfuse/.env LANGFUSE_MEDIA_PUBLIC_URL "$media"
-  set_if_there gen9-langfuse/.env LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT "$media"
+  # The media store's address only when it is the bundled MinIO (COMPOSE_PROFILES lists it, or an
+  # .env from before the stores were profiles has none): an S3 elsewhere keeps its own
+  if [ -f gen9-langfuse/.env ] && { ! grep -q '^COMPOSE_PROFILES=' gen9-langfuse/.env ||
+    case ",$(sed -n 's/^COMPOSE_PROFILES=//p' gen9-langfuse/.env | tail -n 1)," in *,minio,*) true ;; *) false ;; esac; }; then
+    set_env gen9-langfuse/.env LANGFUSE_MEDIA_PUBLIC_URL "$media"
+    set_env gen9-langfuse/.env LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT "$media"
+  fi
   set_if_there gen9-temporal/.env GEN9_TEMPORAL_UI_URL "$temporal"
   set_if_there gen9-temporal/.env GEN9_TEMPORAL_CODEC_URL "$api/v1/temporal/codec"
 }

@@ -39,11 +39,13 @@ the names other stacks call it by).
 {{- end }}
 {{- /* A bundled store left out (kind none) whose label gen9.external in compose.yaml names the
 setting that points the stack at another one: refused without that setting, in settings or the
-stack's .env (docs/operations.md, "External services"), as make up refuses it on Docker */}}
+stack's .env (docs/operations.md, "External services"), as make up refuses it on Docker; in
+settings, the host it names (a URL's, or the value) mustn't be the store's own service */}}
 {{- $settings := include "gen9.settings" . | fromJson -}}
 {{- range $name, $svc := $compose.services }}
 {{- with index ($svc.labels | default dict) "gen9.external" }}
-{{- if and (eq (toString (index $services $name | default dict).kind) "none") (not (hasKey $settings .)) (not (has . ($root.Values.fromEnv | default list))) }}
+{{- $named := and (hasKey $settings .) (ne (regexReplaceAll "^(?:[a-zA-Z][a-zA-Z0-9+.-]*://)?(?:[^@/]*@)?([^:/?]*).*$" (toString (index $settings .)) "${1}") $name) }}
+{{- if and (eq (toString (index $services $name | default dict).kind) "none") (not $named) (not (has . ($root.Values.fromEnv | default list))) }}
 {{- fail (printf "%s.services.%s.kind is none, and nothing names another: set %s (in %s.settings, or gen9-%s/.env)" $root.Values.stack $name . $root.Values.stack $root.Values.stack) }}
 {{- end }}
 {{- end }}
