@@ -15,6 +15,9 @@ x-app-env: &app-env
     # The bundled Valkey, or another Valkey or Redis given by its URL (rediss:// for TLS), with
     # valkey left out of COMPOSE_PROFILES in .env
     SESSION_STORE_URL: ${SESSION_STORE_URL:-redis://:${VALKEY_PASSWORD:?run ./init-env.sh first}@valkey:6379/0}
+    # Over TLS (rediss://), its certificate checked against Node's CAs and this one: a file of
+    # certs/, mounted at /etc/gen9/certs
+    NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-}
     # keycloak.local.env holds host-side URLs (localhost:<published port>); containers reach the
     # other stacks over their networks instead, at container ports
     KEYCLOAK_INTERNAL_URL: http://gen9-keycloak:8080
@@ -56,6 +59,8 @@ services:
       valkey:
         condition: service_healthy
         required: false  # not there when SESSION_STORE_URL points elsewhere
+    volumes:
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     ports:
       - "127.0.0.1:${GEN9_UI_PORT:-14000}:3000"
     networks:
@@ -119,6 +124,8 @@ services:
       valkey:
         condition: service_healthy
         required: false  # not there when SESSION_STORE_URL points elsewhere
+    volumes:
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     ports:
       - "127.0.0.1:${GEN9_UI_DEV_PORT:-14001}:3000"
     networks:

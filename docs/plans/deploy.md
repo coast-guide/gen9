@@ -254,9 +254,13 @@ What the owner asked, restated before starting (they went on to "start the loop"
     since it was created". `make reset` (6.5 s): those three recreated, the stray removed; Valkey's
     `maxmemory` 314572800, then 0. Without the setting: exit 2 naming valkey; `make reset`, back to
     268435456; 0.
-- [ ] U5 The configuration surface: every setting listed once (domain and TLS, storage class and
+- [x] U5 The configuration surface: every setting listed once (domain and TLS, storage class and
   sizes, replicas and resources, secrets source, bundled or external Postgres, Valkey,
   ClickHouse and S3, sandbox runtime), with a schema that rejects unknown keys.
+  Checked 2026-10-03, with every part done: an unknown top-level key fails on the schema ("values
+  don't meet the specifications of the schema(s)"), a misspelt setting is refused naming it
+  ("gen9-ui's Compose files don't read VALKEY_MAXMEMRY"), and gen9-learn's Reference names every
+  setting (`reference.mjs`): acceptance `config.surface`.
   - Research, started 2026-10-03: the settings are Compose's variables (`${X:-default}`, the same
     names as `settings.X` on Kubernetes) and the settings files' keys. Compose v5.5.1 lists a
     file's variables itself, `docker compose config --variables --format json` (name, default,
@@ -423,7 +427,7 @@ What the owner asked, restated before starting (they went on to "start the loop"
       `make setup` checked gen9-edge's ports in its preflight, so with k3d holding 80 and 443,
       `DOMAIN=localhost` stopped before unsetting it; setup's preflight now leaves the optional
       stacks out (`make up` checks their ports once they run).
-  - [ ] U5c External services: which settings point a stack at its own Postgres, Valkey,
+  - [x] U5c External services: which settings point a stack at its own Postgres, Valkey,
     ClickHouse or S3 elsewhere, and how the bundled one is left out, in both shapes. How, decided
     2026-10-03 (Decision Log, U5c): on Docker each bundled store is a Compose profile named after
     it, which the stack's `.env` lists in `COMPOSE_PROFILES`, and what uses it depends on it with
@@ -553,7 +557,7 @@ What the owner asked, restated before starting (they went on to "start the loop"
       still there, no DeleteAccountWorkflow started; `gen9-agent-sweep --allow 1`: "1 deletions
       started", the person gone, `account.sweep.allowed` recorded. Keycloak back on its own
       database: `stacks.mjs` all passed, `make diff` 0. The model calls cost $0.0007.
-    - [ ] U5c-5 TLS to a store elsewhere, the server's certificate checked against a CA its owner
+    - [x] U5c-5 TLS to a store elsewhere, the server's certificate checked against a CA its owner
       gives (Keycloak's `KC_DB_TLS_MODE=verify-server` and trust store, Temporal's `SQL_CA` and host
       verification, libpq's `sslrootcert`, Prisma's `sslcert`), which needs that CA file in the
       containers in both shapes, a published chart included.
@@ -618,8 +622,33 @@ What the owner asked, restated before starting (they went on to "start the loop"
         Gateway all passed, `make k8s-diff` 0. Both back on the bundled servers, `make diff` 0,
         `make k8s-diff` 0 for seven. While Keycloak pointed at the empty database, gen9-agent's
         sweep erased the seeded users' data (Surprises; U5c-6). The model calls cost $0.0022.
-      - [ ] U5c-5c Langfuse (Prisma's in `DATABASE_URL`; `NODE_EXTRA_CA_CERTS`; ClickHouse's
+      - [x] U5c-5c Langfuse (Prisma's in `DATABASE_URL`; `NODE_EXTRA_CA_CERTS`; ClickHouse's
         migrations, Go's) and gen9-ui (`NODE_EXTRA_CA_CERTS` for `rediss://`).
+        Read 2026-10-03, Langfuse's source at v4.48.0: it reads `REDIS_TLS_ENABLED`,
+        `REDIS_TLS_CA_PATH` and siblings (`packages/shared/src/env.ts`), not the `REDIS_TLS_CA` its
+        Compose file passes; its ClickHouse migrations (`clickhouse/scripts/up.sh`, golang-migrate)
+        with `CLICKHOUSE_MIGRATION_SSL=true` add `secure=true&skip_verify=true`: encrypted, never
+        checked, whatever the CA. Planned: Gen9's override passes `NODE_EXTRA_CA_CERTS` (Node's own:
+        the ClickHouse and S3 clients), `REDIS_TLS_CA_PATH` and `CLICKHOUSE_MIGRATION_SSL` to the
+        web and the worker, with `certs/` mounted; Prisma's check in `DATABASE_URL`; gen9-ui passes
+        `NODE_EXTRA_CA_CERTS` for its `rediss://`. Verify each store over TLS with the test CA:
+        connected and checked; refused under a name its certificate doesn't hold.
+        Done 2026-10-03. Built: Gen9's override passes `NODE_EXTRA_CA_CERTS`, `REDIS_TLS_CA_PATH`
+        and `CLICKHOUSE_MIGRATION_SSL` to Langfuse's web and worker and mounts `certs/`; gen9-ui's
+        `prod` and `dev` the same for `NODE_EXTRA_CA_CERTS`. Verified on Docker with the four
+        Langfuse stores and gen9-ui's Valkey TLS-only, one certificate from the test CA: Langfuse
+        migrated both databases (Prisma `sslaccept=strict&sslcert=`, every connection TLS;
+        ClickHouse's HTTPS and secure native port), `stacks.mjs` all passed, its trace through
+        Redis, S3 and ClickHouse, gen9-ui's session keys in the TLS Valkey. Without the CA, each
+        refused: gen9-ui "[session-store] self-signed certificate in certificate chain";
+        ClickHouse's client "unable to verify the first certificate"; Redis, with both
+        `REDIS_TLS_CA_PATH` and `NODE_EXTRA_CA_CERTS` gone, "Redis error [tls]: self-signed
+        certificate in certificate chain" (either alone suffices: its client falls back on Node's
+        CAs); Prisma without `sslcert`, "P1001: Can't reach database server" (its words for the
+        failed check: the same server answered with it). On k3d by the servers' names, the CA from
+        the ConfigMap: `stacks.mjs` through the Gateway all passed, `make k8s-diff` 0. Both back on
+        the bundled stores, `make diff` 0, `make k8s-diff` 0 for seven. The model calls cost
+        $0.0015.
 - [x] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd
   images, its limits and closed network as on Docker; a chat's command runs in a pod. Every part
   below verified on kind (acceptance `sandbox.k8s`); checked here 2026-10-03, when it was found
@@ -740,6 +769,10 @@ What the owner asked, restated before starting (they went on to "start the loop"
 
 ## Surprises & Discoveries
 
+- gen9-ui's sign-in waits while its session store refuses it: with the Valkey's CA withheld,
+  `/auth/login` gave no answer within 10 s, node-redis retrying ("[session-store] self-signed
+  certificate in certificate chain", 285 times), where a 503 would say so at once (U5c-5c).
+  Follow-up: fail fast when the store can't be reached.
 - Pointing gen9-keycloak at an empty database (U5c-5b's test, 2026-10-03, on this machine's
   install) made gen9-agent's `sweep-deleted-users` see every person as deleted in Keycloak: within
   minutes it started a DeleteAccountWorkflow for both seeded users, which erased their chats (2
