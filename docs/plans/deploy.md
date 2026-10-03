@@ -383,6 +383,8 @@ What the owner asked, restated before starting (they went on to "start the loop"
       host 200 over TLS, certificate verified; Keycloak's public rule removed and the Gateway made
       again, Keycloak 503 and the API 200, the rule put back by `make k8s-reset`, 200 again;
       `make k8s-diff` 0.
+    - [ ] U5b-5 (follow-up) The apps' hosts certified automatically on Docker with ACME: Caddy's
+      on-demand TLS, its `ask` answered by gen9-agent for connectors that exist (Decision Log).
     - [x] U5b-4 Verified through the domain: `stacks.mjs` and a sign-in in Chrome on Docker behind
       `gen9-edge`, on kind (`cloud-provider-kind`'s Gateway) and on k3d (Traefik's).
       Done 2026-10-03, `stacks.mjs` with `APP_URL`, `KEYCLOAK_URL` and `LANGFUSE_URL` under
@@ -455,6 +457,29 @@ What the owner asked, restated before starting (they went on to "start the loop"
     plugin. Since Gen9 has eight charts plus the library, the charts go up as eight OCI artifacts,
     each attested by digest as the images are (U1) rather than with GPG provenance: to confirm
     against `actions/attest` for a non-image subject when U7 starts.
+  - [x] U7a What runs says what it is (R1, 5): one version, declared by gen9-agent, gen9-cli and
+    gen9-ui, which `scripts/check-version.py` (in `make config`, so CI) holds equal, and against
+    which a release's tag is checked; the commit, which bake takes from CI's `GITHUB_SHA` into
+    gen9-agent's and gen9-ui's images as `GEN9_COMMIT` (empty when built here); their OCI labels
+    `version` and `revision` from CI's metadata (`set-meta-labels`). Shown: gen9-agent's
+    `GET /v1/version`, to someone signed in only (to anyone else a version names the
+    vulnerabilities to try); Settings, "About Gen9"; `gen9 --version` (the terminal's own) and
+    `gen9 whoami` (the Gen9 it reached). Verified on Docker, both images built by bake with the
+    commit and run from a lock: unsigned 401; signed in `{"version":"0.1.0","commit":"6c258db…"}`;
+    `gen9 --version` "gen9 0.1.0"; `gen9 whoami` "Gen9 0.1.0, commit 6c258db."; Settings "About
+    Gen9 Version 0.1.0, commit 6c258db". Tests in gen9-agent, gen9-cli and gen9-ui.
+  - [ ] U7b Release notes: `.github/release.yml` grouping merged pull requests by labels (Added,
+    Changed, Deprecated, Removed, Fixed, Security; Keep a Changelog's groups); the labels made by
+    the owner (U8), with the commands in "Releasing".
+  - [ ] U7c The release workflow on a `v*` tag: the tag checked against the version; the 7 images
+    built and pushed (images.yml, called), attested; the lock; the charts packaged with the version
+    and the lock's digests, pushed to `oci://ghcr.io/coast-guide/charts`, attested by digest; the
+    Compose bundle; a draft release with generated notes and the assets, published in the
+    `release` environment. Verified without publishing anything: the workflow's jobs run on a
+    branch up to the draft, and the parts here (charts packaged, bundle made, `make up IMAGES=` from
+    it).
+  - [ ] U7d `SECURITY.md`'s supported versions; "Releasing" in docs/development.md; Scorecard's
+    workflow.
 - [ ] U8 The owner's: the first release tag; GHCR packages public; the `release` environment's
   reviewer; `v*` tags creatable only by them (the ruleset's creation rule); registering at
   bestpractices.dev if they want the badge.
@@ -992,6 +1017,23 @@ OpenSandbox `docs/guides/secure-container.md` and `manifests/charts` at `release
   Langfuse's Compose file moves off MinIO, when a published MinIO vulnerability goes unfixed in
   the fork for weeks, or when Chainguard stops publishing the image. Production: any S3, by the
   settings Langfuse reads (`LANGFUSE_S3_*`, U5).
+
+- Decision (U5b, the connector apps' hosts, 2026-10-03): one host per connector stays (each View
+  its own origin, MCP Apps' sandbox proxy), so `*.apps.<domain>` needs a wildcard certificate,
+  which Let's Encrypt issues only by DNS challenge. On Kubernetes that is the cluster's: its
+  Gateway's listener, with cert-manager's DNS-01 for instance. On Docker, gen9-edge takes a
+  wildcard the operator gives it (`GEN9_EDGE_APPS_TLS`, files under `certs/`), or its own CA. The
+  automatic way, Caddy's on-demand TLS, needs an `ask` endpoint that answers only for connectors
+  that exist (else anyone spends the domain's ACME rate limit), which gen9-ui's sandbox server
+  can't know without a new gen9-agent endpoint: kept as a follow-up (Progress, U5b-5), as the
+  other hosts don't wait on it.
+
+- Decision (order, 2026-10-03): U7 (releases) before U5c (external stores). The owner asked for
+  release management by name; it is what lets anyone run a published version, and R1 decided its
+  parts. U5c is hardening for a production install: the bundled stores already run in both shapes.
+  Found for it meanwhile: Compose's `depends_on` takes `required: false` ("Compose only warns you
+  when the dependency service isn't started", since v2.20.0), which lets a stack leave a bundled
+  store out on Docker, as `kind: none` does in a chart.
 
 ## Outcomes & Retrospective
 

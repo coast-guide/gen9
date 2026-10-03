@@ -121,6 +121,9 @@ class Settings(DatabaseSettings):
     tasks_fires_per_person_hour: int = Field(default=100, ge=1)
     # The agent API's address as callers outside reach it: a task's trigger URL is shown with it
     gen9_api_public_url: str = "http://localhost:17000"
+    # The commit this build was made from: Gen9's image build sets GEN9_COMMIT; empty when built
+    # here. Shown with the version to whoever is signed in (/v1/version)
+    gen9_commit: str = ""
     # The context a chat's model gets, in tokens (explore/context/NOTES.md): its profile's
     # `max_input_tokens`, so Deep Agents summarizes earlier messages at 85% of it and keeps the
     # latest 10%. Deliberately under the models' windows: answers degrade as input grows
