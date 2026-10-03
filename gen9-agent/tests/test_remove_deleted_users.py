@@ -1,6 +1,8 @@
 """Users deleted in Keycloak directly: only users confirmed missing by their own lookup are swept,
 so an incomplete listing never deletes anyone."""
 
+import json
+import logging
 from datetime import UTC, datetime
 
 import pytest
@@ -59,9 +61,11 @@ async def test_empty_listing_finds_nobody_without_confirmation():
     assert await find_deleted_users(FakeSession(["a", "b"]), keycloak) == []  # ty: ignore[invalid-argument-type]
 
 
-async def test_each_swept_account_is_recorded_once(monkeypatch):
+async def test_each_swept_account_is_recorded_once(monkeypatch, caplog):
     """Each deletion the sweep starts is in the audit record, as the person's or an admin's: the
-    record `make restore` reads to delete it again (P4-E5). A retried attempt adds none twice."""
+    record `make restore` reads to delete it again (P4-E5), and a line of the worker's log, as
+    every audit record is a line of the log of the process that makes it (docs/logging.md). A
+    retried attempt adds none twice."""
     from types import SimpleNamespace
 
     from gen9_agent import deletion
@@ -90,10 +94,20 @@ async def test_each_swept_account_is_recorded_once(monkeypatch):
     monkeypatch.setattr(deletion.accounts, "find_deleted_users", missing)
     runtime = SimpleNamespace(sessionmaker=Session)
     activities = deletion.DeletionActivities(runtime, None, object())  # ty: ignore[invalid-argument-type]
+    caplog.set_level(logging.INFO)
     first = await activities.find_deleted_users()
     await activities.find_deleted_users()  # retried
     assert [u.sub for u in first] == ["gone-1", "gone-2"]
     assert [(a.actor, a.action, a.target) for a in added] == [
         ("sweep", "account.sweep", "gone-1"),
         ("sweep", "account.sweep", "gone-2"),
+    ]
+    lines = [
+        json.loads(r.getMessage().removeprefix("audit "))
+        for r in caplog.records
+        if r.getMessage().startswith("audit {")
+    ]
+    assert [(e["actor"], e["action"], e["target"], e["where"]) for e in lines] == [
+        ("sweep", "account.sweep", "gone-1", "SweepDeletedUsersWorkflow"),
+        ("sweep", "account.sweep", "gone-2", "SweepDeletedUsersWorkflow"),
     ]
