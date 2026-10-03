@@ -327,7 +327,7 @@ evals-calibrate:
 # Fails on high or critical advisories, and, where a project's dependencies are installed, on one
 # whose registry signature doesn't verify. The images' own packages and runtimes: make sbom, make scan
 audit:
-	@for d in gen9-ui gen9-keycloak/theme e2e scripts/updates; do echo "== $$d"; (cd $$d && npm audit --audit-level=high && \
+	@for d in gen9-ui gen9-keycloak/theme e2e scripts/updates; do echo "== $$d"; (cd $$d && node $(CURDIR)/scripts/npm-audit.mjs && \
 	  { [ ! -d node_modules ] || npm audit signatures; }) || exit 1; done
 	@for d in gen9-agent gen9-cli; do echo "== $$d"; f=$$(mktemp); \
 	  (cd $$d && uv export --frozen --no-hashes --no-emit-project --color never > $$f) && \
