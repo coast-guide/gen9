@@ -773,7 +773,11 @@ What the owner asked, restated before starting (they went on to "start the loop"
     release's chart rendering the lock's image with no values; the bundle made twice, the same
     bytes, its lock inside. No image pushed (Images builds them on the same pull requests), no
     attestation, no release. Run here first: 8 of 8 charts pushed and read back, the bundle the
-    same twice; actionlint clean. Then on GitHub's runners: its pull request's run (below).
+    same twice; actionlint clean. Then on GitHub's runners, its pull request's run 37148848479:
+    `version`, `charts-dry-run` and `bundle-dry-run` passed (the tag's jobs skipped): the 8
+    charts pushed to the runner's registry and read back by digest, `version: 0.0.0-dryrun.1`,
+    the release's chart rendering the stand-in image; the bundle the same twice
+    (sha256 3fd81806…), its `images.lock` inside.
   - [x] U7d `SECURITY.md`'s supported versions; "Releasing" in docs/development.md; Scorecard's
     workflow. Done 2026-10-03: SECURITY.md (while 0.y, only the latest release gets fixes, as a
     patch release); "Releasing" (with U7c); `.github/workflows/scorecard.yml` as ossf/scorecard's
