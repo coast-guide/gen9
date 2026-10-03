@@ -93,7 +93,7 @@ list_urls = for s in $(SELECTED); do docker ps $(OWN) \
 WIPE_FLAGS := $(if $(filter 1,$(YES)),--yes)
 
 .DEFAULT_GOAL := help
-.PHONY: help stacks doctor up down ps logs config k8s-up k8s-diff k8s-reset k8s-down k8s-e2e k8s-stop-agents k8s-resume-agents setup admin-code backup restore stop-agents resume-agents wipe distclean fresh design-sync design-check e2e evals evals-calibrate audit sbom scan updates
+.PHONY: help stacks doctor up down ps logs config diff reset k8s-up k8s-diff k8s-reset k8s-down k8s-e2e k8s-stop-agents k8s-resume-agents setup admin-code backup restore stop-agents resume-agents wipe distclean fresh design-sync design-check e2e evals evals-calibrate audit sbom scan updates
 
 help:
 	@echo "Gen9: every command covers all stacks, or only STACKS=\"...\" (see make stacks)"
@@ -111,6 +111,8 @@ help:
 	@echo "  make ps              their containers"
 	@echo "  make logs            last $(TAIL) log lines (TAIL=n; FOLLOW=1 follows, with one stack)"
 	@echo "  make config          validate their Compose config"
+	@echo "  make diff            what runs that differs from what's declared, changes by hand too (exit 2 if any)"
+	@echo "  make reset           put back what differs: those containers recreated as declared"
 	@echo "  make admin-code      the seeded admin's authenticator code now (admins need a second step)"
 	@echo
 	@echo "Kubernetes (kubectl's context, or K8S_CONTEXT=…; settings: deploy/values.yaml, or K8S_VALUES=file):"
@@ -221,6 +223,14 @@ config:
 	  exit $$status
 	@if command -v python3 >/dev/null; then scripts/check-networks.py && scripts/check-images.py; \
 	  else echo "python3 not found: skipped the shared-network name and image checks"; fi
+
+# What runs against what's declared: Compose's hash of each service, its image, what docker update
+# changes, containers missing or not declared (scripts/drift.py). reset recreates what differs
+diff:
+	@scripts/drift.py $(SELECTED)
+
+reset:
+	@scripts/drift.py --reset $(SELECTED)
 
 # Kubernetes (docs/operations.md, "Kubernetes"): each stack a Helm release of gen9-<stack>/chart in
 # its namespace, with the lock's images (images.env, as IMAGES=… writes it) and its settings files
