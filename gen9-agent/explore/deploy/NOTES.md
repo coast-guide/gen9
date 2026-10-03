@@ -334,3 +334,18 @@ token for Temporal was then refused ("Request unauthorized", PermissionDenied) u
 restarted and took a new one. A recreated Keycloak also spends about 20 s trying to join the
 cluster of the container it replaced (JGroups, "too many JOIN attempts (10): becoming singleton"),
 which happens on any recreate.
+
+## gen9-agent's database elsewhere (U5c-3)
+
+A server outside the stacks on Gen9's own Postgres image (the lock's gen9-postgres: PostgreSQL 18,
+pgvector 0.8.6, pg_textsearch 1.4.0), started with `shared_preload_libraries=pg_textsearch`, TLS
+only, its administrator `dbadmin` (not `postgres`), no Gen9 role or database in it until the
+docs' SQL made `gen9_agent` and its database. Then, with `GEN9_POSTGRES_SERVER`, `_SERVER_PORT`,
+`_SSLMODE=require` and `_ADMIN_USER=dbadmin` in gen9-postgres's `.env`: `make up`'s preflight
+refused until `make setup` had copied the first three into gen9-agent's (one line each);
+gen9-postgres's jobs created `vector` and `pg_textsearch` and `gen9_agent_app` as `dbadmin`,
+gen9-agent's migrations made 22 tables as `gen9_agent`, and every connection of
+`gen9_agent_app` was TLS. With `_SSLMODE=disable`, both gen9-postgres's job and gen9-agent's
+migrations were refused ("pg_hba.conf rejects connection … no encryption"): the setting reaches
+libpq in both stacks. gen9-agent's image has libpq 18.6 (`psycopg.pq.version()`), which knows
+`sslrootcert=system` (U5c-5).

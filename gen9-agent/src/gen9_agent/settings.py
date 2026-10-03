@@ -14,12 +14,17 @@ class DatabaseSettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    # gen9-postgres (written by gen9-postgres/init-env.sh --agent-env-file)
+    # gen9-postgres (written by gen9-postgres/init-env.sh --agent-env-file), or a server of one's
+    # own (docs/operations.md, "External services")
     database_host: str = "localhost"
     database_port: int = 16000
     database_name: str = "gen9_agent"
     database_user: str = "gen9_agent"
     database_password: SecretStr
+    # libpq's sslmode: prefer takes TLS when the server offers it; require insists on it
+    database_sslmode: Literal[
+        "disable", "allow", "prefer", "require", "verify-ca", "verify-full"
+    ] = "prefer"
 
     @computed_field
     @property
@@ -31,6 +36,7 @@ class DatabaseSettings(BaseSettings):
             host=self.database_host,
             port=self.database_port,
             database=self.database_name,
+            query={"sslmode": self.database_sslmode},
         )
 
     @property

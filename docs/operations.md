@@ -196,6 +196,7 @@ of your own): one setting points the stack at it, and the bundled one is left ou
 
 | Stack | Store | Setting | What it needs |
 | --- | --- | --- | --- |
+| gen9-postgres | `postgres`: gen9-agent's database (chats, memory, connectors, schedules) | `GEN9_POSTGRES_SERVER`; `GEN9_POSTGRES_SERVER_PORT` (5432), `GEN9_POSTGRES_SSLMODE` (libpq's: `require` for TLS; default `prefer`), `GEN9_POSTGRES_ADMIN_USER` (postgres). `make setup` copies the first three into gen9-agent's `.env`, and `make up` refuses to start while the two differ | PostgreSQL 18 with pgvector and pg_textsearch, which needs `shared_preload_libraries = 'pg_textsearch'` (Gen9's own image has both: running it elsewhere is one way); the database `gen9_agent` owned by the role `gen9_agent`, below, with its password in `GEN9_AGENT_DB_PASSWORD`; an administrator that may create those extensions and roles, `GEN9_POSTGRES_ADMIN_USER` with its password in `POSTGRES_PASSWORD`. On every start gen9-postgres's jobs create the extensions and the role gen9-agent's services use, `gen9_agent_app`, and gen9-agent migrates the database |
 | gen9-keycloak | `postgres`: realms, users, sessions | `KC_DB_URL_HOST`; Keycloak's own `KC_DB_URL_PORT` (5432), `KC_DB_URL_DATABASE` and `KC_DB_USERNAME` (keycloak), `KC_DB_URL_PROPERTIES` (`?sslmode=require` for TLS) | PostgreSQL 14 to 18: a role and a database of its own, below; the password in `KC_DB_PASSWORD` |
 | gen9-models | `postgres`: the router's keys, budgets and spend | `LITELLM_DB_HOST`; `LITELLM_DB_PORT` (5432), `LITELLM_DB_SSLMODE` (`require` for TLS; default `prefer`) | PostgreSQL: the role `litellm`, allowed to create roles (it makes the admin API's `gen9_admin` and keeps its rights), with a database `litellm` it owns; the password in `POSTGRES_PASSWORD`, percent-encoded if it holds a character URLs reserve |
 | gen9-temporal | `postgres`: workflows, their histories and the index that lists them | Temporal's own `POSTGRES_SEEDS` (the host), `DB_PORT` (5432), `SQL_TLS_ENABLED` (`true` for TLS) | PostgreSQL 12 or later: the role `temporal` with the databases `temporal` and `temporal_visibility`, and `btree_gin` in the second; the password in `TEMPORAL_DB_PASSWORD`. The schema job fills both on every start |
@@ -205,7 +206,11 @@ On a Postgres of your own, as its administrator, with the passwords from the sta
 variables, so they don't land in your shell's history):
 
 ```sql
--- psql -v kc=… -v ll=… -v t=… (KC_DB_PASSWORD, gen9-models' POSTGRES_PASSWORD, TEMPORAL_DB_PASSWORD)
+-- psql -v a=… -v kc=… -v ll=… -v t=… (gen9-postgres' GEN9_AGENT_DB_PASSWORD, KC_DB_PASSWORD,
+-- gen9-models' POSTGRES_PASSWORD, TEMPORAL_DB_PASSWORD); each stack's lines alone, for one
+CREATE ROLE gen9_agent LOGIN PASSWORD :'a';
+CREATE DATABASE gen9_agent OWNER gen9_agent;
+REVOKE ALL ON DATABASE gen9_agent FROM PUBLIC;
 CREATE ROLE keycloak LOGIN PASSWORD :'kc';
 CREATE DATABASE keycloak OWNER keycloak;
 CREATE ROLE litellm LOGIN CREATEROLE PASSWORD :'ll';
@@ -217,8 +222,9 @@ CREATE DATABASE temporal_visibility OWNER temporal;
 CREATE EXTENSION IF NOT EXISTS btree_gin;
 ```
 
-The other store starts empty: a stack moved to it starts over (Keycloak with its seeded users
-only, the router with its keys made again, Temporal with no workflows), unless you copy the
+The other store starts empty: a stack moved to it starts over (gen9-agent with no chats,
+Keycloak with its seeded users only, the router with its keys made again, Temporal with no
+workflows), unless you copy the
 bundled one's data into it first (for Postgres, `pg_dump` from the bundled container and
 `pg_restore` into yours). With TLS (`sslmode=require`, `SQL_TLS_ENABLED`), the connection is
 encrypted, but the server's certificate isn't checked yet against a CA you give.

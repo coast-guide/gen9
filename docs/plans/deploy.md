@@ -462,9 +462,23 @@ What the owner asked, restated before starting (they went on to "start the loop"
       `make k8s-diff` 0. All back on the bundled ones, their data as before (the bundled spend log
       went on from 4435 rows), `stacks.mjs` passed again, `make diff` 0, `make k8s-diff` 0 for the
       three. The model calls cost $0.0022 in all.
-    - [ ] U5c-3 gen9-postgres, gen9-agent's database: the host gen9-agent and gen9-postgres's
+    - [x] U5c-3 gen9-postgres, gen9-agent's database: the host gen9-agent and gen9-postgres's
       `extensions` and `roles` reach, so those run against the outside server too; what that
       server needs (pgvector, pg_textsearch).
+      Done 2026-10-03. Built: gen9-postgres's `postgres` a profile with its label;
+      `GEN9_POSTGRES_SERVER`, `_SERVER_PORT`, `_SSLMODE` and `_ADMIN_USER`, which its `extensions`
+      and `roles` jobs reach the server by (libpq's `PG*`), and gen9-agent's `compose.yaml` its
+      database by; gen9-agent's new setting `DATABASE_SSLMODE` (libpq's `sslmode`, in every
+      connection's URL; tests); `make setup` copies the three address settings from gen9-postgres's
+      `.env` into gen9-agent's, and `make up`'s preflight refuses while they differ. Verified
+      (explore/deploy/NOTES.md, U5c-3), gen9-agent built from this branch (bake, pushed to the test
+      registry, `~/.cache/gen9-probes/u5c.lock`): this install's `.env` refused, then migrated, `make
+      diff` 0; a TLS-only server on Gen9's image with another administrator, the role and database
+      made with the docs' SQL: the jobs and migrations ran there, every connection TLS, `make
+      diff`/`reset` removed the bundled Postgres, `stacks.mjs` all passed; `_SSLMODE=disable`
+      refused by the server in both stacks; on k3d with `kind: none`, `stacks.mjs` through the
+      Gateway all passed, `make k8s-diff` 0. Both back on the bundled server with its data (its two
+      threads), `make diff` 0, `make k8s-diff` 0 for the six stacks. The model calls cost $0.0015.
     - [ ] U5c-4 Langfuse's Postgres, Redis, ClickHouse and S3, by Langfuse's own variables.
     - [ ] U5c-5 TLS to a store elsewhere, the server's certificate checked against a CA its owner
       gives (Keycloak's `KC_DB_TLS_MODE=verify-server` and trust store, Temporal's `SQL_CA` and host
