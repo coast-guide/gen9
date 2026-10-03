@@ -1,0 +1,21 @@
+# gen9-temporal on Kubernetes: what compose.yaml doesn't say (deploy/helm/gen9-lib, "gen9.stack").
+stack: temporal
+usedBy: [agent]
+
+global:
+  images: {}
+  storageClass: ""
+
+services:
+  postgres:
+    kind: StatefulSet
+    ports: {postgres: 5432}
+    storage: {postgres_data: 10Gi}
+  schema: {kind: Init, into: temporal}  # the server waits for both schemas
+  temporal:
+    kind: Deployment
+    ports: {frontend: 7233, internal: 7236}
+  namespace: {kind: Job}
+  ui:
+    kind: Deployment
+    ports: {http: 8080}

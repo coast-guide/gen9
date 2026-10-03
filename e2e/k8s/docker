@@ -1,0 +1,211 @@
+#!/bin/sh
+# `docker`, for the e2e checks against Gen9 on Kubernetes (docs/plans/deploy.md, U3): the checks
+# call docker by name to reach a stack's container, gen9-<stack>-<service>-1; first on PATH (make
+# k8s-e2e), this does the same to that service's pod in the namespace gen9-<stack>, so the checks
+# run unchanged against either shape. What it maps:
+#
+#   exec [-i] CONTAINER CMD…               kubectl exec [-i] into the service's pod
+#   logs [--since TIME] CONTAINER          kubectl logs (--since-time for a timestamp)
+#   restart CONTAINER                      kubectl rollout restart, then waits for it
+#   stop | start CONTAINER                 scales the service's workload to 0 | 1, and waits
+#   inspect -f '{{.State.Health.Status}}' CONTAINER    healthy when the pod is Ready
+#   inspect -f '{{.State.Running}}' CONTAINER          true when a pod of the service runs
+#
+# A sandbox (a name not gen9-<stack>-<service>-N) is its pod in E2E_SANDBOXES (gen9-sandboxes):
+#   ps [-a] [--filter label=K=V] --format '{{.Names}}'  its pods, by label (-a: in any phase)
+#   exec [-i] SANDBOX CMD…                 kubectl exec into its container `sandbox`
+#   inspect SANDBOX [--format '{{index .Config.Labels "K"}}']   its labels, and as HostConfig what
+#                                          holds it: the container's capabilities and memory, and
+#                                          the node's kubelet for processes, swap and log rotation
+#   volume ls --format '{{.Name}}'         its claims
+#
+# A one-off container (compose run) is a pod of its own in the stack's namespace, made from what
+# the stack's chart renders for that service, with the release's values, as Compose makes it from
+# compose.yaml; labelled gen9.run=<service>, so no workload adopts it:
+#   compose -f …/gen9-<stack>/compose.yaml run [-d] [--rm] [--no-deps] [--name N] [-e K=V]… SERVICE [CMD…]
+#                                          detached: its name; else its output and exit status
+#   rm -f N | exec [-i] N CMD… | inspect -f '{{.State.Health.Status}}' N    on that pod
+#
+# Anything else is refused, naming it: a check that needs more says so here first.
+set -eu
+ctx=${K8S_CONTEXT:-$(kubectl config current-context)}
+kc() { kubectl --context "$ctx" "$@"; }
+root=$(cd "$(dirname "$0")/../.." && pwd)
+# A one-off's pod: its namespace and service, or nothing
+oneoff() { kc get pods -A -l gen9.run --field-selector "metadata.name=$1" -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.labels.gen9\.run}{end}'; }
+
+# gen9-<stack>-<service>-1 -> ns, svc
+target() {
+  rest=${1#gen9-}
+  stack=${rest%%-*}
+  svc=${rest#"$stack"-}
+  svc=${svc%-[0-9]*}
+  ns=gen9-$stack
+}
+sandboxes=${E2E_SANDBOXES:-gen9-sandboxes}
+is_sandbox() { case "$1" in gen9-*-*-[0-9]*) return 1 ;; *) return 0 ;; esac; }
+pod() { kc -n "$ns" get pods -l "app.kubernetes.io/name=$svc" --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}'; }
+workload() { kc -n "$ns" get deploy,statefulset -l "app.kubernetes.io/name=$svc" -o name | head -1; }
+refuse() { echo "e2e/k8s/docker: 'docker $*' isn't mapped to Kubernetes" >&2; exit 125; }
+
+cmd=${1:-}; [ $# -gt 0 ] && shift
+case "$cmd" in
+  exec)
+    stdin=""
+    while [ $# -gt 0 ]; do case "$1" in -i) stdin=-i; shift ;; -*) refuse exec "$@" ;; *) break ;; esac; done
+    run=$(oneoff "$1")
+    if [ -n "$run" ]; then
+      box=$1; shift
+      exec kubectl --context "$ctx" -n "${run% *}" exec $stdin "$box" -c "${run#* }" -- "$@"
+    fi
+    if is_sandbox "$1"; then
+      box=$1; shift
+      exec kubectl --context "$ctx" -n "$sandboxes" exec $stdin "$box" -c sandbox -- "$@"
+    fi
+    target "$1"; shift
+    exec kubectl --context "$ctx" -n "$ns" exec $stdin "$(pod)" -c "$svc" -- "$@" ;;
+  ps)
+    all=""; label=""; format=""
+    while [ $# -gt 0 ]; do case "$1" in -a) all=1; shift ;; --filter) label=${2#label=}; shift 2 ;; --format) format=$2; shift 2 ;; *) refuse ps "$@" ;; esac; done
+    [ "$format" = "{{.Names}}" ] || refuse ps --format "$format"
+    set --
+    [ -z "$label" ] || set -- "$@" -l "$label"
+    [ -n "$all" ] || set -- "$@" --field-selector=status.phase=Running
+    kc -n "$sandboxes" get pods "$@" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' ;;
+  volume)
+    [ "${1:-}" = ls ] && [ "${2:-}" = --format ] && [ "${3:-}" = "{{.Name}}" ] || refuse volume "$@"
+    kc -n "$sandboxes" get pvc -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' ;;
+  logs)
+    since=""
+    while [ $# -gt 0 ]; do case "$1" in --since) since=$2; shift 2 ;; -*) refuse logs "$@" ;; *) break ;; esac; done
+    target "$1"
+    case "$since" in
+      "") exec kubectl --context "$ctx" -n "$ns" logs "$(pod)" -c "$svc" ;;
+      *T*) exec kubectl --context "$ctx" -n "$ns" logs "$(pod)" -c "$svc" --since-time="$since" ;;
+      *) exec kubectl --context "$ctx" -n "$ns" logs "$(pod)" -c "$svc" --since="$since" ;;
+    esac ;;
+  restart)
+    target "$1"; w=$(workload)
+    kc -n "$ns" rollout restart "$w" >/dev/null && kc -n "$ns" rollout status "$w" --timeout=300s >/dev/null
+    echo "$1" ;;
+  stop|start)
+    target "$1"; w=$(workload)
+    kc -n "$ns" scale "$w" --replicas="$([ "$cmd" = stop ] && echo 0 || echo 1)" >/dev/null
+    [ "$cmd" = stop ] && kc -n "$ns" wait --for=delete pod -l "app.kubernetes.io/name=$svc" --timeout=120s >/dev/null 2>&1 || true
+    echo "$1" ;;
+  inspect)
+    if [ $# -ge 1 ] && is_sandbox "$1" && [ "${1#-}" = "$1" ]; then
+      box=$1; shift
+      json=$(kc -n "$sandboxes" get pod "$box" -o json)
+      if [ "${1:-}" = --format ]; then
+        key=$(printf '%s' "$2" | sed -n 's/^{{index .Config.Labels "\(.*\)"}}$/\1/p')
+        [ -n "$key" ] || refuse inspect --format "$2"
+        printf '%s' "$json" | python3 -c 'import json, sys; print(json.load(sys.stdin)["metadata"].get("labels", {}).get(sys.argv[1], ""))' "$key"
+        exit 0
+      fi
+      node=$(printf '%s' "$json" | python3 -c 'import json, sys; print(json.load(sys.stdin)["spec"].get("nodeName", ""))')
+      kubelet=$(kc get --raw "/api/v1/nodes/$node/proxy/configz")
+      POD="$json" KUBELET="$kubelet" python3 -c '
+import json, os, re
+pod = json.loads(os.environ["POD"])
+kubelet = json.loads(os.environ["KUBELET"])["kubeletconfig"]
+box = next(c for c in pod["spec"]["containers"] if c["name"] == "sandbox")
+units = {"Ki": 2**10, "Mi": 2**20, "Gi": 2**30, "K": 10**3, "M": 10**6, "G": 10**9, "": 1}
+def size(q):
+    n, unit = re.fullmatch(r"([0-9.]+)([A-Za-z]*)", q).groups()
+    return int(float(n) * units[unit])
+memory = size(box.get("resources", {}).get("limits", {}).get("memory", "0"))
+security = box.get("securityContext", {})
+swap = kubelet.get("memorySwap", {}).get("swapBehavior") or "NoSwap"
+print(json.dumps([{
+    "Name": "/" + pod["metadata"]["name"],
+    "Config": {"Labels": pod["metadata"].get("labels", {})},
+    "HostConfig": {
+        "CapDrop": security.get("capabilities", {}).get("drop", []),
+        "Memory": memory,
+        # NoSwap, the kubelet default: memory and swap together are the memory limit
+        "MemorySwap": memory if swap == "NoSwap" else -1,
+        "PidsLimit": kubelet.get("podPidsLimit", -1),
+        "LogConfig": {"Type": "kubelet", "Config": {"max-size": kubelet.get("containerLogMaxSize", ""), "max-file": str(kubelet.get("containerLogMaxFiles", ""))}},
+    },
+}]))
+'
+      exit 0
+    fi
+    if [ "${1:-}" = -f ] && [ "${2:-}" = "{{.State.Running}}" ]; then
+      target "$3"
+      [ -n "$(pod 2>/dev/null)" ] && echo true || echo false
+      exit 0
+    fi
+    [ "${1:-}" = -f ] && [ "${2:-}" = "{{.State.Health.Status}}" ] || refuse inspect "$@"
+    run=$(oneoff "$3")
+    if [ -n "$run" ]; then
+      ready=$(kc -n "${run% *}" get pod "$3" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+      [ "$ready" = True ] && echo healthy || echo starting
+      exit 0
+    fi
+    target "$3"
+    ready=$(kc -n "$ns" get pods -l "app.kubernetes.io/name=$svc" -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+    [ "$ready" = True ] && echo healthy || echo starting ;;
+  rm)
+    [ "${1:-}" = -f ] && [ $# -eq 2 ] || refuse rm "$@"
+    run=$(oneoff "$2")
+    [ -n "$run" ] || { echo "Error response from daemon: No such container: $2" >&2; exit 1; }
+    kc -n "${run% *}" delete pod "$2" --grace-period=10 >/dev/null
+    echo "$2" ;;
+  compose)
+    [ "${1:-}" = -f ] && [ "${3:-}" = run ] || refuse compose "$@"
+    stack=$(basename "$(dirname "$2")"); stack=${stack#gen9-}; ns=gen9-$stack; shift 3
+    detach=""; remove=""; name=""; ENVS=""
+    while [ $# -gt 0 ]; do case "$1" in
+      -d) detach=1; shift ;; --rm) remove=1; shift ;; --no-deps) shift ;;
+      --name) name=$2; shift 2 ;;
+      -e) ENVS="$ENVS$2
+"; shift 2 ;;
+      -*) refuse compose run "$@" ;;
+      *) break ;;
+    esac; done
+    svc=$1; shift
+    [ -n "$name" ] || name="gen9-$stack-$svc-run-$(od -An -N3 -tx1 /dev/urandom | tr -d ' \n')"
+    chart="$root/gen9-$stack/chart"
+    [ -d "$chart/charts" ] || helm dependency update "$chart" >/dev/null
+    values=$(mktemp)
+    trap 'rm -f "$values"' EXIT
+    helm --kube-context "$ctx" get values "$ns" -n "$ns" -o yaml > "$values"
+    # The service as a Job (its pod as the chart makes it), YAML to JSON by kubectl, then the pod
+    # shellcheck disable=SC2016 # Python, in single quotes on purpose
+    helm template "$ns" "$chart" -n "$ns" -f "$values" --set "services.$svc.kind=Job" \
+      --api-versions admissionregistration.k8s.io/v1/MutatingAdmissionPolicy 2>/dev/null |
+      kc create --dry-run=client -o json -f - |
+      NAME=$name NS=$ns SVC=$svc ENVS=$ENVS python3 -c '
+import json, os, sys
+# kubectl prints each document as a JSON object of its own, one after another
+text, items, at = sys.stdin.read(), [], 0
+while text[at:].strip():
+    item, end = json.JSONDecoder().raw_decode(text, len(text) - len(text[at:].lstrip()))
+    items.append(item)
+    at = end
+job = next(i for i in items if i["kind"] == "Job" and i["metadata"]["name"] == os.environ["SVC"])
+spec = job["spec"]["template"]["spec"]
+spec["restartPolicy"] = "Never"
+box = next(c for c in spec["containers"] if c["name"] == os.environ["SVC"])
+for pair in filter(None, os.environ["ENVS"].split("\n")):
+    key, value = pair.split("=", 1)
+    box["env"] = [e for e in box.get("env", []) if e["name"] != key] + [{"name": key, "value": value}]
+if sys.argv[1:]:
+    box["args"] = sys.argv[1:]
+print(json.dumps({"apiVersion": "v1", "kind": "Pod", "metadata": {"name": os.environ["NAME"], "namespace": os.environ["NS"],
+    "labels": {"app.kubernetes.io/part-of": "gen9", "gen9.run": os.environ["SVC"]}}, "spec": spec}))
+' "$@" | kc create -f - >/dev/null
+    if [ -n "$detach" ]; then echo "$name"; exit 0; fi
+    while :; do
+      phase=$(kc -n "$ns" get pod "$name" -o jsonpath='{.status.phase}')
+      case "$phase" in Succeeded|Failed) break ;; esac
+      sleep 1
+    done
+    kc -n "$ns" logs "$name" -c "$svc"
+    code=$(kc -n "$ns" get pod "$name" -o jsonpath="{.status.containerStatuses[?(@.name==\"$svc\")].state.terminated.exitCode}")
+    [ -z "$remove" ] || kc -n "$ns" delete pod "$name" --wait=false >/dev/null
+    exit "${code:-1}" ;;
+  *) refuse "$cmd" "$@" ;;
+esac

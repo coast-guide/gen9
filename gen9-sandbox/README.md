@@ -5,8 +5,10 @@ which runs each chat's environment: a container of its own where the agent runs 
 files (gen9-agent's `environments.py`). gen9-agent's worker is its only client; nothing else reaches it.
 
 It starts sandboxes through the Docker socket, which is the host's root. That's fine on one machine you
-own. A deployment runs OpenSandbox's Kubernetes runtime, or this stack on a host of its own, and gVisor
-or Kata where it can (`[secure_runtime]` in `config.toml`).
+own. A deployment runs this stack on a host of its own, or on Kubernetes, where the same server makes
+each sandbox a kubernetes-sigs/agent-sandbox `Sandbox` in the namespace `gen9-sandboxes`, with no Docker
+socket (`chart/`, `launch.py`; [docs/operations.md, "Kubernetes"](../docs/operations.md#kubernetes) says
+what the cluster needs); and gVisor or Kata where it can (`[secure_runtime]` in `config.toml`).
 
 ## Quick start
 

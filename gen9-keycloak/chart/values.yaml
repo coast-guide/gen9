@@ -1,0 +1,23 @@
+# gen9-keycloak on Kubernetes: what compose.yaml doesn't say (deploy/helm/gen9-lib, "gen9.stack").
+stack: keycloak
+usedBy: [temporal, agent, ui]
+
+global:
+  images: {}
+  storageClass: ""
+
+services:
+  keycloak:
+    kind: Deployment
+    ports: {http: 8080, management: 9000}
+    podSecurityContext: {fsGroup: 1000}
+  configure: {kind: Job}
+  ready: {kind: none}
+  postgres:
+    kind: StatefulSet
+    ports: {postgres: 5432}
+    storage: {postgres_data: 10Gi}
+  mailpit:
+    kind: StatefulSet
+    ports: {http: 8025, smtp: 1025}
+    storage: {mailpit_data: 1Gi}

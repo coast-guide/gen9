@@ -1,0 +1,25 @@
+# gen9-models on Kubernetes: what compose.yaml doesn't say (deploy/helm/gen9-lib, "gen9.stack").
+# The `local` profile's models (ollama, ollama-pull, reranker) are left out, as `make up` leaves them.
+stack: models
+usedBy: [agent]
+
+global:
+  images: {}
+  storageClass: ""
+
+services:
+  postgres:
+    kind: StatefulSet
+    ports: {postgres: 5432}
+    storage: {postgres_data: 10Gi}
+  litellm:
+    kind: Deployment
+    ports: {http: 4000}
+  keys: {kind: Job}  # its keys and budgets, once the router is ready
+  admin:
+    kind: Deployment
+    ports: {http: 4001}
+  searxng:
+    kind: Deployment
+    ports: {http: 8080}
+  ready: {kind: none}

@@ -78,6 +78,70 @@ for i in gen9-agent gen9-ui gen9-keycloak gen9-postgres gen9-sandbox gen9-sandbo
 done > images.lock
 ```
 
+## Kubernetes
+
+The same Gen9 runs on any conformant cluster (kind or k3s on a laptop or a VM, or a managed one):
+each stack is a Helm release of its own chart, `gen9-<stack>/chart`, in its own namespace
+`gen9-<stack>`, from the same images by digest and the same settings files as on Docker.
+
+```bash
+make setup                           # the same secrets and settings files as for Docker
+make k8s-up IMAGES=images.lock       # kubectl's current context; K8S_CONTEXT=<context> for another
+make k8s-diff                        # exit 2, naming each object, if anything differs from what's declared
+make k8s-reset                       # put back what was changed by hand: each object replaced as declared
+make k8s-down                        # uninstall; volumes and Secrets stay
+```
+
+A cluster needs Kubernetes 1.28 or later, a default StorageClass (or `global.storageClass`), and,
+on this machine, `kubectl`, Helm 4 and, for `k8s-diff`, the helm-diff plugin. Nothing in the charts
+is tied to a cloud: Deployments, StatefulSets, Jobs, Services, ConfigMaps, NetworkPolicies.
+
+Sandboxes (gen9-sandbox) need a little more of the cluster, to hold them as Docker does:
+
+- [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox)'s `Sandbox`
+  and its controller, which `make k8s-up` applies from its release, checked against the digest
+  pinned in `gen9-sandbox/chart/prerequisites.txt`. OpenSandbox's server, Gen9's own image as on
+  Docker, makes each chat's sandbox one, in the namespace `gen9-sandboxes`, and only it may reach
+  them there.
+- Kubernetes 1.36 or later, for the MutatingAdmissionPolicy that gives each sandbox's container
+  the limits it has on Docker (the runtime's seccomp filter, no new privileges, the capabilities
+  `gen9-sandbox/config.toml` drops, `SANDBOX_DISK_GB` of disk). On an older cluster the chart
+  refuses to install, unless `sandboxes: {hardening: optional}` accepts sandboxes without them.
+- Two kubelet settings on the nodes that run sandboxes, which no pod field can set, as
+  `deploy/kind.yaml` sets them for kind and `deploy/k3d.yaml` for k3s (a kubelet config file k3s
+  takes as `--kubelet-arg=config=…`): a process limit, `podPidsLimit: 4096` (Docker's
+  `pids_limit`; the kubelet's default is none), and `singleProcessOOMKill: true`, so that a
+  command past a sandbox's memory is killed and the sandbox lives on, as on Docker (on cgroup v2
+  the kubelet otherwise kills every process of the container).
+- Privileged pods allowed in `gen9-sandboxes` (Pod Security `privileged`, which the chart labels
+  it with): each sandbox's first container turns IPv6 off in its pod before it starts, as
+  OpenSandbox does on Kubernetes, where its IPv6 egress filtering is incomplete. The sandbox's own
+  container is not privileged.
+
+Each chart reads its stack's `compose.yaml`, linked into it: the images, commands, environment,
+health checks, configuration files and volumes Docker runs, so the two shapes can't drift apart; the
+chart's `values.yaml` adds only what Kubernetes needs (which workload each service is, its ports,
+storage sizes). A stack reaches another by the same names as on Docker (`gen9-keycloak`, `gen9-models-admin`):
+a service that joins another stack's network `gen9-<x>` there has that stack's namespace among its
+pods' DNS search domains here, after its own, so every name given on that network resolves. Each
+stack's NetworkPolicy lets in only the stacks that call it.
+
+Settings: `deploy/values.yaml`, or your own file as `K8S_VALUES=<file>`. A setting Compose reads
+as `${X:-default}` is `settings.X` there for every stack, or `<stack>.settings.X` for one; a
+stack's sizes go under its services (`keycloak: {services: {postgres: {storage: {postgres_data:
+50Gi}}}}`). A key the charts don't know fails the install, with its path. Secrets: each stack's
+settings files from `make setup` become Secrets in its namespace (`.env` the Secret `env`,
+`keycloak.local.env` the Secret `keycloak-local-env`), applied server-side so no copy of a value
+lands in an annotation.
+
+To try it here: `kind create cluster --config deploy/kind.yaml` makes a cluster whose containerd
+can pull from a registry on this machine (kind's [local registry](https://kind.sigs.k8s.io/docs/user/local-registry/)
+recipe: connect the registry to the `kind` network and give each node a `hosts.toml`); `k3d
+cluster create --config deploy/k3d.yaml` makes a k3s one (a registry of your own with
+`--registry-config`, k3s's `registries.yaml`). `make
+k8s-e2e` runs `make e2e` against the cluster: it forwards each port a stack publishes on Docker to
+the same port on 127.0.0.1, and puts `e2e/k8s` first on `PATH`, whose `docker` reaches the pods.
+
 ## Upgrade
 
 1. `make backup DIR=~/gen9-backup-before-upgrade`, to go back if you need to: an older Gen9 refuses a database a newer one migrated (its `/readyz` says so), and an older ClickHouse may not open the traces a newer one wrote (gen9-langfuse/README.md).
@@ -138,7 +202,10 @@ instruction you don't trust):
 | `make stop-agents` | Cancels every run not yet over (queued, running or waiting for someone), waits until each has ended, pauses every scheduled task, then stops gen9-agent's worker. The web app and the API stay up: people can read their chats, and what they ask meanwhile waits |
 | `make resume-agents` | Starts the worker again, and unpauses the scheduled tasks the stop paused. A task its person paused stays paused. What people asked while stopped then runs |
 
-Both are in the audit log (`operator.stop`, `operator.resume`). For one person, disable their
+On Kubernetes: `make k8s-stop-agents` and `make k8s-resume-agents`, the same in the cluster
+(the worker's Deployment scaled to 0, then back to 1; meanwhile `make k8s-diff` names its
+replicas, and `make k8s-up` starts it again, as `make up` does on Docker). Both are in the audit
+log (`operator.stop`, `operator.resume`). For one person, disable their
 account on Admin > Users: their runs end at once. Disabling them in Keycloak's own console ends
 their turns within a minute (docs/plans/manual-e2e.md, P5-C10).
 

@@ -2387,6 +2387,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr data-service="gen9-langfuse/redis"><td><code>redis</code></td><td>Langfuse's queues between web and worker, and its cache</td><td>13005 → 6379; <code>gen9-langfuse_langfuse_redis_data</code></td><td><a href="#b7-langfuse">Langfuse, inside</a></td></tr>
       <tr data-service="gen9-langfuse/minio"><td><code>minio</code></td><td>S3 storage: raw event batches under <code>events/</code>, and a trace's images. Containers reach it as <code>gen9-langfuse-media:9000</code></td><td>13001 → 9000, 13002 → 9001 (console); <code>gen9-langfuse_langfuse_minio_data</code></td><td><a href="#b6-4">What outlives the account</a></td></tr>
       <tr data-service="gen9-langfuse/minio-lifecycle"><td><code>minio-lifecycle</code></td><td>One-shot, every start: the one-day expiry rule on <code>events/</code></td><td>none</td><td><a href="#b6-4">What outlives the account</a></td></tr>
+      <tr data-service="gen9-langfuse/migrated"><td><code>migrated</code></td><td>One-shot, every start: waits until langfuse-web answers, so its migrations are in, before the worker starts and loads the newest model prices</td><td>none</td><td></td></tr>
     </tbody>
   </table></div>
 
@@ -2911,6 +2912,13 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>make audit</code></td><td>Known vulnerabilities in the npm and Python dependencies (an npm advisory with no fix accepted only with its reason, in <code>scripts/npm-audit.json</code>); npm's registry signatures, and the Python packages' PyPI provenance against their pinned repositories</td><td></td></tr>
       <tr><td><code>make sbom</code></td><td>A CycloneDX SBOM of every image the stacks build or run, in <code>scripts/sbom/out/</code></td><td><a href="#b7-toolbox">The operator's toolbox</a></td></tr>
       <tr><td><code>make scan</code></td><td>Known vulnerabilities in those images; fails on a fixable high or critical one not accepted, with its reason, in <code>scripts/sbom/grype.yaml</code></td><td><a href="#b7-toolbox">The operator's toolbox</a></td></tr>
+      <tr><td><code>make k8s-up</code></td><td>The same stacks on a Kubernetes cluster: each a Helm release of <code>gen9-&lt;stack&gt;/chart</code> in its namespace <code>gen9-&lt;stack&gt;</code>, images by digest from a lock (<code>IMAGES=</code>), settings files as Secrets (<code>docs/operations.md</code>, "Kubernetes")</td><td></td></tr>
+      <tr><td><code>make k8s-diff</code></td><td>What on the cluster differs from what the charts and settings declare, changes made by hand included; exit 2 if anything does</td><td></td></tr>
+      <tr><td><code>make k8s-reset</code></td><td>Puts back what was changed by hand on the cluster: each object replaced whole with what the charts render, the Secrets with the settings files</td><td></td></tr>
+      <tr><td><code>make k8s-down</code></td><td>Uninstalls the stacks from the cluster; their volumes and Secrets stay</td><td></td></tr>
+      <tr><td><code>make k8s-stop-agents</code></td><td><code>make stop-agents</code> on the cluster: every run cancelled and scheduled task paused, then the worker's Deployment scaled to 0</td><td></td></tr>
+      <tr><td><code>make k8s-resume-agents</code></td><td><code>make resume-agents</code> on the cluster: the worker back, and what the stop paused unpaused</td><td></td></tr>
+      <tr><td><code>make k8s-e2e</code></td><td><code>make e2e</code> against the cluster, each stack's ports forwarded to <code>localhost</code></td><td></td></tr>
       <tr><td><code>make updates</code></td><td>Pinned images rebuilt under their tag since, and newer releases (Renovate's dry run)</td><td></td></tr>
       <tr><td><code>make design-sync</code></td><td>Copies <code>gen9-design</code> (tokens, font, logo) into the apps</td><td></td></tr>
       <tr><td><code>make design-check</code></td><td>Fails if an app's copy differs from <code>gen9-design</code></td><td></td></tr>

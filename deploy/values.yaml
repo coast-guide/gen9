@@ -1,0 +1,11 @@
+# Gen9 on Kubernetes: the settings every stack's chart reads (docs/plans/deploy.md, U3 and U5).
+# Each stack is its own Helm release in its own namespace, gen9-<stack>; `make k8s-up` gives each
+# this file, the images by digest from a lock (global.images, from IMAGES=<lock>), and its
+# secrets as the Secret `env`, from the same settings files `make setup` writes for Docker.
+# A stack's own settings are in its chart (gen9-<stack>/chart/values.yaml); to change one here,
+# add it under the stack's name, e.g. `postgres: {storage: 50Gi}`.
+global:
+  # Empty: the cluster's default StorageClass
+  storageClass: ""
+  # The cluster's DNS domain, for the names one stack calls another by
+  clusterDomain: cluster.local

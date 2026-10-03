@@ -93,7 +93,7 @@ list_urls = for s in $(SELECTED); do docker ps $(OWN) \
 WIPE_FLAGS := $(if $(filter 1,$(YES)),--yes)
 
 .DEFAULT_GOAL := help
-.PHONY: help stacks doctor up down ps logs config setup admin-code backup restore stop-agents resume-agents wipe distclean fresh design-sync design-check e2e evals evals-calibrate audit sbom scan updates
+.PHONY: help stacks doctor up down ps logs config k8s-up k8s-diff k8s-reset k8s-down k8s-e2e k8s-stop-agents k8s-resume-agents setup admin-code backup restore stop-agents resume-agents wipe distclean fresh design-sync design-check e2e evals evals-calibrate audit sbom scan updates
 
 help:
 	@echo "Gen9: every command covers all stacks, or only STACKS=\"...\" (see make stacks)"
@@ -112,6 +112,14 @@ help:
 	@echo "  make logs            last $(TAIL) log lines (TAIL=n; FOLLOW=1 follows, with one stack)"
 	@echo "  make config          validate their Compose config"
 	@echo "  make admin-code      the seeded admin's authenticator code now (admins need a second step)"
+	@echo
+	@echo "Kubernetes (kubectl's context, or K8S_CONTEXT=…; settings: deploy/values.yaml, or K8S_VALUES=file):"
+	@echo "  make k8s-up IMAGES=<lock>  each stack a Helm release in its namespace gen9-<stack>, images by digest"
+	@echo "  make k8s-diff        what differs from what's declared, changes by hand too (exit 2 if any)"
+	@echo "  make k8s-reset       put back what was changed by hand: each object replaced with what's declared"
+	@echo "  make k8s-down        uninstall them (keeps volumes and Secrets)"
+	@echo "  make k8s-e2e         make e2e against the cluster (the stacks' ports forwarded to localhost)"
+	@echo "  make k8s-stop-agents | k8s-resume-agents   stop-agents and resume-agents, on the cluster"
 	@echo
 	@echo "Starting over (deletes for good; lists what, then asks you to type yes):"
 	@echo "  make backup DIR=d    copy their data and the keys to it into folder d (they stop meanwhile)"
@@ -213,6 +221,31 @@ config:
 	  exit $$status
 	@if command -v python3 >/dev/null; then scripts/check-networks.py && scripts/check-images.py; \
 	  else echo "python3 not found: skipped the shared-network name and image checks"; fi
+
+# Kubernetes (docs/operations.md, "Kubernetes"): each stack a Helm release of gen9-<stack>/chart in
+# its namespace, with the lock's images (images.env, as IMAGES=… writes it) and its settings files
+# as Secrets (scripts/k8s.sh)
+k8s-up:
+	@$(if $(IMAGES),scripts/images.sh $(IMAGES))
+	@scripts/k8s.sh up $(SELECTED)
+
+k8s-diff:
+	@scripts/k8s.sh diff $(SELECTED)
+
+k8s-reset:
+	@scripts/k8s.sh reset $(SELECTED)
+
+k8s-down:
+	@scripts/k8s.sh down $(SELECTED)
+
+k8s-e2e:
+	@scripts/k8s.sh e2e $(SELECTED)
+
+k8s-stop-agents:
+	@scripts/k8s.sh stop-agents
+
+k8s-resume-agents:
+	@scripts/k8s.sh resume-agents
 
 setup:
 	@scripts/doctor.sh --preflight $(SELECTED)

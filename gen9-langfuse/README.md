@@ -24,7 +24,7 @@ Log in at http://localhost:13000 → org **Gen9** → project **gen9-agent**.
 | File                      | Purpose                                                                    |
 | ------------------------- | -------------------------------------------------------------------------- |
 | `docker-compose.yml`    | Upstream Langfuse file, pinned to a release.**Never edit.**          |
-| `compose.override.yaml` | Our changes: image pins (`tag@digest`), ports, media URLs, ClickHouse's config |
+| `compose.override.yaml` | Our changes: image pins (`tag@digest`), ports, media URLs, ClickHouse's config, and `migrated`, which holds the worker back until the web has migrated, so it loads the newest model prices at start |
 | `clickhouse/disk.xml`   | ClickHouse's own logs, bounded ([Disk](#disk))                             |
 | `init-env.sh`           | Generates`.env` (secrets, URLs, ports, org/project/keys). See `--help` |
 | `.env`                  | Generated, secret, gitignored                                              |

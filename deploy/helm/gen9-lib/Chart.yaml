@@ -1,0 +1,5 @@
+apiVersion: v2
+name: gen9-lib
+description: What every Gen9 stack's chart shares (docs/plans/deploy.md, U3); not installable on its own
+type: library
+version: 0.1.0

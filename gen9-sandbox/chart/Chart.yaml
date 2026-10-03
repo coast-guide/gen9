@@ -1,0 +1,9 @@
+apiVersion: v2
+name: gen9-sandbox
+description: Gen9's sandboxes on Kubernetes, OpenSandbox's server driving kubernetes-sigs/agent-sandbox (docs/plans/deploy.md, U6)
+type: application
+version: 0.1.0
+dependencies:
+  - name: gen9-lib
+    version: 0.1.0
+    repository: file://../../deploy/helm/gen9-lib

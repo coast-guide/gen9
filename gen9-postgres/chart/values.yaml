@@ -1,0 +1,23 @@
+# gen9-postgres on Kubernetes: what compose.yaml doesn't say. Everything else (images, commands,
+# environment, health checks, files, volumes, the names other stacks call) is read from it
+# (deploy/helm/gen9-lib, "gen9.stack"). Shared settings (global.*, settings.*) come from
+# deploy/values.yaml, the images from the lock, the secrets from the Secret `env`: this stack's
+# .env, as Compose reads it (make k8s-up).
+stack: postgres
+usedBy: [agent]
+
+global:
+  images: {}
+  storageClass: ""
+
+services:
+  postgres:
+    kind: StatefulSet
+    ports: {postgres: 5432}
+    storage: {postgres_data: 20Gi}
+    resources:
+      requests: {cpu: 250m, memory: 512Mi}
+      limits: {memory: 2Gi}
+  extensions: {kind: Job}
+  roles: {kind: Job}
+  ready: {kind: none}

@@ -53,6 +53,8 @@ services:
       # the one-shot to exit)
       minio-lifecycle:
         condition: service_completed_successfully
+      migrated:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null -T 3 http://127.0.0.1:3030/api/health"]
       interval: 30s
@@ -60,6 +62,18 @@ services:
       retries: 3
       start_period: 120s
       start_interval: 2s
+
+  # Langfuse's migrations applied before its worker starts: the worker loads the newest model
+  # prices once, at start (Langfuse 4.48.0, worker/src/initialize.ts), and on a fresh install it
+  # ran before the web had made their tables ("relation "models" does not exist"), which left only
+  # the migrations' older prices until it restarted, so calls to newer models were traced without
+  # a cost (docs/plans/deploy.md, U3). The web serves only once it has migrated; Langfuse's own
+  # Compose file and chart start the worker after Postgres alone
+  migrated:
+    logging: *logging
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.48.0@sha256:9349b003a453326b3d2e2033eb94fe5ca9ee12ee237779c10984b9d3dfe0f8ed
+    entrypoint: ["sh", "-c", "until wget -qO /dev/null -T 3 'http://langfuse-web:3000/api/public/health?failIfDatabaseUnavailable=true'; do sleep 2; done"]
+    restart: "no"
 
   minio:
     logging: *logging
