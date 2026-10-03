@@ -211,7 +211,7 @@ spec:
     {{- range $e := $ctr.envFrom | default list }}{{ with $e.secretRef }}{{ $read = append $read (printf "secret/%s=%s" .name (index ($root.Values.secretHashes | default dict) .name | default "none")) }}{{ end }}{{ end }}
     {{- range $e := $ctr.env | default list }}{{ with $e.valueFrom }}{{ with .secretKeyRef }}{{ $read = append $read (printf "secret/%s=%s" .name (index ($root.Values.secretHashes | default dict) .name | default "none")) }}{{ end }}{{ end }}{{ end }}
     {{- end }}
-    {{- range $v := $volumes }}{{ with $v.configMap }}{{ $read = append $read (printf "configmap/%s=%s" .name (index $contents .name | default "none")) }}{{ end }}{{ end }}
+    {{- range $v := $volumes }}{{ with $v.configMap }}{{ $read = append $read (printf "configmap/%s=%s" .name (index $contents .name | default (index ($root.Values.secretHashes | default dict) (printf "configmap/%s" .name)) | default "none")) }}{{ end }}{{ end }}
     metadata:
       labels: {{- include "gen9.labels" $c | nindent 8 }}
       {{- with $read }}
@@ -302,6 +302,13 @@ One Compose service as a container, with the volumes and claims it needs, as JSO
 {{- if has $m.source ($k.dropMounts | default list) }}
 {{- else if hasPrefix "/" $m.source }}
 {{- fail (printf "%s: mounts %s from the host, which a Kubernetes pod can't" $name $m.source) }}
+{{- else if hasPrefix "../" $m.source }}
+{{- /* A folder at the repository's root that several stacks mount (../certs, the CAs of stores
+elsewhere): the ConfigMap of its name, which make k8s-up makes from it in each namespace, or the
+cluster's own; optional, so a published chart installs without one */}}
+{{- $vol := base $m.source }}
+{{- $volumes = append $volumes (dict "name" $vol "configMap" (dict "name" $vol "optional" true)) }}
+{{- $mounts = append $mounts (dict "name" $vol "mountPath" $m.target "readOnly" true) }}
 {{- else if hasPrefix "./" $m.source }}
 {{- $vol := include "gen9.filesName" $m.source }}
 {{- $volumes = append $volumes (dict "name" $vol "configMap" (dict "name" $vol "defaultMode" 365)) }}

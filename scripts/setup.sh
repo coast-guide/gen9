@@ -382,7 +382,7 @@ fi
 # Where gen9-agent reaches its database: gen9-postgres/.env's server of one's own, if it names one
 # (docs/operations.md, "External services"), copied into gen9-agent/.env, so both stacks agree
 if { selected postgres || selected agent; } && [ -f gen9-postgres/.env ] && [ -f gen9-agent/.env ]; then
-  for key in GEN9_POSTGRES_SERVER GEN9_POSTGRES_SERVER_PORT GEN9_POSTGRES_SSLMODE; do
+  for key in GEN9_POSTGRES_SERVER GEN9_POSTGRES_SERVER_PORT GEN9_POSTGRES_SSLMODE GEN9_POSTGRES_SSLROOTCERT; do
     value=$(sed -n "s/^$key=//p" gen9-postgres/.env | tail -n 1)
     if [ -n "$value" ]; then
       [ "$(sed -n "s/^$key=//p" gen9-agent/.env | tail -n 1)" = "$value" ] ||

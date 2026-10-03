@@ -83,7 +83,27 @@ secrets() {
 # Each settings file's hash, by the name of the Secret made of it, as JSON: the chart puts them in
 # the pods' annotation, so a file that changed rolls the pods that read it (secretHashes)
 secret_hashes() {
-  secrets "$1" | { sep=""; printf '{'; while read -r name file; do printf '%s"%s":"%s"' "$sep" "$name" "$(sha256 "$file")"; sep=","; done; printf '}'; }
+  secrets "$1" | { sep=""; printf '{'; while read -r name file; do printf '%s"%s":"%s"' "$sep" "$name" "$(sha256 "$file")"; sep=","; done; printf '%s"configmap/certs":"%s"}' "$sep" "$(certs_hash)"; }
+}
+
+# The CAs of stores elsewhere (certs/ at the repository's root, docs/operations.md, "External
+# services"): the ConfigMap certs in each namespace, which the library mounts where Compose mounts
+# the folder; its files only, the folder's .gitignore left out
+certs_manifest() (
+  ns="gen9-$1"
+  set --
+  for f in certs/*; do [ -f "$f" ] && set -- "$@" --from-file="$f"; done
+  kc -n "$ns" create configmap certs "$@" --dry-run=client -o yaml
+)
+certs_hash() { for f in certs/*; do [ -f "$f" ] && printf '%s %s\n' "$(basename "$f")" "$(sha256 "$f")"; done | sha256sum | cut -c1-64; }
+put_certs() {
+  manifest=$(certs_manifest "$1")
+  if kc -n "gen9-$1" get configmap certs >/dev/null 2>&1; then
+    printf '%s\n' "$manifest" | kc replace -f - >/dev/null
+  else
+    printf '%s\n' "$manifest" | kc create -f - >/dev/null
+  fi
+  echo "configmap certs: from certs/"
 }
 
 # What the cluster needs before a stack's chart (gen9-<stack>/chart/prerequisites.txt: <URL> <sha256>
@@ -132,6 +152,7 @@ case "$action" in
       prerequisites "$s"
       kc create namespace "$ns" --dry-run=client -o yaml | kc apply --server-side -f - >/dev/null
       put_secrets "$s"
+      put_certs "$s"
       helm dependency update "gen9-$s/chart" >/dev/null
       if [ "$action" = reset ]; then how="--server-side=false --force-replace"; else how="--server-side=true --force-conflicts"; fi
       # shellcheck disable=SC2086 # set_images and how are lists of flags
@@ -175,6 +196,9 @@ sys.exit(2 if found else 0)
         have=$(kc -n "$ns" get secret "$name" -o jsonpath='{.data}' 2>/dev/null | sha256sum)
         [ "$want" = "$have" ] || { echo "secret $name differs from $file"; echo drift > "${TMPDIR:-/tmp}/gen9-k8s-drift.$$"; }
       done
+      want=$(certs_manifest "$s" | kc create --dry-run=client -o jsonpath='{.data}' -f - | sha256sum)
+      have=$(kc -n "$ns" get configmap certs -o jsonpath='{.data}' 2>/dev/null | sha256sum)
+      [ "$want" = "$have" ] || { echo "configmap certs differs from certs/"; drift=1; }
       [ ! -f "${TMPDIR:-/tmp}/gen9-k8s-drift.$$" ] || { drift=1; rm -f "${TMPDIR:-/tmp}/gen9-k8s-drift.$$"; }
     done
     exit $((drift * 2)) ;;
