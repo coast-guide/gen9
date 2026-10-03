@@ -82,7 +82,7 @@ Containers of other stacks therefore use `http://gen9-keycloak:8080` on the `gen
 | --- | --- |
 | `Dockerfile` | Theme jar (Node + Maven stage), then the optimized production image (`kc.sh build` with Postgres, health, metrics, the theme) plus the password blocklist |
 | `theme/` | Gen9 login and email theme (Keycloakify) |
-| `compose.yaml` | `keycloak` (prod mode `start --optimized --import-realm`), `configure` (one-shot), `ready` (starts once `configure` succeeded, so `docker compose up --wait` returns only then), `postgres`, `mailpit` |
+| `compose.yaml` | `keycloak` (prod mode `start --optimized --import-realm`), `configure` (one-shot), `ready` (starts once `configure` succeeded, so `docker compose up --wait` returns only then), `postgres` (a profile `.env`'s `COMPOSE_PROFILES` lists; or a server of your own, by `KC_DB_URL_HOST`: [docs/operations.md, "External services"](../docs/operations.md#external-services)), `mailpit` |
 | `config/configure.sh` | Realm settings the import can't express, or that realms imported earlier must get too (the import skips an existing realm), applied with `kcadm.sh` after every start; idempotent. About 25 s: each `kcadm.sh` call starts a JVM, which `KC_OPTS` on this service alone (quick JIT, serial GC, a class-data archive the first call makes) brings from 0.99 to 0.58 s |
 | `realm/gen9-realm.json` | The realm, as code |
 | `init-env.sh` | Generates `.env` (secrets, seeded users) and, optionally, the app settings files. See `--help` |

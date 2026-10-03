@@ -122,6 +122,7 @@ if selected keycloak; then
   echo "gen9-keycloak"
   if [ -f gen9-keycloak/.env ]; then
     kept gen9-keycloak/.env
+    bundled gen9-keycloak/.env postgres KC_DB_URL_HOST
     # An .env from before Temporal's web UI signed in through Keycloak: add its client (configure.sh
     # creates it on the next start)
     if ! grep -Eq '^GEN9_TEMPORAL_UI_CLIENT_SECRET=.+' gen9-keycloak/.env; then
@@ -162,7 +163,7 @@ fi
 
 if selected temporal; then
   echo "gen9-temporal"
-  if [ -f gen9-temporal/.env ]; then kept gen9-temporal/.env; else gen9-temporal/init-env.sh; fi
+  if [ -f gen9-temporal/.env ]; then kept gen9-temporal/.env; bundled gen9-temporal/.env postgres POSTGRES_SEEDS; else gen9-temporal/init-env.sh; fi
   # The internode certificate; an install from before it existed gets one here
   if [ -f gen9-temporal/tls.local.env ]; then kept gen9-temporal/tls.local.env; else gen9-temporal/init-tls.sh; fi
 fi
@@ -182,6 +183,7 @@ if selected models; then
   echo "gen9-models"
   if [ -f gen9-models/.env ]; then
     kept gen9-models/.env
+    bundled gen9-models/.env postgres LITELLM_DB_HOST
     # Settings added since: the admin API's database role and port, generated once
     if ! grep -Eq '^GEN9_ADMIN_DB_PASSWORD=.+' gen9-models/.env; then
       set_env gen9-models/.env GEN9_ADMIN_DB_PASSWORD "$(openssl rand -hex 16)"

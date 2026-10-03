@@ -438,14 +438,38 @@ What the owner asked, restated before starting (they went on to "start the loop"
       passed, the same three keys in the outside Valkey; `make k8s-diff` 0. Both back on the
       bundled Valkey (k3d's on its old PVC), `make diff` 0 on every Docker stack, `make k8s-diff`
       0 for gen9-ui. Four model calls in all, $0.001454.
-    - [ ] U5c-2 The Postgres of gen9-keycloak, gen9-models and gen9-temporal: each one's own
+    - [x] U5c-2 The Postgres of gen9-keycloak, gen9-models and gen9-temporal: each one's own
       settings (Keycloak's `KC_DB_URL`, LiteLLM's database URL, Temporal's `POSTGRES_SEEDS`), TLS
       to the server, and what its owner creates there first (the database and role; Temporal's two
       databases).
+      Done 2026-10-03. Built: each stack's `postgres` a profile with its label; the settings,
+      upstream's own names where there are some: Keycloak's `KC_DB_URL_HOST`, `_PORT`,
+      `_DATABASE`, `_PROPERTIES` and `KC_DB_USERNAME` (in place of `KC_DB_URL`); Temporal's
+      `POSTGRES_SEEDS`, `DB_PORT`, `SQL_TLS_ENABLED` (the schema job's `SQL_TLS` from it); the
+      router's `LITELLM_DB_HOST`, `_PORT`, `_SSLMODE`, in its three URLs (LiteLLM's, the keys job's,
+      the admin API's); `init-env.sh` and `make setup` as for gen9-ui; the SQL that makes the roles
+      and databases, in docs/operations.md. TLS here encrypts without checking the server's
+      certificate (pgjdbc's and Prisma's `require`, Temporal's host verification off): U5c-5.
+      Verified (explore/deploy/NOTES.md, U5c-2): this install's three `.env` without
+      `COMPOSE_PROFILES`, `make up`'s preflight refused each, naming its setting; `make setup`
+      added the lines, `make up` on the bundled ones, `make diff` 0. Then a TLS-only Postgres outside
+      the stacks, the roles made with the docs' SQL: `make up`, every connection TLS, the schemas
+      made; `make diff` named the three bundled Postgres, `make reset` removed them; `stacks.mjs`
+      all passed (after restarting gen9-agent, whose Temporal token the new realm's keys refused:
+      Surprises), the call's spend logged in the outside database, the admin API's routes 200 as
+      `gen9_admin`. On k3d, the three with `kind: none` and the setting in `.env`: no Postgres
+      StatefulSet, every connection from the node TLS, `stacks.mjs` through the Gateway all passed,
+      `make k8s-diff` 0. All back on the bundled ones, their data as before (the bundled spend log
+      went on from 4435 rows), `stacks.mjs` passed again, `make diff` 0, `make k8s-diff` 0 for the
+      three. The model calls cost $0.0022 in all.
     - [ ] U5c-3 gen9-postgres, gen9-agent's database: the host gen9-agent and gen9-postgres's
       `extensions` and `roles` reach, so those run against the outside server too; what that
       server needs (pgvector, pg_textsearch).
     - [ ] U5c-4 Langfuse's Postgres, Redis, ClickHouse and S3, by Langfuse's own variables.
+    - [ ] U5c-5 TLS to a store elsewhere, the server's certificate checked against a CA its owner
+      gives (Keycloak's `KC_DB_TLS_MODE=verify-server` and trust store, Temporal's `SQL_CA` and host
+      verification, libpq's `sslrootcert`, Prisma's `sslcert`), which needs that CA file in the
+      containers in both shapes, a published chart included.
 - [ ] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd
   images, its limits and closed network as on Docker; a chat's command runs in a pod.
   - [x] Choose the workload provider from evidence: OpenSandbox's own `BatchSandbox` (its CRDs
@@ -564,6 +588,9 @@ What the owner asked, restated before starting (they went on to "start the loop"
 
 ## Surprises & Discoveries
 
+- Moving gen9-keycloak to an empty database makes a new realm with new signing keys, and
+  gen9-agent's cached token for Temporal is then refused ("Request unauthorized") until gen9-agent
+  restarts (U5c-2). Copying the data first (operations.md, "External services") keeps the keys.
 - Gen9's sandboxes on Kubernetes, three things Docker gave for free: a MutatingAdmissionPolicy's
   apply configuration "may not mutate atomic arrays, maps or structs:
   .spec.containers[0].securityContext.capabilities.drop" (so it is a JSON patch, the container

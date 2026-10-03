@@ -196,7 +196,32 @@ of your own): one setting points the stack at it, and the bundled one is left ou
 
 | Stack | Store | Setting | What it needs |
 | --- | --- | --- | --- |
+| gen9-keycloak | `postgres`: realms, users, sessions | `KC_DB_URL_HOST`; Keycloak's own `KC_DB_URL_PORT` (5432), `KC_DB_URL_DATABASE` and `KC_DB_USERNAME` (keycloak), `KC_DB_URL_PROPERTIES` (`?sslmode=require` for TLS) | PostgreSQL 14 to 18: a role and a database of its own, below; the password in `KC_DB_PASSWORD` |
+| gen9-models | `postgres`: the router's keys, budgets and spend | `LITELLM_DB_HOST`; `LITELLM_DB_PORT` (5432), `LITELLM_DB_SSLMODE` (`require` for TLS; default `prefer`) | PostgreSQL: the role `litellm`, allowed to create roles (it makes the admin API's `gen9_admin` and keeps its rights), with a database `litellm` it owns; the password in `POSTGRES_PASSWORD`, percent-encoded if it holds a character URLs reserve |
+| gen9-temporal | `postgres`: workflows, their histories and the index that lists them | Temporal's own `POSTGRES_SEEDS` (the host), `DB_PORT` (5432), `SQL_TLS_ENABLED` (`true` for TLS) | PostgreSQL 12 or later: the role `temporal` with the databases `temporal` and `temporal_visibility`, and `btree_gin` in the second; the password in `TEMPORAL_DB_PASSWORD`. The schema job fills both on every start |
 | gen9-ui | `valkey`: sessions, sign-ins in progress, the logout notices already used | `SESSION_STORE_URL`, `redis://:<password>@<host>:6379/0` (`rediss://` over TLS) | Valkey or Redis. Every key has a time to live, so the bundled one evicts the keys closest to expiring when full (`maxmemory-policy volatile-ttl`, 256 MB, about 60,000 sessions); give another the same |
+
+On a Postgres of your own, as its administrator, with the passwords from the stacks' `.env` (psql
+variables, so they don't land in your shell's history):
+
+```sql
+-- psql -v kc=… -v ll=… -v t=… (KC_DB_PASSWORD, gen9-models' POSTGRES_PASSWORD, TEMPORAL_DB_PASSWORD)
+CREATE ROLE keycloak LOGIN PASSWORD :'kc';
+CREATE DATABASE keycloak OWNER keycloak;
+CREATE ROLE litellm LOGIN CREATEROLE PASSWORD :'ll';
+CREATE DATABASE litellm OWNER litellm;
+CREATE ROLE temporal LOGIN PASSWORD :'t';
+CREATE DATABASE temporal OWNER temporal;
+CREATE DATABASE temporal_visibility OWNER temporal;
+\connect temporal_visibility
+CREATE EXTENSION IF NOT EXISTS btree_gin;
+```
+
+The other store starts empty: a stack moved to it starts over (Keycloak with its seeded users
+only, the router with its keys made again, Temporal with no workflows), unless you copy the
+bundled one's data into it first (for Postgres, `pg_dump` from the bundled container and
+`pg_restore` into yours). With TLS (`sslmode=require`, `SQL_TLS_ENABLED`), the connection is
+encrypted, but the server's certificate isn't checked yet against a CA you give.
 
 A store elsewhere is backed up by whoever runs it: `make backup` copies the bundled stores'
 volumes.
