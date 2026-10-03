@@ -42,7 +42,8 @@ jobs:
       - run: npm test
       # Only the build refuses a server-only module imported into a client component
       - run: npm run build
-      - run: npm audit --audit-level=high
+      # High or critical advisories, but those accepted with a reason (scripts/npm-audit.json)
+      - run: node ../scripts/npm-audit.mjs
       # Each installed package's registry signature, and its provenance where it has one
       - run: npm audit signatures
 
@@ -63,7 +64,7 @@ jobs:
           cache-dependency-path: gen9-keycloak/theme/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
-      - run: npm audit --audit-level=high
+      - run: node ../../scripts/npm-audit.mjs
       # Each installed package's registry signature, and its provenance where it has one
       - run: npm audit signatures
 
