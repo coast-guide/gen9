@@ -13,7 +13,10 @@ report, whichever comes first. You're credited in the advisory unless you'd rath
 
 ## Supported versions
 
-Gen9 has no releases yet: fixes go to `main`.
+While Gen9 is 0.y, only the latest release gets fixes, as a patch release (0.y.z+1); fixes go to
+`main` first. Releases are immutable and attested, and say which version runs (Settings, "About
+Gen9"; `gen9 whoami`): how to check one is in [docs/development.md, "Releasing"](docs/development.md#releasing).
+Until the first release, fixes go to `main`.
 
 ## Scope
 
@@ -35,3 +38,4 @@ configuration makes one easier to exploit.
 - The model router's hardening: [gen9-models/README.md](gen9-models/README.md)
 - Stopping every agent at once: [docs/operations.md, "Stop every agent at once"](docs/operations.md#stop-every-agent-at-once)
 - Known vulnerabilities in the dependencies and in every image, and an SBOM of each image: `make audit`, `make sbom` and `make scan` ([docs/operations.md, "Images"](docs/operations.md#images-sboms-and-known-vulnerabilities))
+- How the repository and its releases measure against supply-chain practice: OpenSSF Scorecard, on `main` and weekly (`.github/workflows/scorecard.yml`), into code scanning

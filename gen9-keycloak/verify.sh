@@ -78,9 +78,11 @@ UI=$(api "$KC/admin/realms/gen9/clients?clientId=gen9-ui")
 check "gen9-ui: confidential, code flow only" "False True False False" \
   "$(printf '%s' "$UI" | py 'c=d[0]; print(c["publicClient"], c["standardFlowEnabled"], c["directAccessGrantsEnabled"], c["implicitFlowEnabled"])')"
 check "gen9-ui: PKCE S256" "S256" "$(printf '%s' "$UI" | py 'print(d[0]["attributes"]["pkce.code.challenge.method"])')"
+# Keycloak's answers are read into a variable, then parsed: data, never piped from curl into an
+# interpreter (which OpenSSF Scorecard counts as running a download)
+REDIRECT=$(curl -s -o /dev/null -w '%{redirect_url}' "$KC/realms/gen9/protocol/openid-connect/auth?client_id=gen9-ui&response_type=code&scope=openid&redirect_uri=$GEN9_UI_URL/auth/callback&state=x")
 check "PKCE enforced (no code_challenge)" "Missing parameter: code_challenge_method" \
-  "$(curl -s -o /dev/null -w '%{redirect_url}' "$KC/realms/gen9/protocol/openid-connect/auth?client_id=gen9-ui&response_type=code&scope=openid&redirect_uri=$GEN9_UI_URL/auth/callback&state=x" |
-    python3 -c 'import sys,urllib.parse as u; print(u.parse_qs(u.urlparse(sys.stdin.read()).query)["error_description"][0])')"
+  "$(printf '%s' "$REDIRECT" | python3 -c 'import sys,urllib.parse as u; print(u.parse_qs(u.urlparse(sys.stdin.read()).query)["error_description"][0])')"
 check "unregistered redirect_uri rejected" "1" \
   "$(curl -s "$KC/realms/gen9/protocol/openid-connect/auth?client_id=gen9-ui&response_type=code&scope=openid&redirect_uri=https://evil.example/cb&code_challenge=$(printf 'x%.0s' $(seq 43))&code_challenge_method=S256" | grep -c 'Invalid parameter: redirect_uri' | sed 's/^[1-9][0-9]*$/1/' || true)"
 
@@ -106,9 +108,11 @@ TMP_EMAIL="verify-$(date +%s)@gen9.test"
 api -X POST "$KC/admin/realms/gen9/users" -d "{\"username\":\"$TMP_EMAIL\",\"email\":\"$TMP_EMAIL\",\"enabled\":true,\"firstName\":\"Verify\",\"lastName\":\"Script\"}"
 TMP_ID=$(api "$KC/admin/realms/gen9/users?email=$TMP_EMAIL&exact=true" | py 'print(d[0]["id"])')
 trap 'api -X DELETE "$KC/admin/realms/gen9/users/$TMP_ID" || true' EXIT
-pw_error() { curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
-  "$KC/admin/realms/gen9/users/$TMP_ID/reset-password" -d "{\"type\":\"password\",\"value\":\"$1\",\"temporary\":false}" |
-  python3 -c 'import sys,json; t=sys.stdin.read(); print(json.loads(t)["error"] if t else "accepted")'; }
+pw_error() {
+  answer=$(curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+    "$KC/admin/realms/gen9/users/$TMP_ID/reset-password" -d "{\"type\":\"password\",\"value\":\"$1\",\"temporary\":false}")
+  printf '%s' "$answer" | python3 -c 'import sys,json; t=sys.stdin.read(); print(json.loads(t)["error"] if t else "accepted")'
+}
 check "password < 15 chars rejected" invalidPasswordMinLengthMessage "$(pw_error 'fourteen-chars')"
 check "blocklisted password rejected" invalidPasswordBlacklistedMessage "$(pw_error 'passwordpassword')"
 TMP_PASSWORD="gen9-$(openssl rand -hex 12)"

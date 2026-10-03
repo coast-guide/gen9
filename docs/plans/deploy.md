@@ -498,8 +498,20 @@ What the owner asked, restated before starting (they went on to "start the loop"
     the SBOM read (`imagetools inspect --format '{{ json .SBOM }}'`) on an image built with one;
     `check-charts.sh` now renders a chart from a packed stand-in lock; actionlint. Not yet run:
     the workflow itself, which needs a tag (the owner's first pre-release, U8).
-  - [ ] U7d `SECURITY.md`'s supported versions; "Releasing" in docs/development.md; Scorecard's
-    workflow.
+  - [x] U7d `SECURITY.md`'s supported versions; "Releasing" in docs/development.md; Scorecard's
+    workflow. Done 2026-10-03: SECURITY.md (while 0.y, only the latest release gets fixes, as a
+    patch release); "Releasing" (with U7c); `.github/workflows/scorecard.yml` as ossf/scorecard's
+    own (scorecard-action v2.4.4, its annotated tag resolved to commit 2d114668; codeql-action
+    v4.38.2, 2892aa5e; publishing's restrictions kept). Scorecard v5.5.0 (its image now on
+    `ghcr.io/ossf/scorecard`: `gcr.io` answered "requires billing to be enabled") on `main` that
+    day: 6.6. -1 Packaging and Signed-Releases (no release workflow on `main`, no release yet:
+    this stack brings both); 0 Code-Review, Maintained, Fuzzing, CII-Best-Practices, 3
+    Branch-Protection and Contributors (a one-person repository, months old: the owner's); 8
+    Vulnerabilities, the two advisories #66 accepts; 9 Pinned-Dependencies, two `curl … |
+    python3 -c` in `gen9-keycloak/verify.sh` read as running a download (they parse Keycloak's
+    JSON): now read into a variable first, and Scorecard `--local` on the working copy finds them
+    gone (the one warning left is in an installed `node_modules`, not in git); `verify.sh` all
+    passed against the stacks.
 - [ ] U8 The owner's: the first release tag; GHCR packages public; the `release` environment's
   reviewer; `v*` tags creatable only by them (the ruleset's creation rule); registering at
   bestpractices.dev if they want the badge.
