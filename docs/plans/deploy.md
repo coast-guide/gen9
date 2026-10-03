@@ -804,6 +804,14 @@ What the owner asked, restated before starting (they went on to "start the loop"
     names Kubernetes, releases and the operations they need. Every relative link and heading anchor
     in the four files checked (a script: none broken). The stacks' READMEs, e2e/README and
     gen9-learn were kept in step by each unit as it landed.
+  - [x] Meanwhile, `make e2e` on Docker against the stack's top, its 7 images built from that commit
+    by bake as CI builds them (`~/.cache/gen9-probes/top.lock`), `make diff` 0 first, 2026-10-04:
+    every script ran, in two passes (the suite stops at a failing script): 248 checks, then 464,
+    and two failures, neither in Gen9. `scheduled.mjs` wanted "Next: in 1 or 2 minutes" for a task
+    set to the minute two ahead; saving it took over a minute under the suite's load and the row
+    rightly said "under a minute" (the check fixed, #91; all 20 passed after). `agui.mjs`: the model
+    saved "Favourite bird: heron." without the tag the check looks for; run again, all passed. The
+    model calls cost $0.1791 (420 calls).
   - [ ] `make e2e` against Docker and kind from published images (after the owner's U8).
 
 
