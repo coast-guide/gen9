@@ -6,6 +6,12 @@
 # Adapted from github.com/temporalio/samples-server compose/scripts/setup-postgres.sh.
 set -eu
 : "${POSTGRES_SEEDS:?}" "${POSTGRES_USER:?}" "${SQL_PASSWORD:?}"
+# TLS as the server has it (its SQL_CA and SQL_HOST_VERIFICATION, in temporal-sql-tool's own names):
+# the certificate checked against the CA, its name too, or only encrypted
+if [ "${SQL_TLS:-false}" = true ]; then
+  [ -z "${SQL_CA:-}" ] || export SQL_TLS_CA_FILE="$SQL_CA"
+  [ "${SQL_HOST_VERIFICATION:-false}" = true ] || export SQL_TLS_DISABLE_HOST_VERIFICATION=true
+fi
 
 for db in temporal:temporal temporal_visibility:visibility; do
   name=${db%%:*} dir=${db#*:}

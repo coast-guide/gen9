@@ -520,6 +520,10 @@ What the owner asked, restated before starting (they went on to "start the loop"
       through the Gateway all passed, `make k8s-diff` 0 (after a fix: `make setup DOMAIN=` had
       rewritten the outside S3's address, Surprises). Both back on the bundled stores, `make diff`
       0, `make k8s-diff` 0 for seven stacks. The model calls cost $0.0015.
+    - [ ] U5c-6 gen9-agent's sweep refuses to delete what looks like a different Keycloak rather
+      than deleted people: a realm that knows none (or few) of the people Gen9 knows (Surprises,
+      2026-10-03), as identity provisioning services stop on mass deletions (to research: their
+      thresholds, e.g. Microsoft Entra's accidental-deletions prevention), an admin's way to go on.
     - [ ] U5c-5 TLS to a store elsewhere, the server's certificate checked against a CA its owner
       gives (Keycloak's `KC_DB_TLS_MODE=verify-server` and trust store, Temporal's `SQL_CA` and host
       verification, libpq's `sslrootcert`, Prisma's `sslcert`), which needs that CA file in the
@@ -564,9 +568,27 @@ What the owner asked, restated before starting (they went on to "start the loop"
         file added to `certs/`: exit 2 and the pods' checksum changed, removed: 0. Both back on
         the bundled server, every k3d stack updated, `make k8s-diff` 0 for seven, `make diff` 0.
         The model calls cost $0.0015.
-      - [ ] U5c-5b Keycloak, Temporal (its schema tool's settings from the server's, in
+      - [x] U5c-5b Keycloak, Temporal (its schema tool's settings from the server's, in
         `setup-schema.sh`) and the router (Prisma's `sslaccept=strict&sslcert=`, psycopg's
         `sslrootcert`, each in its own URL).
+        Done 2026-10-03. Built: `certs/` mounted by Keycloak, Temporal's server and schema job, and
+        LiteLLM, the keys job and the admin API; Keycloak by its `KC_DB_URL_PROPERTIES`
+        (`?sslmode=verify-full&sslrootcert=…`, pgjdbc's); Temporal's `SQL_CA` and
+        `SQL_HOST_VERIFICATION` (its session sets `verify-full` and `sslrootcert` from them, read in
+        `sqlplugin/postgresql/session/session.go` at v1.32.0), `setup-schema.sh` giving its tool
+        the same; the router's `LITELLM_DB_SSLROOTCERT`, in Prisma's terms in LiteLLM's URL and
+        libpq's in the others' (a later `sslmode` wins in libpq, probed); the library resolves a
+        `${X}` inside `${Y:+…}`, as Compose does (probed). Verified on Docker with a TLS-only
+        Postgres whose certificate the test CA signed, the three databases made by the docs' SQL:
+        each stack connected with its check, every connection TLS, `stacks.mjs` all passed; by an
+        address the certificate doesn't name, each refused (Keycloak: "hostname 192.168.65.2 could
+        not be verified by hostnameverifier PgjdbcHostnameVerifier"; LiteLLM: "certificate verify
+        failed"; the keys job's libpq: "does not match host name"; Temporal: "x509: cannot validate
+        certificate for 192.168.65.2 because it doesn't contain any IP SANs"). On k3d by the
+        server's name, the CA from the ConfigMap: every connection TLS, `stacks.mjs` through the
+        Gateway all passed, `make k8s-diff` 0. Both back on the bundled servers, `make diff` 0,
+        `make k8s-diff` 0 for seven. While Keycloak pointed at the empty database, gen9-agent's
+        sweep erased the seeded users' data (Surprises; U5c-6). The model calls cost $0.0022.
       - [ ] U5c-5c Langfuse (Prisma's in `DATABASE_URL`; `NODE_EXTRA_CA_CERTS`; ClickHouse's
         migrations, Go's) and gen9-ui (`NODE_EXTRA_CA_CERTS` for `rediss://`).
 - [x] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd
@@ -689,6 +711,13 @@ What the owner asked, restated before starting (they went on to "start the loop"
 
 ## Surprises & Discoveries
 
+- Pointing gen9-keycloak at an empty database (U5c-5b's test, 2026-10-03, on this machine's
+  install) made gen9-agent's `sweep-deleted-users` see every person as deleted in Keycloak: within
+  minutes it started a DeleteAccountWorkflow for both seeded users, which erased their chats (2
+  threads), memory and the router's records of them (3,917 and 333 spend rows). No backup existed.
+  Each missing user is confirmed by its own lookup (`accounts.find_deleted_users`), so a different
+  realm passes that check. Docs now say to move Keycloak's database with its data, or stop
+  gen9-agent first; the sweep's own guard is U5c-6.
 - `value_of` in `scripts/setup.sh` gives its default for an empty value as for a missing one, so
   `COMPOSE_PROFILES=` (every store elsewhere) read as the default `minio`, and `make setup DOMAIN=`
   rewrote an outside S3's media address (U5c-4, found on k3d). A setting whose empty value means

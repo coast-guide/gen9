@@ -217,19 +217,20 @@ global.images, else the images.lock a release packs (gen9.lockImages) */ -}}
 {{- $s = replace $m $value $s -}}
 {{- end -}}
 {{- end -}}
-{{- /* ${X:+value} and ${X+value}: the value when X is set, else empty */ -}}
-{{- range $m := regexFindAll "\\$\\{[A-Z0-9_]+:?\\+[^{}]*\\}" $s -1 -}}
-{{- $var := regexReplaceAll "^\\$\\{([A-Z0-9_]+).*$" $m "${1}" -}}
-{{- $alt := regexReplaceAll "^\\$\\{[A-Z0-9_]+:?\\+(.*)\\}$" $m "${1}" -}}
-{{- $s = replace $m (ternary $alt "" (or (hasKey $settings $var) (has $var $fromEnv))) $s -}}
-{{- end -}}
-{{- /* ${X} and $X: X's value, or empty when nothing sets it */ -}}
+{{- /* ${X} and $X: X's value, or empty when nothing sets it; before ${X:+value}, which may hold
+one (${LITELLM_DB_SSLROOTCERT:+&sslcert=${LITELLM_DB_SSLROOTCERT}}) */ -}}
 {{- range $m := regexFindAll "\\$\\{[A-Z_][A-Z0-9_]*\\}|\\$[A-Z_][A-Z0-9_]*" $s -1 -}}
 {{- $var := trimSuffix "}" (trimPrefix "{" (trimPrefix "$" $m)) -}}
 {{- $value := "" -}}
 {{- if hasKey $settings $var }}{{ $value = toString (index $settings $var) }}
 {{- else if has $var $fromEnv }}{{ $value = printf "$(%s)" $var }}{{ end -}}
 {{- $s = replace $m $value $s -}}
+{{- end -}}
+{{- /* ${X:+value} and ${X+value}: the value when X is set, else empty */ -}}
+{{- range $m := regexFindAll "\\$\\{[A-Z0-9_]+:?\\+[^{}]*\\}" $s -1 -}}
+{{- $var := regexReplaceAll "^\\$\\{([A-Z0-9_]+).*$" $m "${1}" -}}
+{{- $alt := regexReplaceAll "^\\$\\{[A-Z0-9_]+:?\\+(.*)\\}$" $m "${1}" -}}
+{{- $s = replace $m (ternary $alt "" (or (hasKey $settings $var) (has $var $fromEnv))) $s -}}
 {{- end -}}
 {{- $s | replace "\u0000" "$$" -}}
 {{- end }}

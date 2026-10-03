@@ -35,8 +35,9 @@ services:
         required: false
     environment:
       # The bundled Postgres, or another by Keycloak's own options, with postgres left out of
-      # COMPOSE_PROFILES in .env (docs/operations.md, "External services"); ?sslmode=require
-      # in KC_DB_URL_PROPERTIES for TLS
+      # COMPOSE_PROFILES in .env (docs/operations.md, "External services"); in KC_DB_URL_PROPERTIES,
+      # ?sslmode=require for TLS, ?sslmode=verify-full&sslrootcert=/etc/gen9/certs/<CA> to check
+      # the server's certificate too
       KC_DB_URL_HOST: ${KC_DB_URL_HOST:-postgres}
       KC_DB_URL_PORT: ${KC_DB_URL_PORT:-5432}
       KC_DB_URL_DATABASE: ${KC_DB_URL_DATABASE:-keycloak}
@@ -79,6 +80,7 @@ services:
       GEN9_SEED_USER_PASSWORD: ${GEN9_SEED_USER_PASSWORD:?run ./init-env.sh first}
     volumes:
       - ./realm:/opt/keycloak/data/import:ro
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     networks:
       default: {}
       gen9-keycloak:
