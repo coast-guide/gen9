@@ -75,21 +75,37 @@ What the owner asked, restated before starting (they went on to "start the loop"
   - The running version visible (API, web app, CLI), so drift is checkable by version too.
   - OpenSSF Scorecard and what it finds; the Best Practices badge.
   - Anything else today's sources list that Gen9 lacks.
-- [ ] R2 Probes, outside the repository (scratch directory, throwaway projects and clusters),
+- [x] R2 Probes, outside the repository (scratch directory, throwaway projects and clusters),
   written into `gen9-agent/explore/deploy/NOTES.md`:
-  - [ ] R2a `docker compose publish` on one Gen9 stack: what it refuses (bind mounts: Gen9
+  - [x] R2a `docker compose publish` on one Gen9 stack: what it refuses (bind mounts: Gen9
     mounts 16 files and folders, and the Docker socket; `configs:`), `--resolve-image-digests`,
     running it back with `docker compose -f oci://…`, what a multi-project deployment (8 Compose
     projects joined by networks) needs.
-  - [ ] R2b `docker compose bridge convert` on one Gen9 stack: what it makes (Deployments or
+  - [x] R2b `docker compose bridge convert` on one Gen9 stack: what it makes (Deployments or
     StatefulSets, Secrets, networks to NetworkPolicies, volumes), with Docker's default
     transformation and with templates of our own; whether Compose can stay the one definition.
-  - [ ] R2c kind and k3d on this machine: create, load or pull images, a Gateway API controller,
+  - [x] R2c kind and k3d on this machine: create, load or pull images, a Gateway API controller,
     delete; time, memory and disk.
-  - [ ] R2d OpenSandbox's Kubernetes runtime on kind: its CRDs and controller chart, the server
+  - [x] R2d OpenSandbox's Kubernetes runtime on kind: its CRDs and controller chart, the server
     with `[kubernetes]`, a sandbox pod with Gen9's egress image, gVisor or not.
-  - [ ] R2e Drift on Kubernetes: `helm diff upgrade` (and its three-way mode) and
+  - [x] R2e Drift on Kubernetes: `helm diff upgrade` (and its three-way mode) and
     `kubectl diff --server-side`, each against an edit made by hand.
+- [ ] R3 Each third-party part's own official deployment guides, of the version Gen9 pins, read
+  that day (the owner: "for third party stacks we are using refer to their own official docs to
+  see if they provide guides - latest research"), findings and links in the Decision Log
+  ("Third-party guides"), before U3 chooses adopt, adapt or build for each:
+  - [ ] Keycloak 26.7.5 (container guide, Operator, production configuration).
+  - [ ] Temporal server 1.32.0 and UI 2.54.1 (self-hosted guide, the Helm chart, production
+    checklist).
+  - [ ] Langfuse 4.48.0 (self-hosting: Docker Compose, Kubernetes Helm; ClickHouse, S3, Redis,
+    Postgres requirements).
+  - [ ] LiteLLM proxy v1.103.1 (Docker, Helm chart, production settings).
+  - [ ] OpenSandbox 1.1.0 (Kubernetes deployment, controller, secure runtime).
+  - [ ] PostgreSQL 18 and 16/17 with pgvector (the image's docs; CloudNativePG as the operator).
+  - [ ] Valkey 9.1, Redis 7.4 (the official images, valkey-helm).
+  - [ ] ClickHouse 26.8 (its Docker image, its Kubernetes operator).
+  - [ ] MinIO (Chainguard image) and the S3 alternatives Langfuse documents.
+  - [ ] SearXNG, Mailpit, Ollama and llama.cpp server (their container docs).
 - [ ] U1 Images built once: a bake file for the 7 Gen9 images from the Dockerfiles Compose builds;
   a workflow that builds them for linux/amd64 and linux/arm64, pushes them to
   `ghcr.io/coast-guide/gen9-*`, and attests provenance and SBOM; a lock of their digests in git.
@@ -112,9 +128,17 @@ What the owner asked, restated before starting (they went on to "start the loop"
 
 ## Surprises & Discoveries
 
-- This machine has Docker 29.8.1 and Compose v5.5.1, and no Kubernetes tooling (no kind, k3d,
-  helm, kubectl): `which kind k3d helm kubectl` printed nothing. R2c installs them from their
-  release pages, checksums verified, into `~/.local/bin`.
+- OpenSandbox's Kubernetes runtime works with Gen9's egress and execd images unchanged (a command
+  ran, the allowed host answered, an undeclared host and the metadata address were blocked), but
+  its pod is looser than Gen9's Docker sandboxes: a privileged init container, only `NET_ADMIN`
+  dropped, root, 2 GiB, no NetworkPolicy; and the chart doesn't create the sandboxes' namespace
+  (NOTES.md, R2d).
+
+- This machine has Docker 29.8.1 (Docker Desktop: a VM of 20 CPUs and 17.6 GiB) and Compose
+  v5.5.1, and had no Kubernetes tooling: `which kind k3d helm kubectl` printed nothing. R2c
+  installed them from their release pages, checksums verified, into `~/.local/bin`. Docker Desktop
+  shares only the home folder with its VM: a probe under `/tmp` fails with "mounts denied", so
+  probes run in `~/.cache/gen9-probes`.
 - `docker compose publish` refuses a project "with service(s) containing bind mounts", "containing
   only a `build` section", or including local files with `include`
   ([Docker docs](https://docs.docker.com/compose/how-tos/oci-artifact/)). Gen9's Compose files
@@ -122,7 +146,19 @@ What the owner asked, restated before starting (they went on to "start the loop"
   gen9-langfuse/*.y*ml`): Keycloak's realm and config, Postgres's initdb and scripts, ClickHouse's
   disk settings, OpenSandbox's `config.toml`, Temporal's initdb, scripts and dynamic config, the
   router's config, SearXNG's settings, the models' scripts and admin page; and OpenSandbox's
-  server mounts the Docker socket.
+  server mounts the Docker socket. In Compose v5.5.1 they are not refused after all: Compose asks
+  to publish "only the bind mount declarations … (not content)", and pulled back they point at an
+  empty folder; inline `configs:` travel (explore/deploy/NOTES.md, R2a).
+- Compose Bridge's default transformation makes manifests kind's API server refuses
+  (`restartPolicy: "unless-stopped"`; `"yes"` turned into a boolean), crashes on Gen9's
+  healthchecks, and writes secrets into the Deployments as plain values (NOTES.md, R2b).
+- Neither local cluster routes HTTP to a Gateway out of the box: kind has no Gateway API; k3s
+  installs its CRDs (v1.6.1) and Traefik 3.7.13 with only the Ingress provider on (NOTES.md, R2c).
+- Drift by hand escapes the obvious checks: `helm diff upgrade` without `--three-way-merge` says
+  nothing changed, because it compares with the release Helm stored; Compose's config hash misses
+  `docker update` and files changed inside a container (NOTES.md, R2e and R2a).
+- Helm 4 refuses a plugin it can't verify: helm-diff installs from its release tarball with the
+  `.prov` and the maintainer's key, not from the git URL (NOTES.md, R2e).
 - Langfuse's own chart (langfuse-k8s 2.1.3) brings different parts than its Compose file: Postgres
   from groundhog2k's chart, Valkey, and SeaweedFS for S3 where Compose runs MinIO (its
   `Chart.yaml`). Upstream charts would make the Kubernetes shape differ from the Docker one.
@@ -186,6 +222,27 @@ candidate); Temporal's chart temporal-1.7.0, Langfuse's langfuse-2.1.3.
   ([GitHub, generated release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes)),
   which fits prose subjects. SemVer 2.0.0 is current; "Major version zero (0.y.z) is for initial
   development. Anything MAY change at any time" ([semver.org](https://semver.org/)).
+
+- Decision: the chart is written by hand, not generated from the Compose files. Rationale: R2b,
+  Compose Bridge's default transformation makes manifests the API server refuses and puts secrets in
+  them; templates of our own would be a second chart in Go templates over Compose's model, with
+  less to check them by than Helm has (`helm lint`, `values.schema.json`, `helm template` into
+  kubeconform). A check compares the two shapes instead (U3): the same images by digest, the same
+  settings keys, the same ports and the same configuration files.
+- Decision: the drift check on Kubernetes is `helm diff upgrade --three-way-merge
+  --detailed-exitcode` (exit 2 names each object), and putting things back is
+  `helm upgrade --server-side=true --force-conflicts`. Rationale: R2e; the default two-way diff
+  missed a change by hand, a plain upgrade failed on the field managers the change left. A GitOps
+  controller (Flux v2.9.6, Argo CD v3.5.3) reconciles continuously and stays an option a cluster's
+  owner can point at the same chart; Gen9 doesn't require one.
+- Decision: the drift check on Docker compares, per service, Compose's config hash
+  (`docker compose config --hash '*'` against the `com.docker.compose.config-hash` label), the image
+  digest running against the lock, the settings `docker update` changes, and containers Compose
+  doesn't declare; containers whose files must not change run `read_only` (U2, U4). Rationale: R2a,
+  the hash alone missed `docker update` and an edited file.
+- Decision: how HTTP gets in is a setting with three answers: an HTTPRoute on a Gateway the cluster
+  has (named in the settings), an Ingress of a class it has, or neither. Rationale: R2c, no cluster
+  routes to a Gateway out of the box, and only k3s routes Ingress.
 
 ## Outcomes & Retrospective
 
