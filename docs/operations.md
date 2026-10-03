@@ -172,7 +172,8 @@ To try it here: `kind create cluster --config deploy/kind.yaml` makes a cluster 
 can pull from a registry on this machine (kind's [local registry](https://kind.sigs.k8s.io/docs/user/local-registry/)
 recipe: connect the registry to the `kind` network and give each node a `hosts.toml`); `k3d
 cluster create --config deploy/k3d.yaml` makes a k3s one (a registry of your own with
-`--registry-config`, k3s's `registries.yaml`). `make
+`--registry-config`, k3s's `registries.yaml`), whose Traefik serves Gateways on 127.0.0.1's ports
+80 and 443 (a listener on its entry points' ports, 8443 for HTTPS). `make
 k8s-e2e` runs `make e2e` against the cluster: it forwards each port a stack publishes on Docker to
 the same port on 127.0.0.1, and puts `e2e/k8s` first on `PATH`, whose `docker` reaches the pods.
 
