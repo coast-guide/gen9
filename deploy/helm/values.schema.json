@@ -274,6 +274,13 @@
           ]
         }
       }
+    },
+    "secretHashes": {
+      "description": "Each settings file's hash, by its Secret's name (scripts/k8s.sh): a change rolls the pods that read it",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
     }
   }
 }

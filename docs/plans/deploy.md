@@ -556,6 +556,23 @@ What the owner asked, restated before starting (they went on to "start the loop"
   waited, then "Finished upserting default model prices in 2113ms", 185 prices, gpt-6 among them;
   on Docker, a fresh throwaway project of gen9-langfuse (its own volumes): `migrated` waited, exited
   0, and the worker, started 20 s after the web, "Finished upserting default model prices in 2102ms".
+- A settings file changed reached its Secret (`make k8s-up`), but no pod restarted: Kubernetes
+  rolls pods only when their template changes. Under a domain on kind, Keycloak kept its old
+  issuer and no `KC_PROXY_HEADERS` while `make k8s-diff` said 0, as the Secret and the chart
+  matched what was declared. On Docker, Compose recreates a container whose settings changed.
+  Helm's "Automatically Roll Deployments" (a checksum in the pod template): `scripts/k8s.sh` hands
+  the chart each settings file's hash (`secretHashes`), and every workload's pod template carries
+  `gen9/settings`, a checksum of the Secrets and ConfigMaps its containers read. Verified on kind:
+  every pod rolled once and Keycloak had the domain's settings; a key added to `gen9-ui/.env`,
+  `make k8s-diff` named `prod`'s and `sandbox`'s checksum, `make k8s-up` rolled them; removed, 0.
+- On kind, under a domain, `stacks.mjs` passed but for the streamed answer ("Lost the connection to
+  this answer"; saved, the reload showed it): cloud-provider-kind's Envoy has a 15 s route timeout
+  (`upstream_rq_timeout: 8` on the web app's cluster). The routes now ask for none
+  (`timeouts.request: "0s"`, which "SHOULD disable the timeout completely", Gateway API's
+  HTTPRouteTimeouts, Extended), as gen9-edge sets none on Docker; cloud-provider-kind v0.12.0
+  ignores it (its route action reads no timeouts, and its GatewayClass doesn't list
+  `HTTPRouteRequestTimeout`), so on kind a stream longer than 15 s is cut. A Gateway that honours
+  it is the operator's choice; k3s's Traefik is tried next (U5b-4).
 - Not a difference between the shapes, kept for a follow-up: `runs.mjs`'s "a task with steps"
   failed once on kind and passed when run again. The failing run took the long way (13 tools
   live, "Used the research brief skill"; "Used 6 tools and a plan" when done; "Made a plan" after

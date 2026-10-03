@@ -80,6 +80,12 @@ secrets() {
   done
 }
 
+# Each settings file's hash, by the name of the Secret made of it, as JSON: the chart puts them in
+# the pods' annotation, so a file that changed rolls the pods that read it (secretHashes)
+secret_hashes() {
+  secrets "$1" | { sep=""; printf '{'; while read -r name file; do printf '%s"%s":"%s"' "$sep" "$name" "$(sha256 "$file")"; sep=","; done; printf '}'; }
+}
+
 # What the cluster needs before a stack's chart (gen9-<stack>/chart/prerequisites.txt: <URL> <sha256>
 # per line; agent-sandbox for gen9-sandbox), each checked against its digest, then applied
 # server-side (apply) or compared with what runs (diff, which writes $2 when it differs)
@@ -129,7 +135,7 @@ case "$action" in
       if [ "$action" = reset ]; then how="--server-side=false --force-replace"; else how="--server-side=true --force-conflicts"; fi
       # shellcheck disable=SC2086 # set_images and how are lists of flags
       helm --kube-context "$ctx" upgrade --install "$ns" "gen9-$s/chart" -n "$ns" -f "$values" \
-        $set_images --set-json "fromEnv=$(from_env "$s")" $how --wait --timeout 15m
+        $set_images --set-json "fromEnv=$(from_env "$s")" --set-json "secretHashes=$(secret_hashes "$s")" $how --wait --timeout 15m
     done ;;
   diff)
     check_settings
@@ -143,6 +149,7 @@ case "$action" in
       helm dependency update "gen9-$s/chart" >/dev/null
       # shellcheck disable=SC2086 # set_images is a list of flags
       helm --kube-context "$ctx" diff upgrade "$ns" "gen9-$s/chart" -n "$ns" -f "$values" $set_images --set-json "fromEnv=$(from_env "$s")" \
+        --set-json "secretHashes=$(secret_hashes "$s")" \
         --three-way-merge --detailed-exitcode --no-color --no-hooks || { rc=$?; [ "$rc" = 2 ] && drift=1 || exit "$rc"; }
       # (Hooks aside: the one-shot Jobs are gone once done, as they should be)
       # What a merge keeps and so no diff shows: a field someone else added (kubectl set env, edit,
