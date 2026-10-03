@@ -19,11 +19,16 @@ app.kubernetes.io/instance: {{ .root.Release.Name }}
 {{- end }}
 
 {{/*
-One of Gen9's own images, by digest, from the lock make passes as global.images (scripts/images.sh):
-(dict "root" $ "name" "postgres"). There is no default: what runs is what the lock says.
+One of Gen9's own images, by digest: from global.images (make k8s-up passes the lock's,
+scripts/images.sh), else from the images.lock a release packs into its charts, so a release's chart
+runs that release's images (scripts/release-charts.sh): (dict "root" $ "name" "postgres"). There is
+no default: what runs is what a lock says.
 */}}
 {{- define "gen9.image" -}}
 {{- $ref := index (.root.Values.global.images | default dict) .name -}}
+{{- if not $ref -}}
+{{- $ref = index (include "gen9.lockImages" .root | fromJson) .name -}}
+{{- end -}}
 {{- if not $ref -}}
 {{- fail (printf "global.images.%s is not set: deploy from a lock (make k8s-up IMAGES=<lock>)" .name) -}}
 {{- end -}}
@@ -31,6 +36,23 @@ One of Gen9's own images, by digest, from the lock make passes as global.images 
 {{- fail (printf "global.images.%s must be by digest, not %s" .name $ref) -}}
 {{- end -}}
 {{- $ref -}}
+{{- end }}
+
+{{/*
+The images.lock packed into a release's chart, as global.images would give it: each line
+<registry>/<path>/gen9-<image>@sha256:<digest>, keyed as global.images is (gen9-sandbox-egress
+-> sandboxEgress). Empty without one.
+*/}}
+{{- define "gen9.lockImages" -}}
+{{- $images := dict -}}
+{{- range $line := splitList "\n" (.Files.Get "images.lock") -}}
+{{- $line = trim $line -}}
+{{- if and $line (not (hasPrefix "#" $line)) -}}
+{{- $name := trimPrefix "gen9-" (base (regexReplaceAll "@sha256:.*$" $line "")) -}}
+{{- $_ := set $images (untitle (camelcase (replace "-" "_" $name))) $line -}}
+{{- end -}}
+{{- end -}}
+{{- toJson $images -}}
 {{- end }}
 
 {{/*
@@ -174,8 +196,9 @@ ${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:54
 */}}
 {{- define "gen9.interpolate" -}}
 {{- $settings := include "gen9.settings" .root | fromJson -}}
-{{- /* Gen9's own images by digest from the lock, as make up reads GEN9_<IMAGE>_IMAGE from images.env */ -}}
-{{- range $key, $ref := .root.Values.global.images | default dict -}}
+{{- /* Gen9's own images by digest from the lock, as make up reads GEN9_<IMAGE>_IMAGE from images.env:
+global.images, else the images.lock a release packs (gen9.lockImages) */ -}}
+{{- range $key, $ref := merge (deepCopy (.root.Values.global.images | default dict)) (include "gen9.lockImages" .root | fromJson) -}}
 {{- $_ := set $settings (printf "GEN9_%s_IMAGE" (snakecase $key | upper)) $ref -}}
 {{- end -}}
 {{- $fromEnv := .root.Values.fromEnv | default list -}}

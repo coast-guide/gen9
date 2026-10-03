@@ -484,8 +484,34 @@ What the owner asked, restated before starting (they went on to "start the loop"
     `release` environment. Verified without publishing anything: the workflow's jobs run on a
     branch up to the draft, and the parts here (charts packaged, bundle made, `make up IMAGES=` from
     it).
-  - [ ] U7d `SECURITY.md`'s supported versions; "Releasing" in docs/development.md; Scorecard's
-    workflow.
+    Built 2026-10-03: `.github/workflows/release.yml` (the version checked; `images.yml` called,
+    now `workflow_call` with the version's tag too and its attestations kept; the charts and the
+    bundle attested, one attestation for the eight charts by `subject-checksums`, the bundle by
+    `subject-path`, per actions/attest v4.2.2's README; each image's SBOM read from GHCR; a draft
+    with `--generate-notes`, the assets, published in the `release` environment). What a release's
+    chart runs: the library reads `images.lock` packed inside when no values give the images
+    (`gen9.lockImages`), values first. Verified here: `scripts/release-charts.sh` packaged and
+    pushed the eight charts to the local registry; `helm show chart` gave the version and
+    appVersion, `helm template` the lock's digests, and k3d's gen9-ui upgraded from
+    `oci://127.0.0.1:25000/charts/gen9-ui` with no images in its values ran the lock's digest;
+    `scripts/release-bundle.sh` made the same bytes twice, its lock taken by `scripts/images.sh`;
+    the SBOM read (`imagetools inspect --format '{{ json .SBOM }}'`) on an image built with one;
+    `check-charts.sh` now renders a chart from a packed stand-in lock; actionlint. Not yet run:
+    the workflow itself, which needs a tag (the owner's first pre-release, U8).
+  - [x] U7d `SECURITY.md`'s supported versions; "Releasing" in docs/development.md; Scorecard's
+    workflow. Done 2026-10-03: SECURITY.md (while 0.y, only the latest release gets fixes, as a
+    patch release); "Releasing" (with U7c); `.github/workflows/scorecard.yml` as ossf/scorecard's
+    own (scorecard-action v2.4.4, its annotated tag resolved to commit 2d114668; codeql-action
+    v4.38.2, 2892aa5e; publishing's restrictions kept). Scorecard v5.5.0 (its image now on
+    `ghcr.io/ossf/scorecard`: `gcr.io` answered "requires billing to be enabled") on `main` that
+    day: 6.6. -1 Packaging and Signed-Releases (no release workflow on `main`, no release yet:
+    this stack brings both); 0 Code-Review, Maintained, Fuzzing, CII-Best-Practices, 3
+    Branch-Protection and Contributors (a one-person repository, months old: the owner's); 8
+    Vulnerabilities, the two advisories #66 accepts; 9 Pinned-Dependencies, two `curl … |
+    python3 -c` in `gen9-keycloak/verify.sh` read as running a download (they parse Keycloak's
+    JSON): now read into a variable first, and Scorecard `--local` on the working copy finds them
+    gone (the one warning left is in an installed `node_modules`, not in git); `verify.sh` all
+    passed against the stacks.
 - [ ] U8 The owner's: the first release tag; GHCR packages public; the `release` environment's
   reviewer; `v*` tags creatable only by them (the ruleset's creation rule); registering at
   bestpractices.dev if they want the badge.

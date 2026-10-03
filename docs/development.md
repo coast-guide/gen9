@@ -107,3 +107,33 @@ server over TLS (its realm's email settings) and gen9-agent at one with `smtps:/
 3. Check with `make config STACKS=<name>`, then `make up STACKS=<name>`.
 
 A stack that runs only once set up (gen9-edge, with a domain) also goes in the `Makefile`'s `OPTIONAL`: `make up`, `config` and `diff` leave it out, with a note, until the files in its `NEEDS_<name>` exist. The scripts that list the stacks (`scripts/setup.sh`, `wipe.sh`, `backup.sh`, `doctor.sh`, `sbom.sh`, `check-networks.py`, `drift.py`) learn its name too.
+
+## Releasing
+
+One version for all of Gen9 (SemVer, `vX.Y.Z`; `vX.Y.Z-rc.N` for a pre-release): the images, the charts, the Compose bundle, the CLI and the API, tested together. gen9-agent, gen9-cli and gen9-ui declare it in their `pyproject.toml` and `package.json`, and `scripts/check-version.py` (in `make config`, so in CI) fails if they differ.
+
+To release: a pull request that sets the new version in those three files (and, when a setting or a migration needs the reader, the "Upgrading" notes to add to the release), merged once `main` is green and `make e2e` passed against both shapes from its images; then the tag, by the owner:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The tag runs `.github/workflows/release.yml`, once: it fails unless the tag is the declared version; builds the 7 images for linux/amd64 and linux/arm64 (`images.yml`), pushed to `ghcr.io/coast-guide/<image>` tagged with the version and attested; packages the 8 charts with the version and the release's `images.lock` inside (`scripts/release-charts.sh`: the charts take their images from it), pushes them to `oci://ghcr.io/coast-guide/charts` and attests them; makes the Compose bundle (`scripts/release-bundle.sh`: the tree at the tag with its lock, the same bytes for the same commit) and attests it; then drafts a release with GitHub's notes (the pull requests merged since the last one, grouped by `.github/release.yml`), the lock, the charts' lock, the bundle, each image's SBOM and the attestations (`*.sigstore.json`), and publishes it in the `release` environment once its reviewer approves. Published, it can't change: releases are immutable, and `v*` tags can't be moved or deleted.
+
+What a release runs and how to check it (a chart from GHCR runs its release's images even without `IMAGES`; its Secrets and settings come as `make k8s-up` makes them):
+
+```bash
+tar xzf gen9-0.1.0.tar.gz && cd gen9-0.1.0 && make setup && make up IMAGES=images.lock   # Docker
+make setup && make k8s-up IMAGES=images.lock                                              # Kubernetes, from the bundle
+helm show chart oci://ghcr.io/coast-guide/charts/gen9-ui --version 0.1.0                 # a release's chart: its images by digest
+gh release verify v0.1.0 && gh release verify-asset v0.1.0 gen9-0.1.0.tar.gz              # gh 2.81 or later
+gh attestation verify oci://ghcr.io/coast-guide/gen9-agent@sha256:… -R coast-guide/gen9  # an image or a chart
+```
+
+Once, by the owner: the `release` environment with the owner as its required reviewer (Settings, Environments), and the labels the notes group by, besides GitHub's own `enhancement` and `bug`:
+
+```bash
+for l in added changed deprecated removed fixed security dependencies skip-release-notes; do gh label create "$l" -R coast-guide/gen9; done
+```
+
+While Gen9 is 0.y, only the latest release gets fixes, as a patch release (`SECURITY.md`).
