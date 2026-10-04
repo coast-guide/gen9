@@ -4528,8 +4528,27 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     neither does any internet name (egress is closed until `SANDBOX_EGRESS_ALLOW` opens it).
   - A TCP connect to 169.254.169.254 succeeded: the egress sidecar accepts. But no HTTP gets
     through, to it or to public IP literals (each timed out).
-- [ ] G4 Environment secrets from Settings: set one, used in a command, never shown back, and
+- [x] G4 Environment secrets from Settings: set one, used in a command, never shown back, and
   absent from logs and Langfuse.
+  - **Set:** a random test value (in a file, never printed), from Settings > Environment secrets >
+    "Add a secret": name `httpbin`, host `httpbin.org`, path `/bearer`, "Authorization: Bearer",
+    "Reading only". The form says it is kept encrypted, never shown again, and that a server that
+    echoes requests could show it. Stored sealed (`k20260930:…`, the plaintext nowhere in the
+    row). After a reload, "httpbin · https://httpbin.org/bearer · as Bearer · reading only", and
+    the value nowhere in the page's HTML.
+  - **Used:** a command (Python's urllib: the environment's image has no curl) printing only
+    statuses: `bearer 200` (httpbin answers 401 without the header, so the vault added it),
+    `auth on /headers: False` (bound to its path), and `0` for the value in `env` (code doesn't
+    see it).
+  - **Removed** ("Remove httpbin? Your chats' environments stop sending it within seconds, and
+    it's deleted."): 9 s later the same command in the same chat couldn't resolve `httpbin.org`
+    at all; the host was reachable only for the secret.
+  - **Nowhere:** the value counted (never printed) in the last 30 minutes of all 36 containers'
+    logs, `docker inspect` of 49 containers (the environments and their egress sidecars
+    included), Langfuse's `events_full` and `events_core`, `run_events`, the checkpoints
+    (`langgraph.checkpoint_blobs`, `checkpoint_writes`), `audit_events` and the router's log: 0
+    each. The same searches find the command's URL (91 Langfuse events, 3 run events, 13
+    checkpoint rows), so they would have found it; the router's log keeps no prompts at all.
 - [ ] G5 The environment removed after its idle time (or the chat's deletion): sandbox, volume
   and workflow gone.
 
