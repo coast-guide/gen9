@@ -4961,14 +4961,25 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - **Why:** every state-changing route handler (11, listed by grep) checks that `Origin` is the
     app's own, a missing one failing too (`lib/auth/origin.ts`); Next.js checks server actions'
     Origin itself.
-- [ ] M4 Cross-user access: Quinn's token on Alan's thread, file, task and run IDs (404, nothing
+- [x] M4 Cross-user access: Quinn's token on Alan's thread, file, task and run IDs (404, nothing
   leaked); Alan's on Quinn's.
   - **Alan's token on Quinn's chat** (thread, its runs, a run, its files, a file, cancel, rename,
     delete, the stream, a new run): 404 each, `{"detail":"Thread not found"}` or none; her chat
-    unchanged. Quinn's token on Alan's: waits for Quinn signed in again (her CLI's sign-in ended
-    with her browser's, K1).
-- [ ] M5 Input edges: NUL, oversized bodies, very long messages, odd Unicode in names: one clear
+    unchanged.
+  - **Quinn's token on Alan's** (a chat of his with an attachment and a run, and a weekly task,
+    made for this in his Chrome): the chat, its runs, a run, its stream, its files, a file,
+    deleting the file, renaming, cancelling, deleting the chat: 404 "Thread not found" each; the
+    task's PATCH, pause, trigger and DELETE: 404 "No such task". His chat, file and task
+    unchanged; `thread.access` ×10 and `task.access` ×4 audited.
+- [x] M5 Input edges: NUL, oversized bodies, very long messages, odd Unicode in names: one clear
   refusal each, nothing stored broken.
+  - **NUL:** 422 "Text here can't contain the NUL character (U+0000)." (K5).
+  - **A 3 MB body:** 413 "The request is too large: at most 1024 KiB here."
+  - **8,001 characters:** the composer says "1 character too many" and disables Send; the API
+    422, in Pydantic's words ("at most 8000 items") and echoing all 8,001 characters back.
+  - **Titles:** a tab and double spaces collapse to one; 81 characters, 422; a zero-width space,
+    an emoji and a right-to-left override (U+202E, which shows "gpj.exe" as "exe.jpg") are kept
+    as typed. A title is seen only by its owner, so the override can fool only them: noted.
 - [ ] M6 Secrets: the logs of every container grepped for tokens, keys and passwords (patterns,
   never printing a value), and `docker inspect` env checked for what it exposes.
 - [ ] M7 The sandbox origin (port 14003): it serves only what MCP Apps need, never the app's
