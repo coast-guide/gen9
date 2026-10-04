@@ -9,12 +9,16 @@ const AVAILABILITY: Record<string, string> = {
 
 const text = (value: unknown) => (typeof value === "string" || typeof value === "number" ? String(value) : "");
 
-/** Gen9's own actors, never a person's (gen9-agent's deletion.py, stop.py and erase.py). */
+/** Gen9's own actors, never a person's (gen9-agent's deletion.py, stop.py, erase.py and sweep.py). */
 const SYSTEM_ACTORS: Record<string, string> = {
   sweep: "Gen9",
   "gen9-agent-stop": "The operator",
   "gen9-agent-erase": "The operator",
+  "gen9-agent-sweep": "The operator",
 };
+
+/** "1 person", "3 people" */
+const people = (value: unknown) => (text(value) === "1" ? "1 person" : `${text(value) || "0"} people`);
 
 /** Who acted: their email, Gen9 or the operator, or what Gen9 can say when it doesn't know them any more. */
 export function whoActed(event: AuditEvent): string {
@@ -68,6 +72,14 @@ export function whatHappened(event: AuditEvent): string {
       return "Deleted their own account";
     case "account.sweep":
       return `Removed what Gen9 kept of ${them}, deleted in Keycloak`;
+    // A sweep that would delete too many at once waits for the operator (gen9-agent's deletion.py)
+    case "account.sweep.held":
+      return `Held back removing ${people(d.missing)} missing from Keycloak, too many at once: nobody removed until the operator allows it`;
+    // The operator's gen9-agent-sweep: --allow N, or --only the people named (sweep.py)
+    case "account.sweep.allowed":
+      return d.only !== undefined
+        ? `Allowed removing ${people(d.only)} missing from Keycloak, named one by one`
+        : `Allowed the sweep to remove up to ${people(d.allow)} missing from Keycloak: ${text(d.started) || "0"} removed`;
     case "thread.delete":
       return "Deleted a chat";
     case "operator.stop":

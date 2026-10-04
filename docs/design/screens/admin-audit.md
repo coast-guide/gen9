@@ -12,7 +12,8 @@ muted), 9 (private: what someone did, never what their chats said).
   current one marked.
 - **A row per event, newest first:** when (in the viewer's time zone), who (their email, "A
   person Gen9 no longer knows" after their account was deleted, "Gen9" for its own sweep of
-  accounts deleted in Keycloak, "The operator" for `make stop-agents` and `make restore`), a
+  accounts deleted in Keycloak, "The operator" for `make stop-agents`, `make restore` and
+  `gen9-agent-sweep`), a
   "Refused" badge for
   refused access, and what happened as a sentence: "Made mary@example.com an admin", "Added the
   environment secret gh for api.github.com", "Tried to open someone else's chat". The route

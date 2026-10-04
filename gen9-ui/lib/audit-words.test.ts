@@ -78,12 +78,23 @@ describe("audit words", () => {
     // Gen9's own actors aren't people it forgot
     expect(whoActed(event({ actor: "sweep", actor_email: null }))).toBe("Gen9");
     expect(whoActed(event({ actor: "gen9-agent-stop", actor_email: null }))).toBe("The operator");
+    expect(whoActed(event({ actor: "gen9-agent-sweep", actor_email: null }))).toBe("The operator");
   });
 
   it("says what Gen9 and the operator did", () => {
     expect(whatHappened(event({ action: "operator.stop", detail: { runs: 2, schedules: 3 } }))).toBe("Stopped every agent: 2 answers stopped, 3 scheduled tasks paused");
     expect(whatHappened(event({ action: "account.sweep", target_email: null }))).toBe("Removed what Gen9 kept of a person, deleted in Keycloak");
     expect(whatHappened(event({ action: "thread.delete" }))).toBe("Deleted a chat");
+    // The deleted-users sweep held back, then allowed by the operator (P8-Z5)
+    expect(whatHappened(event({ action: "account.sweep.held", detail: { missing: 12, known: 14, limit: 10 } }))).toBe(
+      "Held back removing 12 people missing from Keycloak, too many at once: nobody removed until the operator allows it",
+    );
+    expect(whatHappened(event({ action: "account.sweep.allowed", detail: { only: 1, missing: 3 } }))).toBe(
+      "Allowed removing 1 person missing from Keycloak, named one by one",
+    );
+    expect(whatHappened(event({ action: "account.sweep.allowed", detail: { allow: 12, missing: 12, started: 12 } }))).toBe(
+      "Allowed the sweep to remove up to 12 people missing from Keycloak: 12 removed",
+    );
   });
 
   // Every action gen9-agent records, read from its code, has words: six once reached the screen as
@@ -98,6 +109,9 @@ describe("audit words", () => {
       for (const call of code.matchAll(/(?:\brecord|\b_record|AuditEvent)\(([\s\S]{0,400}?)\)\n/g)) {
         for (const [, code_] of call[1].matchAll(/"([a-z_]+(?:\.[a-z_]+)+)"/g)) actions.add(code_);
       }
+      // An action given by name, however the row is written (insert(AuditEvent).values(…) too, and
+      // calls longer than the window above): two reached the screen as codes (manual-e2e.md, P8-Z5)
+      for (const [, code_] of code.matchAll(/\baction="([a-z_]+(?:\.[a-z_]+)+)"/g)) actions.add(code_);
       // A refused visit to another person's thing: theirs(…, "<kind>") records "<kind>.access". The
       // kind is the last argument, after any query in parentheses
       for (const call of code.matchAll(/theirs(?:_through)?\(/g)) {
