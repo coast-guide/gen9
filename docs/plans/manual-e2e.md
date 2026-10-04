@@ -5019,8 +5019,12 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-N. Failure and recovery
 
-- [ ] N1 The worker killed mid-turn: the turn resumes on restart (Temporal), with no duplicate
+- [x] N1 The worker killed mid-turn: the turn resumes on restart (Temporal), with no duplicate
   messages.
+  - A web-search turn; `docker kill gen9-agent-worker-1` at 11:55:05 with the run `running`
+    (attempt 1); 8 s later still `running`; started again at 11:55:13. The run ended `success`
+    at 11:55:27 on attempt 2: two `run.started`, one `message.completed`, one answer in the chat
+    ("PostgreSQL 18.6 … 19 as a beta", Sources · postgresql.org), no duplicate.
 - [ ] N2 gen9-postgres restarted: the API answers 503 meanwhile, and recovers on its own.
 - [ ] N3 Keycloak down: signed-in people go on (until their token needs a refresh); a sign-in
   shows a clear page.
