@@ -4471,10 +4471,33 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - **Other:** a text field "Your answer to: …"; "Dragonfly" typed and sent arrived as
     `["Dragonfly"]` and "You prefer Dragonfly." (The page's value for Other is a NUL sentinel,
     `lib/questions.ts`, never sent.)
-- [ ] F6 Vision: an image attached and described (`vision` alias), its file stored and served
+- [x] F6 Vision: an image attached and described (`vision` alias), its file stored and served
   back only to Quinn.
-- [ ] F7 Speech and image generation, once each (`speak`, `transcribe`, `image`), if the UI
+  - A 480×320 PNG drawn for this (a red circle, a blue square, "VALKEY"), attached with the
+    composer's file input: "shapes.png 4 KB" under the composer, then "Attached: shapes.png" on
+    the message. "Describe this image in one sentence." The step "Read /work/in/shapes.png", then
+    "A red circle and a blue square appear above the word "VALKEY" on a white background." Right.
+  - **Which model:** `chat` (GPT-6 Luna, about 217 tokens for the image), not `vision`, as
+    gen9-models' README says ("A person's attached image goes to `chat`, not here"); this item's
+    "(`vision` alias)" was wrong. Nothing in Gen9 calls `vision`: only `e2e/models.mjs` checks it.
+    For Z4: say what the alias is for.
+  - **Stored:** `chat_files`, origin `upload`, `/work/in/shapes.png`, 4,456 B, `image/png`, its
+    sha256 that of the file drawn (and of its `content`).
+  - **Served:** to Quinn, `/api/threads/{id}/files/{file}` 200, the same sha256, as `attachment`,
+    `nosniff`, CSP `sandbox`. To Alan (his own session, a second headless Chrome): 404 "Not
+    found"; the chat itself 404 "Thread not found".
+- [x] F7 Speech and image generation, once each (`speak`, `transcribe`, `image`), if the UI
   offers them; cost read from the router.
+  - The UI doesn't offer them, and nothing in gen9-agent calls them: they are the router's
+    aliases. So once each with gen9-agent's own router key (`GEN9_MODELS_KEY`, never printed),
+    with curl on `127.0.0.1:19000`:
+    - **`speak`:** "Gen9 checks itself by hand.", 200, an MP3 (24 kHz mono, 45 KB) in 3 s;
+    - **`transcribe`** of that MP3 (`response_format=json`): "Gen 9 checks itself by hand.", in
+      1.6 s;
+    - **`image`:** "A flat red circle on a white background", low quality, 1024×1024: a flat red
+      circle on white, in 8.7 s.
+  - **The router's log**, key `gen9-agent`: `aspeech` $0.0000042, `atranscription` $0.000085 (28
+    audio tokens in, 10 out), `aimage_generation` $0.002204 (272 image tokens, $8 a million).
 
 ### P8-G. Files and environments
 
