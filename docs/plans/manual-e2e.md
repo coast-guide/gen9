@@ -5425,9 +5425,48 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     kept; the throwaway registry and the stopped kind cluster untouched. `make up` on it: 193 s,
     a new empty install with the same settings: Keycloak's realm and the two seeded people (Alan
     signed in with the same password, no authenticator, no chats).
-- [ ] Z3 A fresh developer from zero: `make distclean`, a new clone in a new folder, then the
+- [x] Z3 A fresh developer from zero: `make distclean`, a new clone in a new folder, then the
   README's quick start followed word by word with nothing else known. Each step timed, each
   stumble written down; then a first chat.
+  - **`make distclean`** here (typing `yes`, 13 s): the 19 settings files listed and deleted
+    ("seeded users get new passwords; it asks for your OpenAI key again"), images kept, and
+    `images.env` too, which the "Keeps" column doesn't name (the router's provider key was copied
+    aside first, read by length only).
+  - **Which clone:** GitHub's `main` is still phase 7 and #66: the deployment work and this
+    phase's fixes wait in the pull request stack, so its README is the one P8-A rewrote. The
+    clone is of the stack's top (`git clone -b verify/p8-z2`, 3 s, 14 MB), what `main` becomes
+    once the owner merges it.
+  - **`make doctor`** (1 s): every check ok. The README lists python3; doctor doesn't check it.
+  - **`make setup`** (29 s, most of it the answers): Langfuse's first user asked first; the
+    OpenAI key taken from the environment ("taken from the environment, saved to
+    gen9-models/.env", never printed); OpenRouter's skipped with Enter: "add your
+    OPENROUTER_API_KEY to gen9-models/.env (chat, vision and embed): the router needs it".
+    **Stumble:** each stack's own "Next: docker compose up -d --wait …" block comes first, eight
+    of them, before the last line "Ready. Next: make up".
+  - **`make up`** (261 s, with this machine's build cache and the third-party images already
+    pulled; Gen9's images built here, no lock): all stacks healthy and the addresses listed.
+    **Stumble:** "Image gen9-postgres:18-… Error pull access denied for gen9-postgres, repository
+    does not exist or may require 'docker login'", six times (gen9-postgres, gen9-keycloak,
+    gen9-ui): services that reuse an image another service builds (`extensions`, `roles`,
+    `ready`, `configure`) have no `build:`, so Compose tries to pull it first. Harmless, but it
+    reads as a failure asking for a login. **Disk:** 19 images in use, 4.7 GB uncompressed; the
+    volumes 322 MiB after the first start.
+  - **With no OpenRouter key** (`chat` on OpenRouter, as committed): `make up` said nothing (its
+    note fires only when no key at all is set, and names OpenAI's); the first question failed in
+    3 s, a toast "The agent failed to answer. Try again." and then "This answer didn't finish.";
+    the run's row and the worker's log hold the reason, OpenRouter's 401 ("No cookie auth
+    credentials found"). **Stumble:** nothing a person or the operator sees names the key.
+  - **`chat` on OpenAI**, as gen9-models' README says ("To serve an alias with another model or
+    provider": `litellm_params`, then `docker compose restart litellm`; the same four lines this
+    machine runs with): healthy in 12 s. Signed in as Alan with the password `grep ^GEN9_SEED_`
+    gives; "Reply with one word: fresh" answered "fresh" 8 s later (`chat` and `embed` on OpenAI
+    in the router's log). From the clone to the first answer: about 5 minutes.
+  - **Surprise:** after `git checkout` of `config.yaml`, `docker compose restart litellm` kept
+    the old file. A probe on this Docker Desktop 4.93.0: a file replaced on the host (git, `mv`,
+    an editor's atomic save) reaches a restarted container only seconds later (old at once, new
+    5 s later); written in place, at once. A second restart took it.
+  - **For Z4:** the key nobody names, the pull errors, setup's eight "Next:" blocks, doctor and
+    python3, `images.env` in "Start over", and the earlier sections' notes.
 - [ ] Z4 The docs' findings of A and Z3 fixed (each its own pull request), then read again as a
   newcomer.
 - [ ] Z5 Everything this phase made removed; the seeded state back; the phase's spend measured;
