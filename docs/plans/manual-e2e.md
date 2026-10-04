@@ -4748,8 +4748,24 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     "harbour" with the words connector because its tools need reviewing in Settings >
     Connectors." The server still got no call. (The model also ran `true` in an environment first,
     unasked: a quirk of this model, noted.)
-- [ ] J6 Plugins: an admin adds a plugin source and syncs it; a person turns a plugin on; its
+- [x] J6 Plugins: an admin adds a plugin source and syncs it; a person turns a plugin on; its
   skill is used; turned off again.
+  - A marketplace written for this, as an admin would (Claude Code's
+    `.claude-plugin/marketplace.json`, one plugin `p8-greeter` in the Agent Plugins format with a
+    skill whose answer is an unguessable line), served by e2e's git server on 17805.
+  - **Ada** (password and `make admin-code`, from files) on Admin > Plugins: the repository
+    added, "Synced just now · 1 plugin", "p8-greeter 1.0.0 · 1 skill", "Who can use: Nobody" until
+    she chose "People who add it" ("Saved."); `admin.plugin_source.add` and
+    `admin.plugin.availability` audited.
+  - **Quinn:** Settings > Plugins, "Know-how and services your admins made available", Add. "Give
+    me a harbour greeting.": "Used the harbour greeting skill from p8-greeter", then exactly
+    "Ahoy from phase eight, quartz lantern."
+  - **Alan**, who hadn't added it, asked the same: "Ahoy there—welcome to the harbour!", no
+    skill in any of his calls (Langfuse).
+  - **Removed** (no confirmation; it can be added back): `plugin_installs` 0, the skill gone
+    from the next call's system message (the same chat still repeats the line from its history).
+  - **The source removed** ("Remove p8-market? Its 1 plugin go too, for everyone. …"): sources,
+    plugins and their files 0, `admin.plugin_source.remove` audited. For O3: "Its 1 plugin go".
 
 ### P8-K. Other programs
 
