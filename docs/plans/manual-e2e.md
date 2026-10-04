@@ -5441,7 +5441,7 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     OpenAI key taken from the environment ("taken from the environment, saved to
     gen9-models/.env", never printed); OpenRouter's skipped with Enter: "add your
     OPENROUTER_API_KEY to gen9-models/.env (chat, vision and embed): the router needs it".
-    **Stumble:** each stack's own "Next: docker compose up -d --wait …" block comes first, eight
+    **Stumble:** each stack's own "Next: docker compose up -d --wait …" block comes first, six
     of them, before the last line "Ready. Next: make up".
   - **`make up`** (261 s, with this machine's build cache and the third-party images already
     pulled; Gen9's images built here, no lock): all stacks healthy and the addresses listed.
@@ -5465,7 +5465,7 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     the old file. A probe on this Docker Desktop 4.93.0: a file replaced on the host (git, `mv`,
     an editor's atomic save) reaches a restarted container only seconds later (old at once, new
     5 s later); written in place, at once. A second restart took it.
-  - **For Z4:** the key nobody names, the pull errors, setup's eight "Next:" blocks, doctor and
+  - **For Z4:** the key nobody names, the pull errors, setup's six "Next:" blocks, doctor and
     python3, `images.env` in "Start over", and the earlier sections' notes.
 - [ ] Z4 The docs' findings of A and Z3 fixed (each its own pull request), then read again as a
   newcomer. The list, from A to Z3, each with what was decided:
@@ -5489,7 +5489,15 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     build, say the same. Live: with Gen9's local tags of gen9-postgres, gen9-keycloak and gen9-ui
     removed, `make up IMAGES=local STACKS="postgres keycloak ui"` built the three and started
     them in 70 s with no pull error; then back on the lock.
-  - [ ] Z4c `make setup`'s eight per-stack "Next:" blocks before "Ready. Next: make up" (Z3).
+  - [x] Z4c `make setup`'s six per-stack "Next:" blocks before "Ready. Next: make up" (Z3).
+    Each stack's `init-env.sh` prints its "Next:" (a `docker compose up`, its addresses) when run
+    alone; `make setup` now exports `GEN9_SETUP`, which leaves those to `make up` (it starts the
+    stacks and lists the addresses), and ends with what the blocks held that nothing else says:
+    who signs in where, each with the `grep` for the password. Checked in a scratch export of the
+    branch (a `docker` stand-in answering that no volume exists, test values for the keys):
+    42 lines, no "Next:" block, then "Ready. Next: make up" and "To sign in:" with Gen9's two
+    people, Keycloak's console and Langfuse's user; `gen9-temporal/init-env.sh` alone still
+    prints its "Next:".
   - [ ] Z4d `make doctor` and python3, which the README lists (Z3).
   - [ ] Z4e "Start over": `images.env` survives `make distclean` (Z3); `make wipe STACKS=ui`
     "signs everyone out" holds for Gen9's sessions, not Keycloak's (Z2).

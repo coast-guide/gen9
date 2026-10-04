@@ -17,6 +17,9 @@
 # (hidden) when there is a terminal: `chat` needs OpenRouter's, speech and images OpenAI's.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Each stack's init-env.sh prints its own "Next:" (docker compose up, its addresses) when run alone;
+# under make setup, make up starts them, lists the addresses, and this script ends with the sign-ins
+export GEN9_SETUP=1
 
 ALL=(postgres keycloak langfuse temporal models sandbox agent ui edge)
 [ $# -gt 0 ] || set -- "${ALL[@]}"
@@ -414,3 +417,15 @@ if [ ${#missing[@]} -gt 0 ]; then
   exit 1
 fi
 if [ "$ARGS" = " ${ALL[*]} " ]; then echo "Ready. Next: make up"; else echo "Ready. Next: make up STACKS=\"$*\""; fi
+# Who signs in where, once make up lists the addresses (the passwords stay in the files)
+setting() { sed -n "s/^$2=//p" "$1" | tail -n 1; }
+if [ -f gen9-keycloak/.env ] || [ -f gen9-langfuse/.env ]; then
+  echo "To sign in:"
+  if [ -f gen9-keycloak/.env ]; then
+    echo "  Gen9:               $(setting gen9-keycloak/.env GEN9_SEED_ADMIN_EMAIL) (admin; code: make admin-code) or $(setting gen9-keycloak/.env GEN9_SEED_USER_EMAIL), passwords: grep ^GEN9_SEED_ gen9-keycloak/.env"
+    echo "  Keycloak's console: admin, password: grep ^KC_BOOTSTRAP_ADMIN_PASSWORD= gen9-keycloak/.env"
+  fi
+  if [ -f gen9-langfuse/.env ]; then
+    echo "  Langfuse:           $(setting gen9-langfuse/.env LANGFUSE_INIT_USER_EMAIL), password: grep ^LANGFUSE_INIT_USER_PASSWORD= gen9-langfuse/.env"
+  fi
+fi

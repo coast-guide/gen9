@@ -182,7 +182,7 @@ write_evals_file
   printf 'note: fill in OPENROUTER_API_KEY in %s (chat, vision, embed)%s\n' "$OUTPUT" \
     "$([ -n "$OPENAI_API_KEY" ] || echo ', and OPENAI_API_KEY for speak, transcribe and image')" >&2
 
-if [ "$OUTPUT" != "-" ]; then
+if [ "$OUTPUT" != "-" ] && [ -z "${GEN9_SETUP:-}" ]; then
   cat >&2 <<NEXT
 
 Next:

@@ -104,7 +104,7 @@ agent_settings() { # $1=what for, $2=role, $3=password
 [ -z "$APP_ENV_FILE" ] ||
   agent_settings "its API and worker, as the role that owns nothing" gen9_agent_app "$APP_DB_PASSWORD" | write_private "$APP_ENV_FILE"
 
-if [ "$OUTPUT" != "-" ] && [ "$FROM_ENV" != "true" ]; then
+if [ "$OUTPUT" != "-" ] && [ "$FROM_ENV" != "true" ] && [ -z "${GEN9_SETUP:-}" ]; then
   cat >&2 <<NEXT
 
 Next:

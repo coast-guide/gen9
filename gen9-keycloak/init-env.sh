@@ -178,7 +178,7 @@ ENV
 if [ "$OUTPUT" = "-" ]; then render; else render | write_private "$OUTPUT"; fi
 write_app_files
 
-if [ "$OUTPUT" != "-" ]; then
+if [ "$OUTPUT" != "-" ] && [ -z "${GEN9_SETUP:-}" ]; then
   cat >&2 <<NEXT
 
 Next:

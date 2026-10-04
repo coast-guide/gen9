@@ -76,7 +76,7 @@ write_private() { # $1=path; content on stdin. Written atomically with mode 600.
 
 if [ "$OUTPUT" = "-" ]; then render; else render | write_private "$OUTPUT"; fi
 
-if [ "$OUTPUT" != "-" ]; then
+if [ "$OUTPUT" != "-" ] && [ -z "${GEN9_SETUP:-}" ]; then
   cat >&2 <<NEXT
 
 Next:

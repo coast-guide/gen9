@@ -351,7 +351,7 @@ fi
 
 [ -z "$AGENT_ENV_FILE" ] || write_agent_file
 
-if [ "$OUTPUT" != "-" ]; then
+if [ "$OUTPUT" != "-" ] && [ -z "${GEN9_SETUP:-}" ]; then
   cat >&2 <<EOF
 
 Next:
