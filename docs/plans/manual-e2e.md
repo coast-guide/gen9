@@ -4655,7 +4655,21 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     is done" emails. A trigger used as a webhook can email 30 times an hour for a task, 100 for a
     person (the fire limits). A digest (one email per task per period, with the count) would keep
     the inbox usable; a design decision, left for the owner (Decision Log).
-- [ ] I4 A background task (if offered): started, left, its result found later; its workflow.
+- [x] I4 A background task (if offered): started, left, its result found later; its workflow.
+  - "Start a background task that finds the latest stable Valkey release … Don't wait for it":
+    "Started in the background: …", "Started the background task; I won't wait for its result.",
+    and the "In the background … · Working" panel. The task got its own chat (`parent_id` the
+    chat), its run succeeded; then `TellChatWorkflow` (`tell-chat-<run>`) ran the chat again: a
+    "From a background task" card with its result, and Gen9's answer ("… 9.1.2, released
+    2026-09-01; 9.2.0-rc1 is a prerelease"), the panel "Done". Found later from another page.
+  - **Found:** chats' automatic names are cut at 80 characters mid-word, unmarked: the
+    background task's ("… Use authorit", in the card and the panel) and every chat's from its
+    first message (F1's header "… One sentence, wit", F5's "… Valkey or Redis. Then").
+  - **Fixed:** `clipped_title` (runs/store.py) cuts a longer first line at a word, drops a
+    trailing comma, and ends it in "…", within the 80 a rename allows; both names use it. Live on
+    the rebuilt agent: "Reply with one word: titles. This first line is deliberately long, so
+    that the…" (79 characters).
+  - **For O3:** the card quotes the result as plain text, its Markdown showing ("**9.1.2**").
 - [x] I5 The limits: a task fired too often refused (429), and what the person is told.
   - 29 more fires after I2's one: 202 each; the 31st: 429, `Retry-After: 3551`, "It has run as
     often as it may this hour." (`TASKS_FIRES_PER_HOUR` 30); `task_fires` 30. The limit is checked

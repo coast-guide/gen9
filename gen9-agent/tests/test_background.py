@@ -61,7 +61,13 @@ async def test_a_tasks_title_is_its_descriptions_first_line() -> None:
     assert (
         background._title("Compare three plans\nwith prices") == "Compare three plans"
     )
-    assert background._title("x" * 200) == "x" * 80
+    assert background._title("x" * 200) == "x" * 79 + "…"
+    assert (
+        background._title(
+            "Find the latest stable Valkey release as of today (2026-10-04 UTC). Use authoritative sources."
+        )
+        == "Find the latest stable Valkey release as of today (2026-10-04 UTC). Use…"
+    )
     assert background._title("  ") == "Background task"
 
 

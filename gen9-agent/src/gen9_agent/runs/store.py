@@ -122,10 +122,28 @@ class StartedRun:
     remember: bool = True
 
 
+# A chat's name, at most (as a rename allows, api/threads.py)
+TITLE_MAX = 80
+
+
+def clipped_title(text: str, default: str) -> str:
+    """The first line of `text` as a chat's name, or `default` for a blank one. A longer line is
+    cut at a word and ends in "…", within `TITLE_MAX`: cut mid-word, a name read as if that were
+    all of it ("… One sentence, wit": manual-e2e.md, P8-I4)."""
+    first = next(iter(text.strip().splitlines()), "").strip()
+    if len(first) <= TITLE_MAX:
+        return first or default
+    cut = first[: TITLE_MAX - 1]
+    space = cut.rfind(" ")
+    if space >= TITLE_MAX // 2:
+        cut = cut[:space]
+    return cut.rstrip(" ,;:") + "…"
+
+
 def chat_title(message: str) -> str:
-    """A chat's title from its first message: the first line, up to 80 characters. A blank one,
-    which the API refuses now, once failed the end of every attempt (gen9-learn.md, M9, F8)."""
-    return next(iter(message.strip().splitlines()), "")[:80] or "New chat"
+    """A chat's title from its first message (`clipped_title`). A blank one, which the API refuses
+    now, once failed the end of every attempt (gen9-learn.md, M9, F8)."""
+    return clipped_title(message, "New chat")
 
 
 async def enqueue(

@@ -48,7 +48,15 @@ async def test_a_change_may_leave_them_out_but_not_blank_them() -> None:
 
 async def test_a_chats_title_is_its_first_line_and_never_fails() -> None:
     assert chat_title("  What is RFC 10017?\nAnd why?") == "What is RFC 10017?"
-    assert chat_title("x" * 100) == "x" * 80
+    assert chat_title("x" * 80) == "x" * 80
+    assert chat_title("x" * 100) == "x" * 79 + "…"
+    # Cut at a word, its comma dropped, within 80
+    long = "Search the web: what is the latest released version of Valkey? One sentence, with its source."
+    assert (
+        chat_title(long)
+        == "Search the web: what is the latest released version of Valkey? One sentence…"
+    )
+    assert len(chat_title(long)) <= 80
     assert chat_title("   \n  ") == "New chat"
 
 

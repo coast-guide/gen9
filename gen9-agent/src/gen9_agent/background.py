@@ -164,12 +164,7 @@ def _chat(runtime: ToolRuntime) -> tuple[uuid.UUID, str, str]:
 
 
 def _title(description: str) -> str:
-    first = (
-        description.strip().splitlines()[0]
-        if description.strip()
-        else "Background task"
-    )
-    return first[:80]
+    return store.clipped_title(description, "Background task")
 
 
 def _unfinished(parent: uuid.UUID):
