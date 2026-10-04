@@ -5001,8 +5001,21 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     accepted; a wrong one refused; graceful stop on SIGTERM) and in a throwaway pod on k3d with
     the chart's rendered args (the kubelet turns `$$` into `$` as Compose does). Live: Valkey
     recreated, healthy, its 3 sessions kept, the value in no command line and not in `inspect`.
-- [ ] M7 The sandbox origin (port 14003): it serves only what MCP Apps need, never the app's
+- [x] M7 The sandbox origin (port 14003): it serves only what MCP Apps need, never the app's
   cookies.
+  - **What it serves:** one proxy page (1.7 KB) at `/`, whatever the Host; everything else 404
+    (`/favicon.ico`, `/index.html`, `/../etc/passwd`, `/api/threads`). A View exists only when
+    the app frames `<connector id>.apps.localhost` (J3) and posts the View to it; opened on its
+    own, the page waits for a parent it doesn't have.
+  - **Its CSP** comes from `?csp=`, the domains the View declared, each checked against a source
+    pattern: a `*` is dropped. But `http://localhost:17000` (or a private address) is kept, so a
+    View can have the person's browser send requests to their own machine or network; CORS keeps
+    it from reading the answers, and on a public deployment browsers' local-network checks apply.
+    The docs promise no more ("its CSP from the View's declared domains"). For the owner: whether
+    to refuse loopback, private and link-local addresses there (Decision Log).
+  - **Cookies:** the app's and Keycloak's are host-only for `localhost`, never sent to
+    `*.apps.localhost`; a View's `document.cookie` is empty (J3); `gen9_session` is HttpOnly and
+    `SameSite=Lax`. The sandbox sets none.
 
 ### P8-N. Failure and recovery
 
@@ -5897,6 +5910,14 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   chat), or a digest, one email per task per period with the count and a link to the task's
   chats, as error trackers group alerts. Not changed: it trades one behaviour for another the
   owner hasn't asked for.
+
+- Open, for the owner (2026-10-04, P8-M7): an MCP App's View may declare connect domains on
+  loopback or private addresses (`http://localhost:17000` passes the sandbox's pattern), and its
+  CSP allows them, so a View can send requests from the person's browser to their own machine or
+  network (CORS keeps it from reading answers; browsers' local-network checks apply on a public
+  deployment). Refusing loopback, private and link-local hosts in declared domains would close
+  it at the cost of a server that really means `localhost` (a person's own dev server). Not
+  changed: the MCP Apps spec leaves the list to the server, and the docs promise no more.
 
 ## Outcomes & Retrospective
 
