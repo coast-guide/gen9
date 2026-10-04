@@ -161,7 +161,8 @@ stacks:
 	@$(foreach s,$(ALL_STACKS),printf '  %-10s gen9-%-10s %s\n' '$(s)' '$(s)' '$(DESC_$(s))';)
 
 doctor:
-	@scripts/doctor.sh $(SELECTED)
+	@$(foreach s,$(SKIPPED),echo "note: gen9-$(s) isn't set up, so left out ($(DESC_$(s)))";)
+	@scripts/doctor.sh $(or $(strip $(RUNNING)),--no-stacks)
 
 admin-code:
 	@scripts/admin-code.sh
@@ -169,7 +170,7 @@ admin-code:
 # Gen9's own images: by digest from images.env when it exists (IMAGES=<lock> writes it, IMAGES=local
 # removes it: scripts/images.sh), so nothing is built; else built here from each stack's folder
 up:
-	@scripts/doctor.sh --preflight $(RUNNING)
+	@scripts/doctor.sh --preflight $(or $(strip $(RUNNING)),--no-stacks)
 	@$(foreach s,$(SKIPPED),echo "note: gen9-$(s) isn't set up, so left out ($(DESC_$(s)))";)
 	@$(if $(IMAGES),scripts/images.sh $(IMAGES))
 	@$(if $(MISSING),printf 'Not set up yet. Missing:%b\nRun: make setup STACKS="%s"\n' \
@@ -272,7 +273,7 @@ k8s-resume-agents:
 # once they run, so a domain (or DOMAIN=localhost, which unsets gen9-edge) isn't stopped by what
 # holds ports 80 and 443 meanwhile; nor what setup itself writes (an older .env's COMPOSE_PROFILES)
 setup:
-	@scripts/doctor.sh --preflight --before-setup $(filter-out $(OPTIONAL),$(SELECTED))
+	@scripts/doctor.sh --preflight --before-setup $(or $(strip $(filter-out $(OPTIONAL),$(SELECTED))),--no-stacks)
 	@scripts/setup.sh $(SELECTED)
 
 # A cold backup of the stacks' volumes and settings files (scripts/backup.sh), and its restore

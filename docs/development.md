@@ -106,7 +106,7 @@ server over TLS (its realm's email settings) and gen9-agent at one with `smtps:/
 2. In the `Makefile`, add `<name>` to `ALL_STACKS` after the stacks it needs, describe it in `DESC_<name>` and list the files it can't start without in `NEEDS_<name>`. If it generates files, teach `scripts/setup.sh` and `scripts/wipe.sh` about them.
 3. Check with `make config STACKS=<name>`, then `make up STACKS=<name>`.
 
-A stack that runs only once set up (gen9-edge, with a domain) also goes in the `Makefile`'s `OPTIONAL`: `make up`, `config` and `diff` leave it out, with a note, until the files in its `NEEDS_<name>` exist. The scripts that list the stacks (`scripts/setup.sh`, `wipe.sh`, `backup.sh`, `doctor.sh`, `sbom.sh`, `check-networks.py`, `drift.py`) learn its name too.
+A stack that runs only once set up (gen9-edge, with a domain) also goes in the `Makefile`'s `OPTIONAL`: `make up`, `doctor`, `config` and `diff` leave it out, with a note, until the files in its `NEEDS_<name>` exist. The scripts that list the stacks (`scripts/setup.sh`, `wipe.sh`, `backup.sh`, `doctor.sh`, `sbom.sh`, `check-networks.py`, `drift.py`) learn its name too.
 
 ## Releasing
 

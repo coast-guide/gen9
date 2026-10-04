@@ -6,6 +6,7 @@
 # adds --before-setup: what setup itself writes isn't checked yet.
 #
 #   scripts/doctor.sh [--preflight [--before-setup]] [STACK...]     STACK: postgres keycloak langfuse temporal models sandbox agent ui edge (default all)
+#   scripts/doctor.sh [--preflight] --no-stacks     Docker, Compose, memory and the tools only (make's selection left every stack out)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -17,16 +18,17 @@ MIN_COMPOSE=2.24.0
 # (https://langfuse.com/self-hosting/deployment/docker-compose).
 MIN_MEMORY_MIB_LANGFUSE=8192
 
-PREFLIGHT=false BEFORE_SETUP=false STACKS=()
+PREFLIGHT=false BEFORE_SETUP=false NO_STACKS=false STACKS=()
 for arg in "$@"; do
   case $arg in
     --preflight) PREFLIGHT=true ;;
     --before-setup) BEFORE_SETUP=true ;;
+    --no-stacks) NO_STACKS=true ;;
     -*) echo "unknown option: $arg" >&2; exit 2 ;;
     *) STACKS+=("$arg") ;;
   esac
 done
-[ ${#STACKS[@]} -gt 0 ] || STACKS=(postgres keycloak langfuse temporal models sandbox agent ui edge)
+[ ${#STACKS[@]} -gt 0 ] || $NO_STACKS || STACKS=(postgres keycloak langfuse temporal models sandbox agent ui edge)
 
 failed=false
 ok() { $PREFLIGHT || echo "ok    $*"; }
@@ -84,7 +86,8 @@ if $docker_ok; then
       continue
     fi
     busy=()
-    for port in $(printf '%s' "$ports" | grep -o '"published": *"[0-9]*"' | grep -o '[0-9][0-9]*'); do
+    # Each port once: a port published for TCP and UDP (gen9-edge's 443, for HTTP/3) is listed twice
+    for port in $(printf '%s' "$ports" | grep -o '"published": *"[0-9]*"' | grep -o '[0-9][0-9]*' | sort -un); do
       # Something answers on it: another program, since this stack isn't running
       if (: </dev/tcp/127.0.0.1/"$port") 2>/dev/null; then busy+=("$port"); fi
     done

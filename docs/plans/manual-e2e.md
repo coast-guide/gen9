@@ -3931,11 +3931,34 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-A. A fresh developer reads (no command run yet)
 
-- [ ] A1 The repository on github.com in Chrome, as a stranger: in the README's first screen,
+- [x] A1 The repository on github.com in Chrome, as a stranger: in the README's first screen,
   what Gen9 is, who it is for, what it needs and how to start. Every badge and link resolves.
-- [ ] A2 Requirements: what the README and docs/operations.md ask for (OS, Docker and Compose
+  - **Seen:** main's README, which newcomers get until the deployment stack merges, says what Gen9
+    is, for whom, what it needs and the two commands, all within its first screens. The stack
+    top's 60 relative links and their anchors resolve, and so do its two external ones
+    (agents.md, the issue chooser with its three forms).
+  - **Missing for a newcomer:** `make help` (or plain `make`) and `make doctor` aren't named; nor
+    which provider keys `make setup` asks for, what they cost, or how long the first `make up`
+    takes; nor which systems Gen9 runs on.
+  - **The repository's "Security and quality" badge shows 3:** the open Dependabot alerts for the
+    npm advisories #66 accepted (braces in gen9-ui and scripts/updates, http-cache-semantics; none
+    has a fixed release). Dismissing them there with #66's reasons is a repository change, so
+    it's the owner's.
+- [x] A2 Requirements: what the README and docs/operations.md ask for (OS, Docker and Compose
   versions, memory, disk, ports, accounts and keys), compared with what `make doctor` checks.
   Anything asked but unchecked, or checked but unsaid, noted.
+  - **Asked and checked:** Docker running, Compose 2.24 or newer, openssl, memory (a warning
+    under 8 GiB) and every port. Make and bash are checked by running at all.
+  - **Used but not asked:** python3. `make diff` and `make reset` run `scripts/drift.py`, and
+    `make config` skips its checks without it. Nor are disk space (this machine holds 40 GB of
+    images and 37 GB of build cache), the systems Gen9 runs on, or the developers' tools
+    (Node's version for gen9-ui and e2e; uv is named in gen9-agent's README).
+  - **Found: `make doctor` failed on a healthy install.** It checked gen9-edge's ports 80 and
+    443 (taken here by k3d's load balancer) though gen9-edge isn't set up and `make up` leaves it
+    out. It also named 443 twice, once for TCP and once for UDP. `make up STACKS=edge` refused to
+    start for the same reason. Fixed: `doctor` leaves out a stack that isn't set up, with
+    `make up`'s note; a selection left with no stacks checks only the tools (`--no-stacks`); each
+    port is checked once.
 - [ ] A3 Finding the commands: from the README, how many clicks to `make help`, to operations.md,
   to "how to run the tests". Every make target in the Makefile appears in `make help` and in
   operations.md; every target the docs name exists.
@@ -4208,6 +4231,10 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ## Surprises & Discoveries
 
+- `make doctor` failed on a healthy install (P8-A2): it checked the ports of gen9-edge, which
+  isn't set up (no `gen9-edge/.env`), because only `make up`, `config` and `diff` took
+  `OPTIONAL` into account. Before: `FAIL  gen9-edge needs port 80, which another program uses`,
+  the same for 443 twice, exit 1. After: `note: gen9-edge isn't set up, so left out (…)`, exit 0.
 - P6-B6's first live measurement was meant as the "before", and the worker already logged the
   new one-liners: gen9-learn's full run, just before, had rebuilt gen9-agent from the working tree
   in b7 (`make down STACKS=agent && make up STACKS=agent` builds), uncommitted `transient.py`
