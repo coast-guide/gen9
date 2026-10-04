@@ -4281,9 +4281,14 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   unlocks from Gen9's admin page.
 - [ ] D7 Sign out everywhere from Settings: a second browser profile's session ends too, and the
   CLI's token stops refreshing.
-- [ ] D8 Ada (admin) signs in: the second step (`make admin-code`), the admin pages appear for her
+- [x] D8 Ada (admin) signs in: the second step (`make admin-code`), the admin pages appear for her
   and not for Quinn (UI and API: 403).
 
+  - Ada's password, then "Enter the current 6-digit code from your authenticator app" (the code
+    from `make admin-code`, filled by the page from a one-shot server). Her sidebar adds Users,
+    Plugins and Audit log; Alan's and Quinn's never showed them.
+  - **Alan's token on `/v1/admin/users`, `audit`, `plugins` and `plugin-sources`:** 403, "Requires
+    role gen9-admin", each one in the audit log as refused.
 ### P8-E. One chat followed through every store
 
 - [x] E1 Quinn sends "Reply with one word: hello" in Chrome. While it streams, the network panel
@@ -4506,12 +4511,31 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-L. Admin and governance
 
-- [ ] L1 Ada's users page: search, disable Quinn (her session ends and a queued message errors),
+- [x] L1 Ada's users page: search, disable Quinn (her session ends and a queued message errors),
   enable, sign her out, reset her password, unlock. Each in Keycloak and in the audit log.
+  - "3 people can sign in to Gen9", Ada marked You and Admin. Quinn's actions: Send password
+    reset, Sign out everywhere, Make admin…, Disable account…, Delete user…
+  - **Disable** asks first ("They can't sign in, they're signed out on every device, and anything
+    Gen9 is doing for them stops. Their chats stay…"). Then the row says Disabled, Keycloak
+    has `enabled: false`, and the audit log `admin.user.update` by Ada on Quinn. **Enable** asks
+    too, and undoes it.
+  - **Send password reset:** "Password reset email sent.", and Quinn's mailbox has "Update your
+    Gen9 account". It also held "Your Gen9 sign-in changed", sent when she changed her password
+    (D5).
+  - Unlock appears only for a locked person (D6).
 - [ ] L2 Budgets and limits: Quinn's spend limit shown in Settings, set low by an admin, the next
   turn refused with the reset time, then raised again.
-- [ ] L3 The audit log page: every admin action of this section listed with actor, target and
+  - **What there is:** an admin has no per-person budget in the UI. The limit is the operator's,
+    `GEN9_USER_BUDGET_USD` in gen9-models/.env, the same for everyone, and Settings shows each
+    person's share ("1% of your limit, which resets on 5 October 2026"). Making it low would mean
+    restarting the router for every person; left to a quiet stretch.
+- [x] L3 The audit log page: every admin action of this section listed with actor, target and
   outcome; filters work; the API's answer matches.
+  - "Who did what: admins' changes, people's security settings, and access Gen9 refused. Nobody
+    can change or delete it." Each line names the person, says what happened ("Disabled quinn-…",
+    "Sent … a password reset", "Was refused something only admins may do") and gives the API call.
+    Alan's refused calls, and his 404s on Quinn's chat, are listed. Filters: Everything, Refused
+    access.
 - [ ] L4 An admin demoted: her admin pages and API go at once.
 - [ ] L5 The AI Act disclosures (docs/ai-act.md): what the UI and exports mark as AI-made, checked
   where the doc says.
