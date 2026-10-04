@@ -4879,7 +4879,20 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     "Sent … a password reset", "Was refused something only admins may do") and gives the API call.
     Alan's refused calls, and his 404s on Quinn's chat, are listed. Filters: Everything, Refused
     access.
-- [ ] L4 An admin demoted: her admin pages and API go at once.
+- [x] L4 An admin demoted: her admin pages and API go at once.
+  - **Made admin first:** Ada, Users, Alan's "Make admin…": "Make alan@gen9.test an admin? They
+    can manage everyone's accounts and the plugins, and read the audit log, as you can. Admins
+    need a second step: without an authenticator app or a passkey, they're signed out and set one
+    up at their next sign-in." "Admin access granted."; Alan's open page went to Keycloak, 0
+    sessions, `admin.user.update` `{"admin": true, "signed_out": true}`.
+  - **Alan signs in:** "Set up an authenticator app to continue.", "Unable to scan?" gave the key
+    (kept in a file), the code computed from it (TOTP, SHA-1, 6 digits, 30 s, the realm's
+    policy), a device name: in, with Users, Plugins and Audit log, and the Users page.
+  - **Demoted:** "Remove admin access for alan@gen9.test? They keep their account and chats, and
+    lose Users, Plugins and the audit log at once." "Admin access removed." at 11:41:16; at
+    11:41:19 Alan's reload: "You need admin access. Ask a Gen9 admin to add you to the admins
+    group.", no admin links; the API's `GET /v1/admin/users` 403 with his token still naming the
+    role (it asks Keycloak), `access.refused` audited. He keeps his authenticator app.
 - [ ] L5 The AI Act disclosures (docs/ai-act.md): what the UI and exports mark as AI-made, checked
   where the doc says.
 - [ ] L6 Quinn deletes her account: gone from Keycloak, gen9-postgres, Langfuse, the router's
