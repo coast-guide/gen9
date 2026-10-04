@@ -5129,10 +5129,37 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-P. A domain and TLS (gen9-edge)
 
-- [ ] P1 `make setup DOMAIN=gen9.localhost`, `make up`: Caddy's internal CA. How docs say to trust
+- [x] P1 `make setup DOMAIN=gen9.localhost`, `make up`: Caddy's internal CA. How docs say to trust
   it, done, and the app opened at https in Chrome.
-- [ ] P2 HSTS, the redirect from http, the cookie's Secure flag, and each service's own host.
-- [ ] P3 An MCP App on its own host (on-demand TLS, the ask endpoint): an unknown host refused.
+  - k3d stopped first (its load balancer held 80 and 443). `make setup DOMAIN=gen9.localhost`
+    changed only the address settings gen9-edge's README lists (`KC_HOSTNAME`, the issuers,
+    `GEN9_UI_URL`, `GEN9_API_PUBLIC_URL`, Langfuse's and Temporal's URLs, the apps' sandbox URL),
+    and wrote `gen9-edge/.env` and `gen9-keycloak/edge.local.env` ("Ready. Next: make up").
+    `make up`: every stack, then gen9-edge, its "Open:" list all https.
+  - **Trust, as the README says:** `docker compose cp edge:/data/caddy/pki/authorities/local/root.crt
+    …` ("Caddy Local Authority - 2026 ECC Root", to 2036); every host verifies against it with
+    `curl --cacert` (the app 200, `id.` 302 to its admin, `api.` 404 at `/`, `traces.` 200,
+    `temporal.` 200). The root wasn't added to this machine's trust store (it would change the
+    owner's own Chrome): the app was opened in a throwaway headless Chrome told to skip the check,
+    Quinn signed in at `https://gen9.localhost/chat`.
+  - **Found:** git ignored neither file the steps make: `gen9-edge-root.crt`, where the README
+    copies the root, and `gen9-keycloak/edge.local.env` (its `.gitignore` had no `*.local.env`);
+    `git add -A` would commit them. Fixed: both ignored.
+- [x] P2 HSTS, the redirect from http, the cookie's Secure flag, and each service's own host.
+  - **http:** each host 308 to the same path on https. **The cookie:** `__Host-gen9_session`,
+    Secure, HttpOnly, `SameSite=Lax`, path `/`; Keycloak's on `id.gen9.localhost` alone.
+  - **Found:** HSTS came from the app and the API (two years, `includeSubDomains`) and Keycloak
+    (one year), but not from `traces.` or `temporal.`: a first visit straight to one had none.
+    OWASP ASVS 5.0 3.4.1 asks it of all responses.
+  - **Fixed:** the edge adds it to every host (`header ?Strict-Transport-Security …`, which keeps
+    a service's own). Live: all six hosts send exactly one; Keycloak and the media store keep their
+    one year. (Applied with `docker compose restart edge`: the README doesn't say how a Caddyfile
+    change is applied; for Z4.)
+- [x] P3 An MCP App on its own host (on-demand TLS, the ask endpoint): an unknown host refused.
+  - Quinn's `board` connector's host (`<id>.apps.gen9.localhost`): 200 and a verified certificate,
+    Caddy logging "obtaining new certificate" at the first handshake; at once the second time. A
+    made-up id's host and a name that isn't an id: the handshake fails (curl exit 35), nothing
+    issued. `https://api.gen9.localhost/internal/apps-host` from outside: 404.
 - [ ] P4 Back to localhost: `make setup DOMAIN=localhost`, `make up`, `make diff` 0.
 
 ### P8-Q. Kubernetes, by hand (k3d)

@@ -15,6 +15,14 @@
 # for one from Let's Encrypt (ACME)
 (certificate) {
 	tls {$GEN9_EDGE_TLS:internal}
+	import hsts
+}
+
+# HTTPS only, from every host, as OWASP ASVS 5.0 3.4.1 asks of all responses: Langfuse and
+# Temporal's UI send none of their own. `?` keeps what a service sends itself (Keycloak, the web
+# app and the API do) (docs/plans/manual-e2e.md, P8-P2)
+(hsts) {
+	header ?Strict-Transport-Security "max-age=63072000; includeSubDomains"
 }
 
 {$GEN9_DOMAIN} {
@@ -65,5 +73,6 @@ temporal.{$GEN9_DOMAIN} {
 
 *.apps.{$GEN9_DOMAIN} {
 	import apps-{$GEN9_EDGE_APPS:on-demand}
+	import hsts
 	reverse_proxy gen9-ui-apps:3001
 }
