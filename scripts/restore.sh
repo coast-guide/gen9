@@ -103,6 +103,7 @@ if [[ " ${STACKS[*]} " != *" postgres "* ]]; then
   { covers && deleted > "$evidence"; } 2>/dev/null || unread=true
 fi
 users=() threads=()
+count() { [ "$1" -eq 1 ] && echo "1 $2" || echo "$1 ${2}s"; }
 while read -r kind id; do
   case $kind in
     user) [[ " ${users[*]:-} " == *" $id "* ]] || users+=("$id") ;;
@@ -117,7 +118,7 @@ if $unread; then
   echo "Delete them again, by id: (cd gen9-agent && docker compose exec worker gen9-agent-erase --users SUB... --threads ID...)" >&2
 fi
 if [ ${#again[@]} -gt 1 ]; then
-  echo "Deleting again what was deleted after the backup was made: ${#users[@]} accounts, ${#threads[@]} chats…"
+  echo "Deleting again what was deleted after the backup was made: $(count ${#users[@]} account), $(count ${#threads[@]} chat)…"
   if ! (cd gen9-agent && docker compose exec -T worker "${again[@]}"); then
     echo "Not done: once gen9-agent runs, (cd gen9-agent && docker compose exec worker ${again[*]})" >&2
     exit 1
