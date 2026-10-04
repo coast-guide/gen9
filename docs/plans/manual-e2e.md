@@ -4551,6 +4551,18 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     checkpoint rows), so they would have found it; the router's log keeps no prompts at all.
 - [ ] G5 The environment removed after its idle time (or the chat's deletion): sandbox, volume
   and workflow gone.
+  - **The chat's deletion** (G4's chat, "Chat options" > "Delete chat": "Delete this chat? The
+    conversation and its history are deleted for good."): within 2 s its `sandbox-<id>` and
+    `sandbox-egress-<id>` containers and its `opensandbox-runtime-<id>` volume were gone,
+    `environment-<thread>` COMPLETED, `DeleteThreadWorkflow` through its steps in a second, then
+    on its late-pass timer; `thread.delete` audited; the chat's thread, runs, files and
+    checkpoints 0. Langfuse: its 58 events gone a minute later (its worker "Deleting traces …"
+    at 10:50:31).
+  - **Langfuse's raw copies:** the chat's text is still in 5 of MinIO's `events/otel/…` objects
+    (filed by minute; Langfuse's `blob_storage_file_log` is empty, so its deletion can't find
+    them: "0 S3 delete batches"). As gen9-langfuse's README and docs/logging.md say: the
+    `minio-lifecycle` rule `gen9-expire-raw-events` (`events/`, 1 day, shown by the README's
+    `mc ilm rule ls`) removes them within two days; the bucket holds only 3 and 4 October's.
 
 ### P8-H. Memory, search, export and deletion
 
