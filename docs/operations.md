@@ -310,6 +310,11 @@ volumes.
 
 - `make doctor`: Docker, memory, free ports, missing settings files and secrets; each failure says
   what to do.
+- One Gen9 runs on a Docker host: its stacks have fixed names, so a second copy (another clone, a
+  release's bundle) would take over the first one's containers and data. From another copy's
+  folder, `make doctor`, `setup`, `up`, `reset`, `backup`, `restore`, `wipe` and `distclean` refuse,
+  naming the folder the running one came from: stop it there first (`make down`), or work in that
+  folder (`scripts/elsewhere.sh`).
 - `make ps`, then `make logs STACKS=<stack>` (`FOLLOW=1` to watch): which container is unhealthy,
   and why.
 - `make diff`: what runs differently from what's declared, a change made by hand among it;

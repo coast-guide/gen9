@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Check what Gen9 needs: Docker running, Docker Compose new enough, the tools the stacks' init-env.sh
-# scripts use, the host ports of stacks that aren't running and (make doctor only) Docker's memory.
+# scripts use, no stack belonging to another copy of Gen9 (scripts/elsewhere.sh), the host ports of
+# stacks that aren't running and (make doctor only) Docker's memory.
 # Used by `make doctor`, and with --preflight by `make setup` and `make up`: then it prints only
 # problems, so up fails before starting anything instead of halfway through a stack. make setup's
 # adds --before-setup: what setup itself writes isn't checked yet.
@@ -77,6 +78,11 @@ if $docker_ok; then
 
   # Host ports each stopped stack will publish, from its own Compose file and .env
   for stack in "${STACKS[@]}"; do
+    # Another copy of Gen9's: what this folder runs would act on it (scripts/elsewhere.sh)
+    if ! from=$(scripts/elsewhere.sh "$stack"); then
+      fail "gen9-$stack belongs to another copy of Gen9, ${from#* }: one Gen9 runs on a Docker host, and this folder's make up would take over its containers. Work in that folder, or stop that copy there first (make down)"
+      continue
+    fi
     if [ -n "$(docker ps -q --filter "label=com.docker.compose.project=gen9-$stack" --filter label=com.docker.compose.oneoff --filter status=running)" ]; then
       ok "gen9-$stack is running"
       continue

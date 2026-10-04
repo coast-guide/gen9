@@ -25,6 +25,8 @@ for arg in "$@"; do
   esac
 done
 [ ${#STACKS[@]} -gt 0 ] || { echo "usage: scripts/wipe.sh [--secrets] [--yes] STACK..." >&2; exit 2; }
+# Never another copy of Gen9's containers and data (scripts/elsewhere.sh)
+scripts/elsewhere.sh --refuse "$($SECRETS && echo distclean || echo wipe)" "${STACKS[@]}" || exit 1
 
 # What each stack's volumes hold, in plain words
 holds() {

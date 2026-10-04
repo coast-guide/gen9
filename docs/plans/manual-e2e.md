@@ -5225,10 +5225,35 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-R. Releases
 
-- [ ] R1 The release workflow's last dry run read job by job. The bundle built here twice by
+- [x] R1 The release workflow's last dry run read job by job. The bundle built here twice by
   `scripts/release-bundle.sh`: identical, and its contents as docs say.
-- [ ] R2 The bundle used as an operator would, in a scratch folder: its README's steps followed
+  - **The last dry run** (run 37152584152, a pull request, success): `version` ("the tag is the
+    version gen9-agent, gen9-cli and gen9-ui declare"), `bundle-dry-run` ("the bundle, twice, the
+    same bytes, with its lock"), `charts-dry-run` (Helm as the release gets it, the charts packaged
+    with a stand-in lock, pushed to the runner's registry and read back); `images`, `charts`,
+    `bundle` and `release` skipped, as a dry run leaves them.
+  - **Here:** `scripts/release-bundle.sh 0.1.0 <lock> …` twice: the same sha256 (`ef93d5ae…`),
+    3.3 MB, 1,191 entries: the repository at the commit (`git archive`) with `images.lock` beside
+    the Makefile, stamped with the commit's time; no `.env`, `*.local.env`, `node_modules` or
+    `.venv`, as the script's header and docs/development.md ("Releasing") say.
+- [x] R2 The bundle used as an operator would, in a scratch folder: its README's steps followed
   as far as they go without published images, and noted where they stop.
+  - Unpacked in a scratch folder: the README's quick start, `make doctor` first.
+  - **Found:** from the bundle's folder, not set up, `make doctor` said "ok gen9-postgres is
+    running" and so for every stack: those were the other copy's containers (this repository's).
+    Gen9's stacks have fixed names (`gen9-<stack>`), so a second copy's `make setup` and `make up`
+    would recreate the first one's containers with new secrets over its volumes, and its `make
+    wipe` would delete the first one's data (it finds volumes by the project label). Nothing
+    stopped it, and no doc said one Gen9 runs on a Docker host.
+  - **Fixed:** `scripts/elsewhere.sh` names a stack whose containers, running or stopped, came
+    from another folder (Compose's `com.docker.compose.project.working_dir` label); `make
+    doctor` fails on it (so `setup` and `up`, whose preflight it is, stop before doing anything),
+    and `reset`, `backup`, `restore`, `wipe` and `distclean` refuse ("Nothing done: make wipe here
+    would act on another copy of Gen9. gen9-postgres runs from …"). docs/operations.md says it.
+    Live from the bundle: doctor, setup and up stop with FAIL, wipe refuses, the running copy's 27
+    containers untouched; from the repository, `make doctor` 0 failures.
+  - **Where the steps stop:** this machine runs Gen9 already, so the bundle's `make setup` and
+    `make up` aren't run here; Z3 starts from nothing (after `make distclean`) and goes through.
 - [ ] R3 `scripts/check-version.py` and the version shown by the API, the UI, the CLI and the
   images' labels: one version everywhere.
 

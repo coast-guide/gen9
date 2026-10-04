@@ -242,6 +242,7 @@ diff:
 	@scripts/drift.py $(RUNNING)
 
 reset:
+	@scripts/elsewhere.sh --refuse reset $(RUNNING)
 	@scripts/drift.py --reset $(RUNNING)
 
 # Kubernetes (docs/operations.md, "Kubernetes"): each stack a Helm release of gen9-<stack>/chart in

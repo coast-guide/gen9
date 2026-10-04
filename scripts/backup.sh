@@ -36,6 +36,8 @@ else
   shift
 fi
 STACKS=("$@")
+# Never another copy of Gen9's stacks: a backup stops them (scripts/elsewhere.sh)
+scripts/elsewhere.sh --refuse backup "${STACKS[@]}" || exit 1
 if [ -e "$DIR" ] && [ -n "$(ls -A "$DIR" 2>/dev/null)" ]; then
   echo "$DIR isn't empty: name a new folder for the backup." >&2
   exit 1
