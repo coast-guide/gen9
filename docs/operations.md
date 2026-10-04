@@ -123,6 +123,29 @@ The hosts, the certificates (Let's Encrypt, or Caddy's own CA and how a browser 
 connector apps' hosts', made on demand), and the settings: [gen9-edge/README.md](../gen9-edge/README.md). Without `DOMAIN`, `make up` leaves
 gen9-edge out with a note. On Kubernetes the cluster's Gateway serves the same hosts (below).
 
+## Before people use it
+
+`make setup` makes an install to try Gen9 on and run its checks against. Before your team signs in:
+
+- **Under your domain, over TLS**: above.
+- **Your own admin, not the seeded people.** `ada@gen9.test` (an admin) and `alan@gen9.test` sign
+  in with passwords, and Ada with an authenticator key, kept in `gen9-keycloak/.env`. Sign up,
+  join Keycloak's `admins` group ([gen9-keycloak/README.md, "Manage users"](../gen9-keycloak/README.md#manage-users)),
+  then delete both on Gen9's Users page; nothing makes them again.
+- **Who runs it**, on the privacy page: `PRIVACY_CONTROLLER` and `PRIVACY_CONTACT` in
+  `gen9-ui/.env`, or `PRIVACY_NOTICE_URL` for your own notice ([gen9-ui/README.md](../gen9-ui/README.md)),
+  then `make up STACKS=ui`. Until then the page says the organization hasn't named itself.
+- **Real email.** `make setup` sends every email to Mailpit, which keeps them: Gen9's
+  (`SMTP_URL` and `SMTP_FROM` in `gen9-agent/.env`; [gen9-agent/README.md](../gen9-agent/README.md),
+  "Scheduled tasks") and Keycloak's (password resets, verifying an email: its admin console,
+  realm `gen9`, Realm settings, Email).
+- **No path to e2e's test servers.** `make setup` lets connectors and plugin sources reach them on
+  the Docker host: set `CONNECTORS_ALLOWED_HOSTS=[]` and `PLUGIN_SOURCES_ALLOWED_HOSTS=[]` in
+  `gen9-agent/.env` (an empty value stops gen9-agent from starting; a list is kept by a later
+  `make setup`), then `make up STACKS=agent`.
+- **Model budgets** per person and for the workers ([gen9-models/README.md](../gen9-models/README.md)).
+- **Backups on a schedule** ([below](#back-up-and-restore)).
+
 ## Kubernetes
 
 The same Gen9 runs on any conformant cluster (kind or k3s on a laptop or a VM, or a managed one):

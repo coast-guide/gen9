@@ -264,8 +264,11 @@ if selected agent; then
   # The private addresses this local Gen9's connectors may reach: e2e's test MCP servers (sign-in,
   # e2e/connectors-oauth.mjs; asking the person, e2e/elicitation.mjs; an app, e2e/apps.mjs; one that
   # trusts Keycloak, e2e/connectors-keycloak.mjs, and that Keycloak's test realms). Leave them out
-  # where others' connectors run
-  if ! grep -Eq '^CONNECTORS_ALLOWED_HOSTS=.*17804' gen9-agent/.env; then
+  # where others' connectors run: set it to [] (or hosts of your own), which this keeps. It's added
+  # when missing, and an older copy of e2e's own list (before 17804) is brought up to date
+  if ! grep -q '^CONNECTORS_ALLOWED_HOSTS=' gen9-agent/.env ||
+    { grep -q '^CONNECTORS_ALLOWED_HOSTS=.*host\.docker\.internal:1780[0-9]' gen9-agent/.env &&
+      ! grep -q '^CONNECTORS_ALLOWED_HOSTS=.*17804' gen9-agent/.env; }; then
     set_env gen9-agent/.env CONNECTORS_ALLOWED_HOSTS '["host.docker.internal:17801", "host.docker.internal:17802", "host.docker.internal:17803", "host.docker.internal:17804", "host.docker.internal:15000"]'
     echo "  allowed connectors to reach e2e's test server (CONNECTORS_ALLOWED_HOSTS) in gen9-agent/.env"
   fi
@@ -277,8 +280,9 @@ if selected agent; then
     echo "  set SMTP_URL and SMTP_FROM (notification emails, to Mailpit) in gen9-agent/.env"
   fi
   # The git server e2e's plugins check serves marketplaces from (e2e/plugins.mjs), which plugin
-  # sources may reach although private, over http. Leave it out where others add sources
-  if ! grep -Eq '^PLUGIN_SOURCES_ALLOWED_HOSTS=.*17805' gen9-agent/.env; then
+  # sources may reach although private, over http. Leave it out where others add sources: set it
+  # to [] (or hosts of your own), which this keeps
+  if ! grep -q '^PLUGIN_SOURCES_ALLOWED_HOSTS=' gen9-agent/.env; then
     set_env gen9-agent/.env PLUGIN_SOURCES_ALLOWED_HOSTS '["host.docker.internal:17805"]'
     echo "  allowed plugin sources to reach e2e's git server (PLUGIN_SOURCES_ALLOWED_HOSTS) in gen9-agent/.env"
   fi

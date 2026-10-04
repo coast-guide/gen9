@@ -451,7 +451,7 @@ join that person's chats, named `<connector>__<tool>` ("Used deepwiki: read wiki
   - `CONNECTORS_ALLOW_PRIVATE=true` allows every private network and http, for a server of your
     own;
   - `CONNECTORS_ALLOWED_HOSTS` names hosts, over http too, and nothing next to them. `make setup`
-    adds e2e's test server.
+    adds e2e's test servers when the setting is missing, and keeps a list of yours, `[]` for none.
 - **Sign-in** (`connector_auth.py`, MCP authorization 2026-07-28). A server that answers 401 is
   kept as "Sign in at …":
   - **Discovery:** its Protected Resource Metadata (RFC 9728) names the authorization server, whose
@@ -972,7 +972,8 @@ with a `plugin.json`, skills under `skills/` and MCP servers in `mcp.json` (mile
   - shallow, no tags or submodules, `transfer.fsckObjects`, 120 s a command, and a 200 MB
     checkout.
   - `PLUGIN_SOURCES_ALLOWED_HOSTS` names hosts that may be private and use http (e2e's git
-    server; `make setup` adds it).
+    server; `make setup` adds it when the setting is missing, and keeps a list of yours, `[]` for
+    none).
 - **A person's plugins** (`plugin_skills.py`; Settings > Plugins): a person has a plugin an
   admin made available once they add it (`plugin_installs`), and every plugin an admin gave to
   everyone. Its skills join that person's chats only:

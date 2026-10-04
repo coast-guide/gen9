@@ -5527,7 +5527,21 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     built from the change and Alan's token: 8,001 characters, 422 `string_too_long`, that
     sentence, `loc` `["body", "message"]`, `ctx` `{"max_length": 8000}`; spaces only, "Value
     error, Write a message first."; and 404, 401 and 403 as the README says.
-  - [ ] Z4g `PRIVACY_CONTROLLER` among what to set before going live (O2).
+  - [x] Z4g `PRIVACY_CONTROLLER` among what to set before going live (O2). There was no such
+    list: operations.md now has "Before people use it", each item linking where it's documented:
+    the domain; your own admin instead of the seeded two (`configure.sh` doesn't make them again:
+    Alan, deleted in Z1, stayed gone through Keycloak's restarts); the privacy page's
+    organization; real email, Gen9's and Keycloak's; no path to e2e's test servers; budgets;
+    backups. Tried: `PRIVACY_CONTROLLER=Example Harbour Ltd` and `PRIVACY_CONTACT` in
+    `gen9-ui/.env`, `make up STACKS=ui`, and `/privacy` said "Example Harbour Ltd runs this Gen9 …
+    Write to privacy@example.com"; back as it was. **Found on the way:** an empty
+    `CONNECTORS_ALLOWED_HOSTS=` stopped gen9-agent from starting (pydantic-settings reads a list as
+    JSON: "error parsing value for field \"connectors_allowed_hosts\""), so the docs say `[]`; and
+    `make setup`, safe to rerun, put e2e's hosts back over any list without port 17804 (17805 for
+    plugin sources). **Fixed:** it adds them only when the setting is missing, or brings an older
+    copy of e2e's own list up to date. Live: both set to `[]`, gen9-agent ready with `[] []`, a
+    second `make setup` kept them; in a scratch export, a new install got e2e's lists, an older
+    e2e list was brought up to date, an operator's own list and `[]` were kept.
   - [ ] Z4h gen9-edge's README: how a Caddyfile change is applied (P4).
   - [ ] Z4i The spend-per-user recipe: its column is the person's `sub`, and how to find whose
     (S3).
