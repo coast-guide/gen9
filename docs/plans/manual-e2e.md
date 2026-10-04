@@ -5074,8 +5074,23 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-O. Using it as a person: UX and accessibility
 
-- [ ] O1 The whole chat flow by keyboard only: focus visible, order sensible, no trap.
-- [ ] O2 Phone width and dark mode on every page.
+- [x] O1 The whole chat flow by keyboard only: focus visible, order sensible, no trap.
+  - Tab from the top (F1's chat, Quinn with about 60 chats): "Skip to content" first, then the
+    mark, New chat, Search, Scheduled, each chat in the sidebar; every stop with a visible focus
+    ring. "Skip to content" + Enter moves focus to the conversation; Tab then: "Chat options",
+    "Used 3 tools", the answer's link, "Sources: 7 pages". Enter opens the sheet with focus on its
+    first page, Tab stays in it; Escape closes it and gives focus back to "Sources: 7 pages".
+  - The composer's keys are pinned by `lib/composer-keys.test.ts`; sending wasn't repeated here.
+- [x] O2 Phone width and dark mode on every page.
+  - At 390×844, touch, `prefers-color-scheme: dark`: `/`, `/chat`, three chats (Sources, a
+    connector's form, questions), `/search`, `/scheduled`, `/settings`, `/privacy`,
+    `/signed-out`, `/auth/error`, a missing page, and Ada's `/admin/users`, `/admin/plugins`,
+    `/admin/audit`, and Keycloak's sign-in and password reset: none wider than the screen
+    (`scrollWidth` 390), each on the dark background, read by eye on a contact sheet.
+  - Small things: the plugin page's empty state breaks `.claude-plugin/marketplace.json` at its
+    hyphen; the privacy page says "The organization running this Gen9 hasn't named itself here
+    yet" until the operator sets `PRIVACY_CONTROLLER` (gen9-ui's README): for Z4, whether the
+    operations guide names it among what to set before going live.
 - [ ] O3 Every empty, loading and error state met in this phase: is its wording clear, and does
   it say what to do.
 - [ ] O4 Settings page, section by section: each control does what it says (checked in the API).
