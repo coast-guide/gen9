@@ -21,6 +21,11 @@ docs/plans/harness.md).
   server adds or changes later (a "rug pull") is held back from the model and its View until the
   person looks at it in Settings and keeps it (`changes`; OWASP's MCP Security Cheat Sheet:
   "Re-prompt for consent when tool definitions change"; docs/plans/manual-e2e.md, P5-C4).
+- **Told what's missing.** The model gets only the tools it may use, so each model call also
+  says which of the person's connectors it can't use now, and why (held changes, a sign-in, out
+  of reach): asked for one, it tells them where to fix it rather than reaching for another
+  connector's tool (manual-e2e.md, P8-J5). Only the connector's name, the person's own, goes in:
+  never a server's own words.
 - **Apps.** Clients advertise MCP Apps (apps.py): a View's own tools stay away from the model, a
   UI tool's result is tagged with its View, and the web app's View reads resources and calls
   tools through `app_resource` and `app_call`, under the connector's policy.
@@ -66,6 +71,7 @@ from .connector_net import (
     http_client,
     mcp_http_client,
 )
+from .grounding import with_note
 from .models import Connector, Plugin, User
 from .plugin_skills import has_plugin
 from .vault import Vault
@@ -84,6 +90,20 @@ SEP = "__"
 POLICIES = ("ask", "changes", "never")
 # Model providers take tool names up to 64 characters (OpenAI: ^[a-zA-Z0-9_-]{1,64}$)
 MAX_TOOL_NAME = 64
+# Why a connector the person has can't be used: it waits for them to sign in (again)
+SIGN_IN = "waits for the person to sign in to it in Settings > Connectors"
+
+
+def unavailable_note(missing: list[str]) -> str:
+    """What each model call is told of the person's connectors it can't use now."""
+    lines = "\n".join(f"- {m}" for m in missing)
+    return (
+        f"The person's connectors you can't use now, and why:\n{lines}\n"
+        "Asked for one of them, tell the person why and where to fix it; don't use another "
+        "connector's tool in its place."
+    )
+
+
 DISCOVER_TIMEOUT_S = 15
 # How long a connector's tools are reused before they are listed again
 TOOLS_FRESH_S = 60
@@ -291,6 +311,8 @@ class ConnectorTools(AgentMiddleware):
         self._listed: dict[uuid.UUID, _Listed] = {}
         # The last tools loaded for each person (by sub): what their approvals and calls see
         self._people: dict[str, dict[str, _Loaded]] = {}
+        # Their connectors the model can't use now, each with why (`unavailable_note`)
+        self._unavailable: dict[str, list[str]] = {}
 
     async def tools_of(self, sub: str) -> dict[str, _Loaded]:
         """This person's connector tools by their names here, listing any not fresh."""
@@ -309,9 +331,11 @@ class ConnectorTools(AgentMiddleware):
                 )
             )
         loaded: dict[str, _Loaded] = {}
+        unavailable: list[str] = []
         for row in rows:
             # Waiting for the person to sign in (again): no tools until they do
             if row.status != "ready":
+                unavailable.append(f"{row.name}: {SIGN_IN}")
                 continue
             listed = self._listed.get(row.id)
             if (
@@ -323,6 +347,7 @@ class ConnectorTools(AgentMiddleware):
                     if row.sealed_tokens:
                         token = await self._access_token(row.id, sub)
                         if token is None:
+                            unavailable.append(f"{row.name}: {SIGN_IN}")
                             continue
                     else:
                         token = self._header_token(row, sub)
@@ -331,12 +356,19 @@ class ConnectorTools(AgentMiddleware):
                     )
                 except (ConnectorError, ValueError) as e:
                     log.warning("connector %s of %s left out: %s", row.name, sub, e)
+                    unavailable.append(f"{row.name}: couldn't be reached just now")
                     continue
                 listed = _Listed(time.monotonic(), row.updated_at, tools)
                 self._listed[row.id] = listed
             same, changed = changes(row.tools, listed.tools)
             if changed != (row.changed or []):
                 await self._record_changes(row.id, changed)
+            if changed:
+                unavailable.append(
+                    f"{row.name}: {len(changed)} of its tools are new or changed since the "
+                    "person connected it, and wait until they look at them in Settings > "
+                    "Connectors"
+                )
             for tool in same:
                 name = f"{row.name}{SEP}{tool.name}"
                 if len(name) <= MAX_TOOL_NAME:
@@ -347,6 +379,7 @@ class ConnectorTools(AgentMiddleware):
                         row.name,
                     )
         self._people[sub] = loaded
+        self._unavailable[sub] = unavailable
         return loaded
 
     async def _record_changes(
@@ -584,6 +617,12 @@ class ConnectorTools(AgentMiddleware):
     async def awrap_model_call(self, request, handler):
         sub = getattr(request.runtime.context, "user_sub", None)
         extra = await self.tools_of(sub) if sub else {}
+        if missing := self._unavailable.get(sub or ""):
+            request = request.override(
+                system_message=with_note(
+                    request.system_message, unavailable_note(missing)
+                )
+            )
         if not extra:
             return await handler(request)
         # A View's own tools never reach the model (MCP Apps, `visibility`)

@@ -252,6 +252,51 @@ async def test_another_person_is_offered_none_and_cant_call_them() -> None:
     assert "x" not in NOTES
 
 
+class Prompts(Scripted):
+    """Records each call's system prompt."""
+
+    systems: list[str] = []  # noqa: RUF012 (pydantic copies it per instance)
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
+        self.systems.append(str(messages[0].content))
+        return super()._generate(messages, stop, run_manager, **kwargs)
+
+
+class HeldConnectors(InMemoryConnectors):
+    """`sub-a` also has `words`, whose tools changed since they connected it (manual-e2e.md,
+    P8-J5)."""
+
+    async def tools_of(self, sub: str) -> dict[str, _Loaded]:
+        loaded = await super().tools_of(sub)
+        self._unavailable[sub] = (
+            ["words: 2 of its tools are new or changed"] if sub == "sub-a" else []
+        )
+        return loaded
+
+
+@pytest.mark.parametrize(("sub", "told"), [("sub-a", True), ("sub-b", False)])
+async def test_the_model_is_told_which_connectors_it_cant_use(sub, told) -> None:
+    connectors = HeldConnectors(engine=None, vault=None, allow_private=False)  # ty: ignore[invalid-argument-type]
+    model = Prompts(script=[AIMessage("ok")])
+    agent = create_deep_agent(
+        model=model,
+        checkpointer=InMemorySaver(),
+        context_schema=Gen9Context,
+        middleware=[connectors, ConnectorApprovals(connectors)],
+    )
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+    await agent.ainvoke(
+        {"messages": [{"role": "user", "content": "go"}]},
+        config,
+        context=Gen9Context(sub),
+    )
+    note = "- words: 2 of its tools are new or changed"
+    assert (note in model.systems[0]) is told
+    assert (
+        "don't use another connector's tool in its place" in model.systems[0]
+    ) is told
+
+
 async def test_a_going_connectors_tokens_are_revoked_best_effort(monkeypatch) -> None:
     vault = Vault(f"k1:{base64.b64encode(os.urandom(32)).decode()}")
     connectors = ConnectorTools(engine=None, vault=vault, allow_private=False)  # ty: ignore[invalid-argument-type]
