@@ -8,6 +8,15 @@ import { actionWords, MEMORY_FILE, reasonIn } from "@/lib/approvals";
 import { answersIn } from "@/lib/questions";
 import { cn } from "@/lib/utils";
 
+/** At most `max` characters: a longer text is cut at a word and ends in "…", so a label never
+ *  stops mid-word as if that were all of it (manual-e2e.md, P8-F2). */
+export function clip(value: string, max = 120): string {
+  if (value.length <= max) return value;
+  const cut = value.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space >= max / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:]+$/, "")}…`;
+}
+
 /** What a tool call did, in words: "Searched the web: postgres 18", "Read /notes.md". */
 export function describeStep(step: Step): string {
   const args = (step.args ?? {}) as Record<string, unknown>;
@@ -32,11 +41,11 @@ export function describeStep(step: Step): string {
       // A subagent the agent's definition declares is named; the general-purpose one is "a helper"
       const who = text(args.subagent_type);
       const helper = who && who !== "general-purpose" ? `the ${who.replaceAll("-", " ")}` : "a helper";
-      return `Asked ${helper}: ${text(args.description).slice(0, 120)}`;
+      return `Asked ${helper}: ${clip(text(args.description))}`;
     }
     // Work started in the background (gen9-agent's background.py), each task a chat of its own
     case "start_async_task":
-      return `Started in the background: ${text(args.description).split("\n")[0].slice(0, 120)}`;
+      return `Started in the background: ${clip(text(args.description).split("\n")[0])}`;
     case "check_async_task":
       return "Checked a background task";
     case "update_async_task":
@@ -69,7 +78,7 @@ export function describeStep(step: Step): string {
       return `Listed ${text(args.path) || "files"}`;
     case "execute":
       // A command in the chat's environment (gen9-agent's environments.py)
-      return `Ran: ${text(args.command).slice(0, 120)}`;
+      return `Ran: ${clip(text(args.command))}`;
     case "glob":
     case "grep":
       return `Searched files for ${text(args.pattern)}`;

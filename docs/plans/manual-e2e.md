@@ -4425,6 +4425,10 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     flagged), the same after a reload.
   - **Found too:** the step's label cuts the task off mid-word ("Determine confirmed, con"), and
     opening it repeats the cut text.
+  - **Fixed:** a step's label (a subagent's task, a background task, a command) longer than 120
+    characters is cut at a word and ends in "…" (`clip`, components/chat/activity.tsx). Live on
+    the rebuilt gen9-ui, the first chat: "… Determine confirmed…". That chat, answered before the
+    Sources fix, still shows none: its checkpoint has no pages to show (nothing is backfilled).
   - **Seen again, not this change:** on one try the model ran away inside the `task` call
     (32,000 output tokens over 2 min 50 s, $0.016, LiteLLM "Failed to parse tool call
     arguments"); the activity timed out and its retry answered from the checkpoint. The image
