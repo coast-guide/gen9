@@ -5160,7 +5160,12 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     Caddy logging "obtaining new certificate" at the first handshake; at once the second time. A
     made-up id's host and a name that isn't an id: the handshake fails (curl exit 35), nothing
     issued. `https://api.gen9.localhost/internal/apps-host` from outside: 404.
-- [ ] P4 Back to localhost: `make setup DOMAIN=localhost`, `make up`, `make diff` 0.
+- [x] P4 Back to localhost: `make setup DOMAIN=localhost`, `make up`, `make diff` 0.
+  - `make setup DOMAIN=localhost`: "every address back on this machine's ports; gen9-edge no
+    longer set up (make down STACKS=edge stops it)"; all 19 settings files byte for byte as before
+    P1, `gen9-edge/.env` and `edge.local.env` gone. `make up`: every stack, the edge still running
+    as the message warned; `make down STACKS=edge`; `make diff`: each stack "as declared", exit 0.
+    Quinn's localhost session had lasted through it; `https://gen9.localhost` no longer answers.
 
 ### P8-Q. Kubernetes, by hand (k3d)
 
