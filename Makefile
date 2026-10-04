@@ -175,9 +175,12 @@ up:
 	@$(if $(IMAGES),scripts/images.sh $(IMAGES))
 	@$(if $(MISSING),printf 'Not set up yet. Missing:%b\nRun: make setup STACKS="%s"\n' \
 	  "$(foreach f,$(MISSING),\n  $(f))" "$(call writers,$(MISSING))" >&2; exit 1)
+	@# Each provider key the router's config.yaml uses and gen9-models/.env lacks: a chat on it fails
 	@case " $(SELECTED) " in *" models "*) \
-	  grep -Eq '^[A-Z0-9_]+_API_KEY=.+' gen9-models/.env || \
-	  echo "note: gen9-models/.env has no provider key, so no model can answer (make setup STACKS=models asks for an OpenAI key)" ;; esac
+	  for k in $$(grep -v '^[[:space:]]*#' gen9-models/config.yaml | grep -o 'os.environ/[A-Z0-9_]*_API_KEY' | sort -u | cut -d/ -f2); do \
+	    grep -Eq "^$$k=.+" gen9-models/.env || \
+	    echo "note: gen9-models/.env has no $$k, which gen9-models/config.yaml uses: its models can't answer until you add it, then (cd gen9-models && docker compose up -d litellm)"; \
+	  done ;; esac
 	@for p in $(OUTSIDE); do s=$${p%%:*} u=$${p#*:}; \
 	  [ -n "$$(docker ps -q --filter label=com.docker.compose.project=gen9-$$u --filter label=com.docker.compose.oneoff --filter status=running)" ] || \
 	  echo "note: gen9-$$s uses gen9-$$u, which isn't running (make up STACKS=\"$$u $$s\")"; done

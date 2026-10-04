@@ -35,6 +35,11 @@ RATE_LIMITED = names.RATE_LIMITED
 PUBLIC_RATE_LIMITED = (
     "You've sent more requests this minute than your limit allows. Retry in a minute."
 )
+# A provider refused the key the router calls it with: missing, wrong or revoked (OpenAI's SDK
+# raises AuthenticationError for the 401; P8-Z3). Only an admin can fix it, then the person resends
+PUBLIC_KEY_REFUSED = (
+    "The model provider refused Gen9's key. Ask an admin to check it, then try again."
+)
 # The turn didn't fit the context budget even after summarizing (Deep Agents' ContextOverflowError)
 PUBLIC_TOO_LONG = (
     "This didn't fit in what the model can read at once, even after summarizing the chat. "
@@ -64,6 +69,8 @@ def public_error(error: str | None) -> str:
         return PUBLIC_RATE_LIMITED
     if error and "ContextOverflowError" in error:
         return PUBLIC_TOO_LONG
+    if error and "AuthenticationError: Error code: 401" in error:
+        return PUBLIC_KEY_REFUSED
     return PUBLIC_ERROR
 
 

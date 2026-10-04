@@ -317,6 +317,9 @@ volumes.
   folder (`scripts/elsewhere.sh`).
 - `make ps`, then `make logs STACKS=<stack>` (`FOLLOW=1` to watch): which container is unhealthy,
   and why.
+- Every chat fails at once with "The model provider refused Gen9's key": a provider key the
+  router's `gen9-models/config.yaml` uses is missing or wrong in `gen9-models/.env`. `make up`
+  names each one missing; after adding it, `(cd gen9-models && docker compose up -d litellm)`.
 - `make diff`: what runs differently from what's declared, a change made by hand among it;
   `make reset` puts it back.
 - Symptom by symptom (a sign-in ending on `/auth/error?reason=…`, a chat failing with 401, the

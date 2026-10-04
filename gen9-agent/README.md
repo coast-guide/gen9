@@ -386,7 +386,9 @@ person's Retry (Temporal's Resumable Activity pattern, `workflows/runs.py`).
 - **Which failures:** the turn's 3 attempts spent (the model provider down past the router's
   fallbacks, out of credits, unreachable), or the person over their usage limit.
 - **Which don't:** a failure a retry can't fix still ends as `error`: a 400, 401, 403, 404 or 422
-  from the model, or the recursion limit.
+  from the model, or the recursion limit. A provider's 401 (its key missing or wrong in
+  gen9-models) says so: "The model provider refused Gen9's key. Ask an admin to check it, then
+  try again."
 - **Waiting:** the `park_run` Activity records a request of kind `retry` (`retry-1`, `retry-2`,
   and so on), with the reason in plain words ("The model provider has no credits left…", "…didn't
   answer…", the usage-limit message). It appends `input.requested` and marks the run `waiting`.

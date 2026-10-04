@@ -5468,7 +5468,31 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - **For Z4:** the key nobody names, the pull errors, setup's eight "Next:" blocks, doctor and
     python3, `images.env` in "Start over", and the earlier sections' notes.
 - [ ] Z4 The docs' findings of A and Z3 fixed (each its own pull request), then read again as a
-  newcomer.
+  newcomer. The list, from A to Z3, each with what was decided:
+  - [x] Z4a A provider key missing or refused is named (Z3). People saw "The agent failed to
+    answer. Try again.", the operator nothing. Now the run's public error for a provider's 401
+    is "The model provider refused Gen9's key. Ask an admin to check it, then try again.", and
+    `make up` names each `*_API_KEY` the router's `config.yaml` uses (comments left out) that
+    `gen9-models/.env` lacks; operations.md's "When something goes wrong", gen9-agent's README
+    and gen9-learn's Debugging map say so. The run still ends as `error` (Decision Log). Live:
+    with `chat` back on OpenRouter and no key, Alan's question failed with the toast "The model
+    provider refused Gen9's key. Ask an admin to check it, then try again."; `make up STACKS=models`
+    printed "note: gen9-models/.env has no OPENROUTER_API_KEY, which gen9-models/config.yaml
+    uses: …" with the committed config, nothing with this machine's (OpenAI's key alone).
+  - [ ] Z4b Compose's "pull access denied … may require 'docker login'" before Gen9's own images
+    are built (Z3).
+  - [ ] Z4c `make setup`'s eight per-stack "Next:" blocks before "Ready. Next: make up" (Z3).
+  - [ ] Z4d `make doctor` and python3, which the README lists (Z3).
+  - [ ] Z4e "Start over": `images.env` survives `make distclean` (Z3); `make wipe STACKS=ui`
+    "signs everyone out" holds for Gen9's sessions, not Keycloak's (Z2).
+  - [ ] Z4f The API's two error shapes, `{"detail": "…"}` and FastAPI's validation list, and the
+    validation wording ("at most 8000 items") (K, M5).
+  - [ ] Z4g `PRIVACY_CONTROLLER` among what to set before going live (O2).
+  - [ ] Z4h gen9-edge's README: how a Caddyfile change is applied (P4).
+  - [ ] Z4i The spend-per-user recipe: its column is the person's `sub`, and how to find whose
+    (S3).
+  - [ ] Z4j The `vision` alias: what it is for, since Gen9 sends images to `chat` (F6).
+  - [ ] Z4k A guide for the person using Gen9 (A): decided below.
 - [ ] Z5 Everything this phase made removed; the seeded state back; the phase's spend measured;
   `make e2e` once at the end as the second net, not as the verification.
 
@@ -5792,6 +5816,16 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   (the step budgets' "I stopped here…") reached the screen only after a reload (P6-Z1).
 
 ## Decision Log
+
+- Decision (P8-Z4a): a provider's 401 is named in words, and the run still ends as `error`
+  rather than waiting for Retry as running out of credits does. Rationale: LiteLLM maps a
+  provider's refused key to `litellm.AuthenticationError` (its exception mapping docs), which
+  OpenAI's SDK raises as `AuthenticationError` for the 401; an admin has to change
+  `gen9-models/.env` and restart the router before anything can succeed, which takes longer than
+  a retry is worth waiting for, and parking would change the run workflow's decisions (a
+  Temporal patch) for a case the person fixes by resending. The operator's side is `make up`'s
+  note, which reads the keys from `config.yaml` itself, so it stays right when an alias moves to
+  another provider.
 
 - Decision: phase 2's list, from these sources read today: Next.js 16's
   data-security guide (Server Actions check Origin against Host; Route Handlers are the
