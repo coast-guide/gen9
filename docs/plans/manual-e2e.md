@@ -5059,7 +5059,15 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     its sign-in service. Retry in a moment."; the API answers it 503 with `Retry-After: 30`,
     "Gen9's sign-in service didn't answer. Try again in a moment." Live on the rebuilt agent with
     Keycloak stopped: both exactly so; Keycloak back, Retry answered.
-- [ ] N4 Langfuse down: chats work, and traces resume when it's back.
+- [x] N4 Langfuse down: chats work, and traces resume when it's back.
+  - **Stopped** (web and worker, 12:13:04): a turn answered in 4.1 s, as fast as ever; the
+    worker's exporter logged its transient errors. Started again 25 s later (healthy at
+    12:13:54, about 45 s after that turn ended): the next turn's trace arrived (16 events), the
+    one from the outage didn't (0), as gen9-agent's README says ("a longer outage … loses the
+    traces of turns that end meanwhile": the exporter keeps a batch about 31 s).
+  - **Restarted** (`docker restart` of the web, healthy again 15 s later): a turn made meanwhile
+    kept its whole trace (16 events), as the README says ("a restart of Langfuse … loses
+    nothing").
 - [x] N5 Valkey restarted: sessions survive (AOF).
   - Recreated with M6's change (`make up STACKS=ui`, 11:52): 3 sessions before and after, and
     Quinn, Alan and Ada each still signed in on reload.
