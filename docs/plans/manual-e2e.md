@@ -5295,7 +5295,18 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - On `http://localhost` a run's input stays `binary/encrypted`. The UI sends the admin's token
     only to an `https://` codec endpoint, as gen9-temporal's README says; under a domain it
     decodes (P).
-- [ ] S3 The router's admin: keys, budgets and spend per user, with the docs' description.
+- [x] S3 The router's admin: keys, budgets and spend per user, with the docs' description.
+  - **Gen9's admin API** (`127.0.0.1:19001`), as gen9-models' README describes it: `/health` ok;
+    `GET /users/<Quinn>/budget` with either of gen9-agent's keys, `spent_usd` 0.0575 of `max_usd`
+    1.0, `period` 1d, `resets_at` 2026-10-05T00:00Z; without a key 401 "gen9-agent's key is
+    required"; `GET …/usage` with the API's key, her 4 days; `POST …/erase` with the API's key, 401
+    (only the worker's may).
+  - **LiteLLM's own, with the master key:** the keys `gen9-agent` (every model, $2 a day here),
+    `gen9-agent-api` (`embed` and `rerank` only), `gen9-evals` (`chat`, $0.5 a day); the budget
+    `gen9-user-default`, $1 a day, as the README's table says (its defaults: 1 and 1d).
+  - **Spend per user**, the README's recipe: by Keycloak `sub` (Alan 0.1729, Quinn 0.0575, Ada
+    0.0164), 0.0041 with no user (F7's calls by hand), two $0 rows left by earlier probes. For
+    Z4: the recipe could say the column is the person's `sub`, and where to find whose.
 
 ### P8-T. gen9-learn by hand
 
