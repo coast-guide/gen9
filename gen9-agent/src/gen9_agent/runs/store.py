@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from ..models import FINAL_RUN_STATUSES, InputRequest, Run, Thread, User
+from ..standing import KEYCLOAK_UNAVAILABLE
 from ..workflows import names
 from . import log
 from .events import RunEvent
@@ -88,6 +89,8 @@ _DATABASE = (
     "No space left on device",
 )
 PUBLIC_NO_SAVE = "Gen9 couldn't save its work. Retry in a moment."
+# Keycloak down when the run asked whether its person may still use Gen9 (standing.py)
+PUBLIC_NO_IDENTITY = "Gen9 couldn't reach its sign-in service. Retry in a moment."
 
 
 def retry_reason(error: str) -> str:
@@ -100,6 +103,8 @@ def retry_reason(error: str) -> str:
         return PUBLIC_NO_CREDITS
     if any(marker in error for marker in _DATABASE):
         return PUBLIC_NO_SAVE
+    if KEYCLOAK_UNAVAILABLE in error:
+        return PUBLIC_NO_IDENTITY
     return PUBLIC_NO_ANSWER
 
 

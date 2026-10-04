@@ -5044,8 +5044,21 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     couldn't load this page. Part of Gen9 may be restarting. Try again in a minute; nothing you
     saved is lost." with Try again. A message sent then: "Gen9 can't start a chat right now. Try
     again in a moment.", the message kept in the composer. Back within a second of the start.
-- [ ] N3 Keycloak down: signed-in people go on (until their token needs a refresh); a sign-in
+- [x] N3 Keycloak down: signed-in people go on (until their token needs a refresh); a sign-in
   shows a clear page.
+  - **Keycloak stopped:** Quinn, signed in, used the app; a new visitor (a fresh profile) got
+    "Sign-in is unavailable right now. Try again in a minute."; Ada's admin pages the generic
+    "Gen9 couldn't load this page …" (the API's admin check answers 503 "Identity provider
+    unreachable"); the API with Quinn's CLI token answered (tokens are checked locally).
+  - **Found:** a turn sent then tried three times in about 25 s (the worker's check of Quinn's
+    standing reaching Keycloak: `ConnectError`), then waited for Retry saying "The model provider
+    didn't answer. Retry in a moment.": the wrong service. And a task's trigger, which makes the
+    same check, had nothing to turn that error into (an unhandled exception, a 500).
+  - **Fixed:** the check raises `IdentityUnavailable` ("Keycloak didn't answer: …") for a
+    Keycloak that is down or erring; a run waiting for Retry after it says "Gen9 couldn't reach
+    its sign-in service. Retry in a moment."; the API answers it 503 with `Retry-After: 30`,
+    "Gen9's sign-in service didn't answer. Try again in a moment." Live on the rebuilt agent with
+    Keycloak stopped: both exactly so; Keycloak back, Retry answered.
 - [ ] N4 Langfuse down: chats work, and traces resume when it's back.
 - [x] N5 Valkey restarted: sessions survive (AOF).
   - Recreated with M6's change (`make up STACKS=ui`, 11:52): 3 sessions before and after, and

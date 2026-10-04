@@ -10,6 +10,7 @@ import psycopg
 from fastapi import FastAPI, Request, Response, status
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm.exc import StaleDataError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -48,6 +49,7 @@ from .runs.log import EventHub
 from .runtime import open_runtime
 from .settings import get_settings
 from .stale import gone_meanwhile
+from .standing import IdentityUnavailable
 from .temporal import connect, keep_token_fresh
 
 
@@ -164,6 +166,17 @@ app.add_exception_handler(StaleDataError, gone_meanwhile)
 app.add_exception_handler(DBAPIError, database_unavailable)
 # LangGraph's store and checkpointer use psycopg itself: its errors come unwrapped
 app.add_exception_handler(psycopg.Error, database_unavailable)
+
+
+@app.exception_handler(IdentityUnavailable)
+async def identity_unavailable(request: Request, exc: IdentityUnavailable) -> Response:
+    """Keycloak down when a request asked whether a person may still use Gen9 (a task's
+    trigger, standing.py): a moment's outage, not a server error."""
+    return JSONResponse(
+        {"detail": "Gen9's sign-in service didn't answer. Try again in a moment."},
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        headers={"Retry-After": "30"},
+    )
 
 
 @app.exception_handler(StarletteHTTPException)

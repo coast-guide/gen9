@@ -15,12 +15,20 @@ The runtime makes it; the API and the worker give it their Keycloak admin client
 import time
 from typing import Any
 
+import httpx
 from langchain.agents.middleware import AgentMiddleware
 
 from .keycloak_admin import KeycloakAdmin, KeycloakAdminError
 
 # How long an answer is kept: disabling someone stops their work within this
 TTL_S = 60.0
+# What a failure says when Keycloak couldn't be asked: a run waiting for Retry names it so
+# (runs/store.py, `retry_reason`), not the model provider (manual-e2e.md, P8-N3)
+KEYCLOAK_UNAVAILABLE = "Keycloak didn't answer"
+
+
+class IdentityUnavailable(RuntimeError):
+    """Keycloak couldn't say whether the person may still use Gen9: down, or erring."""
 
 
 class Standing:
@@ -49,8 +57,12 @@ class Standing:
             active = bool((await self.admin.get_user(sub)).get("enabled"))
         except KeycloakAdminError as e:
             if e.status_code != 404:
-                raise
+                raise IdentityUnavailable(f"{KEYCLOAK_UNAVAILABLE}: {e}") from None
             active = False
+        except httpx.HTTPError as e:
+            raise IdentityUnavailable(
+                f"{KEYCLOAK_UNAVAILABLE}: {type(e).__name__}: {e}"
+            ) from None
         self._known[sub] = (active, now)
         return active
 

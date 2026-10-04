@@ -78,7 +78,7 @@ More workers: `docker compose up -d --scale worker=3`, or start `gen9-agent-work
 | `POST /v1/admin/users/{id}/logout`, `…/password-reset`, `…/unlock` | `gen9-admin` | Sign out everywhere; email a reset link; clear a sign-in lockout |
 | `POST /v1/temporal/codec/decode`, `…/encode` | Gen9 admin signed in to Temporal's web UI (token from client `temporal-ui`, audience `temporal`, `gen9:admin`) | Temporal's [codec protocol](https://docs.temporal.io/codec-server): the UI sends encrypted payloads, gets them decrypted (`TEMPORAL_PAYLOAD_KEYS`). CORS allows only the UI's origin (`TEMPORAL_UI_URL`); the UI calls it only over https (gen9-temporal/README.md, "Security") |
 | `GET/POST /v1/admin/plugin-sources`, `POST …/{id}/sync`, `DELETE …/{id}` | `gen9-admin` | Plugin sources ([Plugins](#plugins)): list them with their state; add a git repository (`url`, https and public, and an optional `ref`; `422` says why one is refused, `409` if it's already a source), which starts its sync; sync one now (`202`); remove one and its plugins |
-| `POST /v1/tasks/{id}/fire` | the task's trigger token (no sign-in) | Fire a task in a new chat ([Scheduled tasks](#scheduled-tasks)): `202`; the same `401` for no token, a wrong one or no such task; `409` paused; `429` with `Retry-After` past the hourly limits. `POST`/`DELETE …/{id}/trigger` (signed in, its owner) make its token (shown once) or revoke it |
+| `POST /v1/tasks/{id}/fire` | the task's trigger token (no sign-in) | Fire a task in a new chat ([Scheduled tasks](#scheduled-tasks)): `202`; the same `401` for no token, a wrong one or no such task; `409` paused; `429` with `Retry-After` past the hourly limits; `503` with `Retry-After` while Keycloak doesn't answer (its person can't be checked). `POST`/`DELETE …/{id}/trigger` (signed in, its owner) make its token (shown once) or revoke it |
 | `GET/POST /v1/tasks`, `PATCH/DELETE /v1/tasks/{id}`, `POST …/{id}/run`, `…/pause`, `…/resume` | any signed-in user (their own tasks) | Scheduled tasks ([Scheduled tasks](#scheduled-tasks)): each with its schedule in words, its next run, its latest runs' chats and how many firings were skipped; add one (`422` says why a schedule or time zone is refused, and "Name the task." or "Say what Gen9 should do." for a name or a message of only spaces; `409` past `TASKS_MAX_PER_PERSON`); change, run now, pause and resume (a recurring one), delete (its chats stay). Others' get `404` |
 | `GET /v1/me/limit` | any signed-in user | How much of their model usage limit they've used this period (`used`, 0 to 1), whether they have one (`limited`), and when it resets (`resets_at`, UTC), from gen9-models' admin API; `503` when it can't be read. A turn refused over the limit says when it resets too (manual-e2e.md, P5-D1) |
 | `GET/PUT /v1/me/controls` | any signed-in user | What they let Gen9 do with their chats: `search_past_chats` ([Past chats](#past-chats)) and `remember` ([Memory](#memory)). `PUT` changes the ones it names |
@@ -563,7 +563,8 @@ in the web app; `gen9 tasks`).
   ("This task's person can't use Gen9 right now"), a firing makes no chat, and a run already
   queued ends as an error (`PersonInactive`) without answering. Each process keeps Keycloak's
   answer for a minute, so the work stops within a minute of disabling. A Keycloak that doesn't
-  answer makes the run retry rather than guess.
+  answer makes the run retry rather than guess; once its tries are spent it waits for Retry,
+  saying "Gen9 couldn't reach its sign-in service." (`IdentityUnavailable`).
 - **Its runs** keep the task's permission mode. One that needs Allow waits, and its chat says
   "Needs you".
 - **Editing** a task makes its Schedule again, so Temporal's counts (actions, skipped) start
