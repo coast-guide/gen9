@@ -5467,7 +5467,7 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     5 s later); written in place, at once. A second restart took it.
   - **For Z4:** the key nobody names, the pull errors, setup's six "Next:" blocks, doctor and
     python3, `images.env` in "Start over", and the earlier sections' notes.
-- [ ] Z4 The docs' findings of A and Z3 fixed (each its own pull request), then read again as a
+- [x] Z4 The docs' findings of A and Z3 fixed (each its own pull request), then read again as a
   newcomer. The list, from A to Z3, each with what was decided:
   - [x] Z4a A provider key missing or refused is named (Z3). People saw "The agent failed to
     answer. Try again.", the operator nothing. Now the run's public error for a provider's 401
@@ -5562,7 +5562,12 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     nothing unless called, and taking an alias away is the owner's call), and gen9-models'
     README now says it serves a program given its own key, a skill or a tool, while a person's
     images go to `chat`.
-  - [ ] Z4k A guide for the person using Gen9 (A): decided below.
+  - [x] Z4k A guide for the person using Gen9 (A): decided not to write one (Decision Log).
+  - **Read again as a newcomer**, from the top of the stack: every relative link and anchor in
+    the 67 Markdown files outside the plans resolves (a script, not by eye); the README's quick
+    start, its documentation map, operations.md's requirements, first-time setup, "When something
+    goes wrong", "Before people use it" and "Start over", read in that order. One gap: neither the
+    README's map nor AGENTS.md's "Where things live" named "Before people use it"; both do now.
 - [ ] Z5 Everything this phase made removed; the seeded state back; the phase's spend measured;
   `make e2e` once at the end as the second net, not as the verification.
 
@@ -5886,6 +5891,13 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   (the step budgets' "I stopped here…") reached the screen only after a reload (P6-Z1).
 
 ## Decision Log
+
+- Decision (P8-Z4k): no guide in the repository for the person using Gen9. Rationale: they meet
+  Gen9 in the app, never here, and what they need is said where they need it: the home page's
+  suggestions, the permission mode under the composer, the AI notice, each empty state, Settings
+  and the privacy page (O1 to O4 read each). Diátaxis puts tutorials and how-to guides where
+  their reader is; a copy here would drift from the screens it describes. The README's "What it
+  does" is for whoever decides to run it; gen9-learn is for maintainers.
 
 - Decision (P8-Z4a): a provider's 401 is named in words, and the run still ends as `error`
   rather than waiting for Retry as running out of credits does. Rationale: LiteLLM maps a

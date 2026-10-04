@@ -129,7 +129,7 @@ Only then implement. The same applies to design and UX work, and to any change o
 | Proposing a change; the code of conduct                            | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/` (issue and pull request templates) |
 | Reporting a vulnerability, and where each part of Gen9's security is described | `SECURITY.md` |
 | Active plans (goal, progress, decisions, surprises)                | `docs/plans/`, written as `docs/PLANS.md` says         |
-| Operating Gen9: Docker or Kubernetes, a release, a domain, stores elsewhere; upgrade, back up and restore, stop every agent, start over, disk | `docs/operations.md` |
+| Operating Gen9: Docker or Kubernetes, a release, a domain, stores elsewhere; before people use it; upgrade, back up and restore, stop every agent, start over, disk | `docs/operations.md` |
 | Releases: one version, how one is cut, what the workflow publishes | `docs/development.md` ("Releasing"), `.github/workflows/release.yml` |
 | Kubernetes: the library chart, each stack's chart, the settings | `deploy/helm/gen9-lib`, `gen9-*/chart`, `deploy/values.yaml` |
 | Architecture: identity and tokens                                  | `docs/auth-architecture.md`                              |

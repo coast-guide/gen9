@@ -69,7 +69,7 @@ Also in the repository, none of them a stack:
 
 | To | Read |
 | --- | --- |
-| Install, run (Docker or Kubernetes, a release, a domain, your own stores), upgrade, back up, stop the agents, start over | [docs/operations.md](docs/operations.md) |
+| Install, run (Docker or Kubernetes, a release, a domain, your own stores), what to change before people use it, upgrade, back up, stop the agents, start over | [docs/operations.md](docs/operations.md) |
 | Understand Gen9 end to end, by watching it work | [gen9-learn](gen9-learn/README.md) (open `gen9-learn/index.html`) |
 | Change Gen9: how the work is done, checked and proposed | [CONTRIBUTING.md](CONTRIBUTING.md), [docs/development.md](docs/development.md), [AGENTS.md](AGENTS.md) |
 | Identity and tokens; secrets; durable execution; the EU AI Act | [docs/auth-architecture.md](docs/auth-architecture.md), [docs/secrets.md](docs/secrets.md), [docs/temporal.md](docs/temporal.md), [docs/ai-act.md](docs/ai-act.md) |
