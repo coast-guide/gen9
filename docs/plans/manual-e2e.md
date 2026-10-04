@@ -5402,7 +5402,29 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     chat…", "account 7424a40a-…: deleted again", "chat 12012bb1-…: deleted with its account",
     "deleted again: 1 account, 1 chat". Langfuse's 16 events of his, back with the backup, gone
     80 s later; every store 0; his index, back too, now expiring in 4,917 s, not 30 days.
-- [ ] Z2 `make wipe` on one stack, then all: what goes and what stays, as docs say.
+- [x] Z2 `make wipe` on one stack, then all: what goes and what stays, as docs say.
+  - **The phase's spend, before the router's database went:** the spend log can't be summed any
+    more (deleting a person deletes their rows: 707 calls at the baseline, 305 of those left), so
+    the router's daily total, which deletions leave (`LiteLLM_DailyUserSpend`): $0.061625 over
+    355 calls on 2026-10-04, the whole phase so far and the morning before it; under the $0.30.
+  - **`make wipe STACKS=ui`** (docs/operations.md's example), typing `yes`: "gen9-ui (web
+    sessions: everyone gets signed out)", its volume, 3 containers, "keeps network gen9-ui: still
+    used by gen9-keycloak-keycloak-1", "Not touched: …" the 8 others, then "Still running on what
+    this deleted: gen9-keycloak. Start them again with it: make up STACKS="ui keycloak"" (35 s).
+    Every other store's fingerprint as before; `.env` files and the image kept.
+  - **Found (for Z4):** "signs everyone out" is true of Gen9's own sessions only. Ada's open tab
+    went through Keycloak and came back signed in, with no password (Keycloak's `LOGIN` and
+    `CODE_TO_TOKEN` at 14:11:49), her Keycloak session alive. Keycloak was named because it calls
+    gen9-ui's back-channel logout on that network, which a new gen9-ui joins as well.
+  - **`make wipe STACKS=postgres`:** "keeps network gen9-postgres: still used by
+    gen9-agent-worker-1 gen9-agent-api-1", then the `make up STACKS="postgres agent"` to run;
+    meanwhile `/readyz` 503 `{"detail":"Database unavailable"}`, as docs say. After it (10 s) the
+    migrations ran on the empty database and Ada's next page made her row again.
+  - **`make wipe`:** each stack with what its volumes hold, in words, 37 containers; 13 s. After:
+    no Gen9 container, volume or network; all 19 `.env` and settings files and the 47 images
+    kept; the throwaway registry and the stopped kind cluster untouched. `make up` on it: 193 s,
+    a new empty install with the same settings: Keycloak's realm and the two seeded people (Alan
+    signed in with the same password, no authenticator, no chats).
 - [ ] Z3 A fresh developer from zero: `make distclean`, a new clone in a new folder, then the
   README's quick start followed word by word with nothing else known. Each step timed, each
   stumble written down; then a first chat.
