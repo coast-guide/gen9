@@ -5035,7 +5035,15 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     listed again at once); a View's own call still tries again. A test with two hanging servers
     fails when either half is undone. Live on the rebuilt agent, a hanging server on 17804: the
     first turn 19.3 s (the one wait), the next two 4.2 and 4.5 s.
-- [ ] N2 gen9-postgres restarted: the API answers 503 meanwhile, and recovers on its own.
+- [x] N2 gen9-postgres restarted: the API answers 503 meanwhile, and recovers on its own.
+  - **`docker restart`** while polling every half second: one poll in the gap, `/readyz` 503 and
+    `/v1/threads` 503 "Gen9's database didn't answer. Try again in a moment.", then 200 again on
+    its own, half a second later.
+  - **Stopped for 3 s** (`docker stop`, then `start`): `/readyz` 503 "Database unavailable";
+    `/chat` still opens, its sidebar "Chats are unavailable right now."; Settings, "Gen9
+    couldn't load this page. Part of Gen9 may be restarting. Try again in a minute; nothing you
+    saved is lost." with Try again. A message sent then: "Gen9 can't start a chat right now. Try
+    again in a moment.", the message kept in the composer. Back within a second of the start.
 - [ ] N3 Keycloak down: signed-in people go on (until their token needs a refresh); a sign-in
   shows a clear page.
 - [ ] N4 Langfuse down: chats work, and traces resume when it's back.
