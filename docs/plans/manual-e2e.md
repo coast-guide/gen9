@@ -4187,11 +4187,28 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     - with the new default, "Sign up is disabled." (422), and no account;
     - the README's flow (false in `.env`, `make up STACKS=langfuse`, then back) worked, and
       `make diff` was clean after it; the probe account was deleted.
-- [ ] C2 The API without a token: every `/v1` path answers 401 with a JSON `detail`. `/healthz`,
+- [x] C2 The API without a token: every `/v1` path answers 401 with a JSON `detail`. `/healthz`,
   `/readyz`, `/v1/version` and `/openapi.json` say only what they should.
-- [ ] C3 The landing page, privacy page and sign-in entry in Chrome, light and dark, desktop and
+  - **All 75 `/v1` operations** in its OpenAPI, each called with no token: 401,
+    `{"detail":"Authentication required"}`, `WWW-Authenticate: Bearer realm="gen9-agent"`. Only
+    `/healthz` and `/readyz` answer, with their status; `/v1/version` wants a token.
+  - **The MCP endpoint:** 401 with `Bearer scope="gen9-mcp", resource_metadata=…`, and that
+    document (`/.well-known/oauth-protected-resource/mcp`) names Keycloak's realm as the
+    authorization server.
+  - **The A2A agent card** (`/.well-known/agent-card.json`) is public, as A2A means it to be.
+    Noted for K3: it calls Gen9 "A research agent" (the README: a general-purpose agent that
+    runs code and asks before acting), and gives its version as 1.0.0 (Gen9 is 0.1.0).
+- [x] C3 The landing page, privacy page and sign-in entry in Chrome, light and dark, desktop and
   phone width.
 
+  - **In Chrome, dark (the system's), desktop:** the landing page and the privacy page read well.
+  - **At 390×844 (light and dark) and 1280×900 (light):** Chrome on this Wayland desktop keeps
+    its window maximized (`resize_window` left it at 1536 px), so these were rendered in
+    headless Chrome with the e2e's puppeteer-core and looked at as images. None scrolls
+    sideways. The landing page keeps Sign in and Create an account pinned at the bottom on a
+    phone; Keycloak's sign-in has Gen9's theme, a passkey option and the privacy link.
+  - The privacy page says "The organization running this Gen9 hasn't named itself here yet":
+    `PRIVACY_CONTROLLER` is unset on this install, as gen9-ui's README describes.
 ### P8-D. Identity: Quinn signs up and signs in
 
 - [ ] D1 Sign-up in Chrome: Keycloak's form, the verification email in Mailpit, its link, then
