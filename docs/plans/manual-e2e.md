@@ -4456,8 +4456,21 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     command in this chat's environment", and the agent says the command wasn't run. The file is
     still there (`cat` in the sandbox).
   - Both are in `run_inputs` (approval: approve, then reject).
-- [ ] F5 Questions: the agent asks Quinn a question with choices, the answer resumes the run, and
+- [x] F5 Questions: the agent asks Quinn a question with choices, the answer resumes the run, and
   the answer is in the run's events.
+  - "Ask me, as a question with choices, which store I prefer: Valkey or Redis. …" The card: "Gen9
+    needs your answer", the question, the choices and "Other", "Send answer"; the sidebar marks the
+    chat "Needs you"; the composer reads "Answer the question above to continue". Sending with
+    nothing picked: "Answer the question first."
+  - **While it waits:** the run `waiting`; `input.requested` (`multiple_choice`, the two choices,
+    required); a `run_inputs` row; Temporal's `RunWorkflow` with `Gen9RunState` `waiting` and no
+    activity pending.
+  - **Valkey picked and sent:** `input.provided` `["Valkey"]`, the `ask_user` step's output "Q:
+    Which store do you prefer? A: Valkey", "You prefer Valkey.", the run `success`, the
+    `run_inputs` row answered.
+  - **Other:** a text field "Your answer to: …"; "Dragonfly" typed and sent arrived as
+    `["Dragonfly"]` and "You prefer Dragonfly." (The page's value for Other is a NUL sentinel,
+    `lib/questions.ts`, never sent.)
 - [ ] F6 Vision: an image attached and described (`vision` alias), its file stored and served
   back only to Quinn.
 - [ ] F7 Speech and image generation, once each (`speak`, `transcribe`, `image`), if the UI
