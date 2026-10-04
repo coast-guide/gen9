@@ -33,8 +33,9 @@ from .api import (
     tasks,
     threads,
 )
-from .api.health import schema_head, schema_revisions
+from .api.health import VERSION, schema_head, schema_revisions
 from .api.temporal_codec import codec_app
+from .api_docs import mount_docs
 from .auth import TokenVerifier
 from .body_limit import BodyLimit
 from .chat_files import MAX_FILE
@@ -112,8 +113,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="Gen9 Agent API",
-    version="0.2.0",
+    # Gen9's own version, as /v1/version gives it (one version everywhere: deploy.md, U7)
+    version=VERSION,
     lifespan=lifespan,
+    # /docs below, from files of gen9-agent's own; FastAPI's own pages load scripts from a CDN
+    docs_url=None,
+    redoc_url=None,
     # Browsers never call this API directly (gen9-ui is the BFF), so no CORS is configured, except
     # on the Temporal codec endpoint below, which Temporal's web UI calls from the browser
 )
@@ -130,6 +135,9 @@ codec_app.add_middleware(
     ],
 )
 app.mount("/v1/temporal/codec", codec_app)
+
+# The API's docs page, from files of gen9-agent's own (api_docs.py)
+mount_docs(app)
 # Text with U+0000 refused before any endpoint or query sees it (no_nul.py); inside BodyLimit below,
 # which bounds a body before this reads it
 app.add_middleware(NoNul)

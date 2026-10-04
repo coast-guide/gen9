@@ -4559,8 +4559,16 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     cdn.jsdelivr.net, `swagger-ui-dist@5` (any 5.x, no integrity hash), and a favicon from
     fastapi.tiangolo.com. Everything else Gen9 runs is pinned, and under a domain `/docs` is
     public at `api.<domain>`, where a person pastes a token into "Authorize": a release of that
-    package, or the CDN, would run script on the API's origin. To fix in its own unit (serve the
-    files from gen9-agent's image, pinned).
+    package, or the CDN, would run script on the API's origin. Its OpenAPI said version 0.2.0
+    while Gen9 is 0.1.0.
+  - **Fixed:** `/docs` now serves Swagger UI 5.33.0 from gen9-agent itself
+    (`gen9_agent/docs_assets`, checked against npm's integrity, sha256s in its README and the
+    test), with Swagger's validator off (it would send the schema to validator.swagger.io);
+    `/redoc` is gone, and the OpenAPI version is Gen9's own. Live on the rebuilt image:
+    `/docs` names only `/docs/assets/…` and `data:,`; the bundle and stylesheet answer 200 as
+    JavaScript and CSS; `/redoc` 404; a path out of the folder 404; `info.version` 0.1.0;
+    headless Chrome draws "Gen9 Agent API 0.1.0" with 77 operations from 5 requests, none to
+    another site, no console error.
 - [ ] M2 CORS: the API from a foreign origin (a preflight with curl), refused unless listed.
 - [ ] M3 CSRF: the app's state-changing routes posted from a foreign page, refused.
 - [ ] M4 Cross-user access: Quinn's token on Alan's thread, file, task and run IDs (404, nothing

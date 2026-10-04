@@ -22,6 +22,10 @@ This repository carries material from other projects, each under its own licence
   (gen9-agent/src/gen9_agent/plugin_schemas).
   Apache License 2.0: https://github.com/agentplugins/agent-plugins-spec/blob/main/LICENSE.md.
 
+- Swagger UI's built files, which gen9-agent's API docs page serves
+  (gen9-agent/src/gen9_agent/docs_assets).
+  Copyright 2020-2021 SmartBear Software Inc. Apache License 2.0: its LICENSE and NOTICE there.
+
 - The change gen9-sandbox/egress/sni-binding.py applies to OpenSandbox's egress proxy is
   OpenSandbox's own pull request #1759. Apache License 2.0.
 
