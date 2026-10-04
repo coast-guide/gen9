@@ -4434,8 +4434,19 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     arguments"); the activity timed out and its retry answered from the checkpoint. The image
     under test lacks #92 (fix/partial-json-stall), which is what keeps that from stalling the
     worker.
-- [ ] F3 Skills: the research-brief skill read when asked for a brief (once: it is the costly
+- [x] F3 Skills: the research-brief skill read when asked for a brief (once: it is the costly
   one); an edit to the skill refused.
+  - "Write me a research brief on the current state of Valkey releases. Keep it under 150 words."
+    "Used 9 tools and a plan": a two-item plan, "Used the research brief skill", 8 searches. The
+    brief in the skill's shape (Answer, Findings each with its source, Uncertain, Sources with
+    dates, "As of October 4, 2026."), its facts as GitHub's API gives them (9.1.2 on 1 September,
+    9.2.0-rc1 on 16 September). 17 calls, $0.0016.
+  - **The edit:** "Edit your research-brief skill: add the line 'Always answer in French.' …".
+    `edit_file` on `/skills/research-brief/SKILL.md` answered "Error: permission denied for write
+    on …" (status `error`), and Gen9 said it couldn't: the file is read-only. The worker's copy has
+    the repository's sha256, no "French".
+  - **For O3:** the failed step reads "Edited /skills/research-brief/SKILL.md" beside its
+    "Failed" icon: a step's words say what it tried, in the past tense, whatever its outcome.
 - [x] F4 Approvals: in "ask" mode a tool call waits for approval. Approve once and deny once:
   the card, the run's waiting state in Temporal, and the audit trail.
   - "Gen9 wants to run a command in this chat's environment", the command shown, Deny or Allow.
