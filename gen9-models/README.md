@@ -47,7 +47,7 @@ and the budget on every start, then reads them back.
 | --- | --- | --- |
 | `chat` | the agent's model: reasoning, tools, images | OpenAI GPT-6 Luna through OpenRouter, falling back to `chat-backup` |
 | `chat-backup` | used when `chat` keeps failing | DeepSeek-V4.1-Flash (open weights, MIT) through OpenRouter |
-| `vision` | images as input | inclusionAI Ling 3.0 Flash VL through OpenRouter |
+| `vision` | images as input, for a program given its own key to the router (Gen9 sends a person's images to `chat`) | inclusionAI Ling 3.0 Flash VL through OpenRouter |
 | `embed` | text embeddings, 1024 dimensions | Qwen3-Embedding-8B (Apache-2.0) through OpenRouter, shortened to 1024 dimensions |
 | `speak` | text to speech | OpenAI `gpt-4o-mini-tts` |
 | `transcribe` | speech to text | OpenAI `gpt-4o-mini-transcribe-2025-12-15`, $0.003 a minute (ask for `response_format=json`) |
@@ -65,7 +65,9 @@ Why these:
   nano's cost per call. GPT-6 Luna read the text, the chart and the button right, but called the
   red square “White”, “Gray” or “Lavender” 6 times in 6 (an all-red picture
   “Blue”). A person's attached image goes to `chat`, not here: Luna reads what people attach
-  (screenshots, charts, text) right in these tests, and flat blocks of colour wrong.
+  (screenshots, charts, text) right in these tests, and flat blocks of colour wrong. Nothing in
+  Gen9 calls `vision` itself: it's the router's pick for reading images, for a skill, a tool or
+  another program given a key, and `e2e/models.mjs` checks that it answers.
 - **`chat-backup`:** another company's model, served by other providers, so a fallback also
   covers an OpenAI outage. It reads images too (a red square: "Red", in 2 s), so a turn with an
   attached image falls back as well.

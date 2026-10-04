@@ -5557,7 +5557,11 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     a second recipe, spend per day from `LiteLLM_DailyUserSpend`, which deleting a person
     leaves (Z2 measured the phase's spend that way). Each command run as written: Alan's `sub`
     with 0.0001 and the empty one; the `users` row naming him; 2026-10-04's total over 4 calls.
-  - [ ] Z4j The `vision` alias: what it is for, since Gen9 sends images to `chat` (F6).
+  - [x] Z4j The `vision` alias: what it is for, since Gen9 sends images to `chat` (F6). Searched:
+    only `e2e/models.mjs` calls it; gen9-agent, gen9-ui and gen9-cli never do. Kept (it costs
+    nothing unless called, and taking an alias away is the owner's call), and gen9-models'
+    README now says it serves a program given its own key, a skill or a tool, while a person's
+    images go to `chat`.
   - [ ] Z4k A guide for the person using Gen9 (A): decided below.
 - [ ] Z5 Everything this phase made removed; the seeded state back; the phase's spend measured;
   `make e2e` once at the end as the second net, not as the verification.
