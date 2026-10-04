@@ -4391,9 +4391,45 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     "Ask before acting", a command waited for Allow (F4).
 ### P8-F. The agent's capabilities
 
-- [ ] F1 Web search: an answer with its sources shown; the search calls in the router's log and
+- [x] F1 Web search: an answer with its sources shown; the search calls in the router's log and
   Langfuse.
-- [ ] F2 Subagent: a fact-check delegated, the chat naming it, the subagent's steps in Langfuse.
+  - Quinn, in a new chat: "Search the web: what is the latest released version of Valkey? One
+    sentence, with its source." "Used 3 tools" (each "Searched the web: …" with its query), then
+    "The latest stable release of Valkey is 9.1.2 (official Valkey releases)", linked to
+    valkey.io/download/releases/, and "Sources · valkey.io, github.com". GitHub's API agrees:
+    9.1.2 is the latest stable (9.2.0-rc1 a pre-release).
+  - **Sources sheet:** "7 pages this answer came from.", the release page under Cited, six more
+    under Also consulted.
+  - **The router's log:** 4 `chat` calls, 3 `asearch` calls on `web` (`searxng/search`, $0) and 1
+    `embed` (the chat's search index), each with Quinn's id as `end_user`, key `gen9-agent`.
+  - **Langfuse:** the run under Quinn's id with the chat's id as its session: 4 generations, 3
+    `web_search` tool spans, the middleware chain. Its costs count cached input at its price
+    ($0.0014 for the turn); the router, still on the old local config, counted all input at the full
+    price ($0.0032): this machine's LOCAL-RUN-ONLY line lacked cache prices, added, and applied
+    with `docker compose restart litellm` as gen9-models' README says (`make up` doesn't restart
+    the router for `config.yaml`). From F2 on the two agree (e.g. $0.0001275 and $0.0001274).
+- [x] F2 Subagent: a fact-check delegated, the chat naming it, the subagent's steps in Langfuse.
+  - "Delegate this to a subagent: fact-check the claim that Valkey 9.1.2 was released on 1
+    September 2026. Then tell me its verdict in one sentence." The chat: "Asked the fact checker:
+    …", then "Confirmed: …". The router's log: the `task` call, then the fact checker's 10
+    searches over 4 calls, all Quinn's. Langfuse: the `task` tool span, the fact checker's own
+    generations (its own system prompt) and its 10 `web_search` spans, in the chat's session.
+  - **Found:** the answer, built on those pages, showed no Sources: the stream leaves a
+    subagent's parts out, and a reloaded chat is built from the checkpoint, where `task`'s
+    ToolMessage keeps only the subagent's answer (explore/subagent_sources/NOTES.md). Against
+    the chat's principle 3 (docs/design/screens/chat.md).
+  - **Fixed:** `SubagentSources` (subagent_sources.py) puts the pages a subagent's searches found
+    on its `task` ToolMessage, as `web_search` carries its own; each `task` call gets its own,
+    when several run at once. Live, on the rebuilt agent: "Sources · valkey.io, … +6", "14 pages
+    this answer came from.", the release page the answer cites under Cited (found, so not
+    flagged), the same after a reload.
+  - **Found too:** the step's label cuts the task off mid-word ("Determine confirmed, con"), and
+    opening it repeats the cut text.
+  - **Seen again, not this change:** on one try the model ran away inside the `task` call
+    (32,000 output tokens over 2 min 50 s, $0.016, LiteLLM "Failed to parse tool call
+    arguments"); the activity timed out and its retry answered from the checkpoint. The image
+    under test lacks #92 (fix/partial-json-stall), which is what keeps that from stalling the
+    worker.
 - [ ] F3 Skills: the research-brief skill read when asked for a brief (once: it is the costly
   one); an edit to the skill refused.
 - [x] F4 Approvals: in "ask" mode a tool call waits for approval. Approve once and deny once:

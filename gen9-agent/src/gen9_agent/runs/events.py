@@ -12,15 +12,16 @@ Events are stored in order (`run_events`) and replayed to clients, so they carry
 | `message.completed` | `id`, `text` | The model finished a message with text |
 | `status` | `text` | Something the model is doing that has no tool call of its own yet (web search) |
 | `tool.started` | `id`, `name`, `args`, and `plugin` when it reads a plugin's skill | The model called a tool (the provider's own web tool included: `web_search` with its `query`, `web_open` with a `url`, `web_find` with a `pattern`) |
-| `tool.completed` | `id`, `name`, `status`, `output`, and for a connector tool with a View its `app` | The tool returned (`status` is `success`, `error`, or `declined`: the person denied it). `app` (MCP Apps, apps.py): `connector_id`, `connector`, `resource_uri`, the arguments (`input`) and the `result` the View is sent |
+| `tool.completed` | `id`, `name`, `status`, `output`, `sources` when it found pages (a `task` step: those its subagent's searches found, subagent_sources.py), and for a connector tool with a View its `app` | The tool returned (`status` is `success`, `error`, or `declined`: the person denied it). `app` (MCP Apps, apps.py): `connector_id`, `connector`, `resource_uri`, the arguments (`input`) and the `result` the View is sent |
 | `todos.updated` | `todos` | The agent's plan changed |
 | `files.shared` | `files` (`id`, `name`, `size`, `media_type`) | After a turn that used the chat's environment: what it saved in `/work/out` that is new or changed, now the chat's files (chat_files.py) |
 | `input.requested` | `id`, `kind`, and for a question its `questions` | The run paused for the person (`runs/store.py`, `wait`); it waits until every request is answered |
 | `input.provided` | `id`, and for a question its `answers` | The person answered (appended by the API, `runs/control.py`); the run goes on |
 | `run.completed` | `status`, `error` | The run ended: `success`, `error`, `cancelled`, or `expired` (nobody answered in time) |
 
-Only the top-level agent speaks: parts from subagents (namespaced) are left out for now; a
-subagent shows up as its `task` tool call.
+Only the top-level agent speaks: parts from subagents (namespaced) are left out; a subagent
+shows up as its `task` tool call, which carries the pages its searches found
+(subagent_sources.py).
 """
 
 import json
@@ -38,6 +39,9 @@ MAX_TOOL_OUTPUT = 2000
 MAX_TOOL_ARGS = 2000
 # Pages kept per step and citations per answer: enough to show where an answer came from
 MAX_SOURCES = 30
+# Pages kept for a `task` step: its subagent may search many times, and a page the answer cites
+# that isn't kept would be shown as "Not among the pages Gen9 found"
+MAX_DELEGATED_SOURCES = 100
 
 
 @dataclass(frozen=True)
@@ -117,18 +121,20 @@ def citations(message: AIMessage) -> list[dict[str, Any]]:
     ]
 
 
-# Tools whose artifact lists the pages (or past chats, past_chats.py) they consulted
-SOURCE_TOOLS = frozenset({"web_search", "search_past_chats", "recent_chats"})
+# Tools whose artifact lists the pages (or past chats, past_chats.py) they consulted; `task`'s,
+# the pages its subagent's searches found (subagent_sources.py)
+SOURCE_TOOLS = frozenset({"web_search", "search_past_chats", "recent_chats", "task"})
 
 
 def tool_sources(message: ToolMessage) -> list[dict[str, Any]]:
-    """What the router's `web_search` found, or the past chats a search of them found (their
-    artifacts), as sources."""
+    """What the router's `web_search` found, the past chats a search of them found, or what a
+    subagent's searches found (their artifacts), as sources."""
     if message.name not in SOURCE_TOOLS or not isinstance(message.artifact, list):
         return []
+    limit = MAX_DELEGATED_SOURCES if message.name == "task" else MAX_SOURCES
     return [
         {"url": r["url"], "title": r.get("title")}
-        for r in message.artifact[:MAX_SOURCES]
+        for r in message.artifact[:limit]
         if isinstance(r, dict) and r.get("url")
     ]
 

@@ -29,6 +29,7 @@ from .model_router import chat_model, served_model, web_search_tool
 from .past_chats import PastChats
 from .settings import DatabaseSettings, Settings
 from .standing import Standing, StillActive
+from .subagent_sources import SubagentSources
 
 # Checkpoint tables live in their own schema, away from the Alembic-managed app tables
 CHECKPOINT_SCHEMA = "langgraph"
@@ -82,6 +83,8 @@ def subagents(
         return [
             *grounding.middleware(),
             memory.MemoryRules(),
+            # What its searches find, kept for its `task` step (subagent_sources.py)
+            SubagentSources(),
             *own,
             *([guard] if guard else []),
         ]
@@ -180,6 +183,8 @@ def build_agent(
         memory.FreshMemory(),
         # What may be remembered, and nothing while the person has memory off (memory.py)
         memory.MemoryRules(),
+        # A subagent's pages on its `task` step, so the answer shows them (subagent_sources.py)
+        SubagentSources(),
     ]
     if connectors:
         # Each person's connectors, added per run, and approvals for their calls (connectors.py)

@@ -141,7 +141,7 @@ A run is one turn of a thread. `POST …/runs/stream` records it (a `runs` row),
 | `message.delta` | `id`, `text` | Answer text as the model writes it (merged to at most about 10 events a second) |
 | `message.completed` | `id`, `text`, `citations` | The model finished a message with text. `citations`: the pages it cites (`url`, `title`), from the web search's annotations |
 | `status` | `text` | Something without a tool call of its own, such as "Searching the web" |
-| `tool.started`, `tool.completed` | `id`, `name`, `args`, `plugin` / `status`, `output`, `sources` | A tool call and its result (output truncated to 2,000 characters); `plugin` names the plugin a read of a plugin's skill came from; `status` is `success`, `error`, or `declined` (the person denied it). The model's own web tool shows up as `web_search` (`query`), `web_open` (`url`) and `web_find` (`pattern`, `url`). `sources`: the pages a web search consulted (the model's, through `include`; the router's, from the tool's artifact), at most 30 |
+| `tool.started`, `tool.completed` | `id`, `name`, `args`, `plugin` / `status`, `output`, `sources` | A tool call and its result (output truncated to 2,000 characters); `plugin` names the plugin a read of a plugin's skill came from; `status` is `success`, `error`, or `declined` (the person denied it). The model's own web tool shows up as `web_search` (`query`), `web_open` (`url`) and `web_find` (`pattern`, `url`). `sources`: the pages a web search consulted (the model's, through `include`; the router's, from the tool's artifact), at most 30; on a `task` step, the pages its subagent's searches found, at most 100 (a subagent's own steps aren't shown) |
 | `todos.updated` | `todos` | The agent's plan changed (it keeps one with `write_todos` for work with several steps) |
 | `input.requested` | `id`, `kind`, and `questions`, `action_requests` or `error` | The run paused for the person. A question ([Questions](#questions)): each one's `question`, `type` (`text` or `multiple_choice`), `choices` and `required`. An approval ([Approvals](#approvals)): each action's `name` and `args`, with `review_configs`. A retry ([Retry](#retry)): why the turn failed, in plain words |
 | `input.provided` | `id`, `answers`, `decisions` or `retry` | The person answered; the run goes on |
@@ -866,7 +866,8 @@ agents/gen9/
 - **Loading:** it's read once when the API or a worker starts, in a thread.
 - **Subagents:** each becomes one the agent can delegate to with `task`. Today that's
   `fact-checker`, which checks claims against primary sources, and the chat shows it as "Asked
-  the fact checker: …".
+  the fact checker: …". Its own steps aren't shown; the pages its searches found are, under the
+  answer's Sources (`subagent_sources.py` puts them on the `task` step).
 - **Versioned:** the definition's version is the first 12 hex of a SHA-256 over its files. Every run
   records it (`runs.agent_version`, also in `GET …/runs/{run}` and the trace's metadata), so an
   answer can be traced to the exact definition behind it.

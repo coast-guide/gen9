@@ -33,6 +33,7 @@ from gen9_agent.grounding import (
     with_note,
 )
 from gen9_agent.memory import Gen9Context, MemoryRules
+from gen9_agent.subagent_sources import SubagentSources
 
 pytestmark = pytest.mark.asyncio
 
@@ -158,7 +159,8 @@ async def test_every_subagent_is_grounded_and_a_definition_may_declare_its_own_g
     assert [s["name"] for s in specs] == ["general-purpose", "researcher"]
     for spec in specs:
         kinds = {type(m) for m in spec.get("middleware", [])}
-        # Grounded, with its budgets and the turn's, and bound by what may be remembered
+        # Grounded, with its budgets and the turn's, bound by what may be remembered, and what
+        # its searches find kept for its `task` step
         assert kinds == {
             TodaysDate,
             ToolCallLimitMiddleware,
@@ -166,6 +168,7 @@ async def test_every_subagent_is_grounded_and_a_definition_may_declare_its_own_g
             TurnBudget,
             OutputLimit,
             MemoryRules,
+            SubagentSources,
         }
     # The person's plugins' skills, then Gen9's own (plugin_skills.py)
     assert specs[0]["skills"] == ["/plugins/", "/skills/"]
