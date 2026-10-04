@@ -104,3 +104,16 @@ async def test_a_run_gone_since_its_owner_was_checked_is_not_found() -> None:
     handler.app = SimpleNamespace(state=SimpleNamespace(sessionmaker=Session))  # ty: ignore[invalid-assignment]
     with pytest.raises(a2a_server.TaskNotFoundError):
         await handler.task(uuid.uuid4())
+
+
+async def test_the_agent_card_gives_gen9s_own_version() -> None:
+    """One version everywhere (deploy.md, U7): the card says what the API and the CLI say."""
+    from importlib.metadata import version
+    from types import SimpleNamespace
+
+    from gen9_agent.a2a_server import card
+
+    settings = SimpleNamespace(
+        keycloak_issuer="http://keycloak/realms/gen9", gen9_a2a_url="http://api/a2a"
+    )
+    assert card(settings).version == version("gen9-agent")  # ty: ignore[invalid-argument-type]

@@ -4468,6 +4468,14 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 - [ ] K2 Gen9 as an MCP server: the MCP Inspector (or curl) against `/mcp` with a token. Its tools
   listed and one called; without a token, 401 with the resource metadata.
 - [ ] K3 A2A: the agent card, a task sent and its answer, auth required.
+  - **The card** (`/.well-known/agent-card.json`, public as A2A intends): JSON-RPC at `/a2a`,
+    protocol 1.0, OAuth through Keycloak (authorization code with PKCE) for the scope `gen9-a2a`,
+    one skill, "Research and answer".
+  - **Found:** its `version` was a hard-coded "1.0.0". Gen9 is 0.1.0, as the API, the web app and
+    the CLI say, and the release work meant one version everywhere (deploy.md, U7). Fixed: the
+    card takes the package's version, as `/v1/version` does. A test checks it, failing with the
+    old value. Live, with the agent rebuilt: "card version: 0.1.0".
+  - **Still to do:** a task sent over A2A (it needs a client signed in for `gen9-a2a`).
 - [ ] K4 AG-UI: a run over `/v1/agui` with curl, the event stream read by eye.
 - [ ] K5 The raw API from its `/docs`: one call of each kind tried by hand, errors in one shape.
 
