@@ -4858,12 +4858,20 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     Gen9 account". It also held "Your Gen9 sign-in changed", sent when she changed her password
     (D5).
   - Unlock appears only for a locked person (D6).
-- [ ] L2 Budgets and limits: Quinn's spend limit shown in Settings, set low by an admin, the next
+- [x] L2 Budgets and limits: Quinn's spend limit shown in Settings, set low by an admin, the next
   turn refused with the reset time, then raised again.
   - **What there is:** an admin has no per-person budget in the UI. The limit is the operator's,
     `GEN9_USER_BUDGET_USD` in gen9-models/.env, the same for everyone, and Settings shows each
-    person's share ("1% of your limit, which resets on 5 October 2026"). Making it low would mean
-    restarting the router for every person; left to a quiet stretch.
+    person's share ("1% of your limit, which resets on 5 October 2026").
+  - **One person's own**, as gen9-models' README says (the router's admin API with the master
+    key, never printed): `POST /budget/new` (`p8-quinn-low`, $0.01, `1d`), then
+    `POST /customer/update` for Quinn's `sub`; she had spent $0.0551 today.
+  - **Over it:** Settings, "All of your limit: it resets on 5 October 2026". A new turn: "Gen9
+    couldn't finish: You've reached your model usage limit. It resets on 5 October 2026 at 00:00
+    UTC: try again then, or ask an admin." with Retry; the router logged `ExceededBudget: End
+    User=<Quinn>` and a failure row, before any provider call.
+  - **Back** (`gen9-user-default` again, the low budget deleted): Retry answered "budget";
+    Settings back to a share of the limit.
 - [x] L3 The audit log page: every admin action of this section listed with actor, target and
   outcome; filters work; the API's answer matches.
   - "Who did what: admins' changes, people's security settings, and access Gen9 refused. Nobody
