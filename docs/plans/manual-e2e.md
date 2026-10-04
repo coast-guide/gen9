@@ -4893,8 +4893,21 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     11:41:19 Alan's reload: "You need admin access. Ask a Gen9 admin to add you to the admins
     group.", no admin links; the API's `GET /v1/admin/users` 403 with his token still naming the
     role (it asks Keycloak), `access.refused` audited. He keeps his authenticator app.
-- [ ] L5 The AI Act disclosures (docs/ai-act.md): what the UI and exports mark as AI-made, checked
+- [x] L5 The AI Act disclosures (docs/ai-act.md): what the UI and exports mark as AI-made, checked
   where the doc says.
+  - **Told it's an AI** (Art. 50(1)): under the composer from before the first question, "Gen9
+    is an AI system and can be wrong. Check its work before you rely on it." (every page here);
+    the CLI prints it after "Signed in as …" (D7, K4); asked "Am I talking to a person or a
+    machine?", "You're talking to an AI system, not a person."; task emails hold no generated
+    text (I3).
+  - **Marked** (Art. 50(2)): the API's chats give `ai_generated` false for Quinn's messages and
+    her uploads (`shapes.png`, `trees.csv`), true for Gen9's answers and the file it made
+    (`count.txt`, origin `output`). Her export (`GET /v1/me/export`, 26 KB): the same marks on
+    every message and on each message's files, the README saying what they mean (Art. 50(2)),
+    and the files under `files/<chat>/`; its files are the README's list.
+  - **Not tried live:** the line an agent adds when it writes to other people through a
+    connector ("Written by Gen9, an AI system, on behalf of …"): no connector here sends
+    messages; the rule is in the agent's instructions.
 - [ ] L6 Quinn deletes her account: gone from Keycloak, gen9-postgres, Langfuse, the router's
   records, the environments and Valkey, as docs/operations.md promises.
 
