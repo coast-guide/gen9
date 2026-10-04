@@ -4211,17 +4211,65 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     `PRIVACY_CONTROLLER` is unset on this install, as gen9-ui's README describes.
 ### P8-D. Identity: Quinn signs up and signs in
 
-- [ ] D1 Sign-up in Chrome: Keycloak's form, the verification email in Mailpit, its link, then
+- [x] D1 Sign-up in Chrome: Keycloak's form, the verification email in Mailpit, its link, then
   Gen9. Keycloak's events and the user's record in the Admin API.
-- [ ] D2 Gen9's session: the cookie's attributes in DevTools (HttpOnly, Secure where served
+  - Quinn (`quinn-1791103152@gen9.test`) through "Create an account". Keycloak asks only for
+    email and names, then says "Verify your email". Gen9's sign-up page says Gen9 is an AI system
+    whose providers include some outside the EU, with a link to how it uses data.
+  - **The email** ("Verify your email for Gen9", from no-reply@gen9.test) says who asked, that the
+    link expires in 5 minutes, and to ignore it if you didn't sign up.
+  - **The link** leads to "Choose a password" (at least 15 characters, not common, not the
+    email), then into Gen9: "What should Gen9 do, Quinn?".
+  - **Keycloak's events, in order:** REGISTER (form), SEND_VERIFY_EMAIL, VERIFY_EMAIL,
+    UPDATE_PASSWORD, UPDATE_CREDENTIAL, LOGIN, CODE_TO_TOKEN, all for gen9-ui. The user is
+    verified, enabled, with no required action left. Gen9's `users` row was made a second after
+    the sign-in, under Keycloak's id.
+  - **How it was driven:** typing and clicks by reference sometimes don't reach pages here, and a
+    synthetic Ctrl+V pastes nothing. So the links (with their one-time tokens) were opened
+    through a one-shot local redirect, and passwords filled by the page fetching them once
+    from a one-shot local server allowed for Keycloak's origin by CORS. Neither value passed
+    through the transcript (standing instruction 3's aim, by another route).
+- [x] D2 Gen9's session: the cookie's attributes in DevTools (HttpOnly, Secure where served
   over https, SameSite), the Valkey key holding it (names and TTL, never values), and what
   `/v1/me` says.
-- [ ] D3 The access token gen9-ui sends to the API, decoded: issuer, audience, expiry, scopes,
+  - **Cookies:** only `_csrf` is readable by the page's scripts. The session cookie
+    (`gen9_session`, `__Host-gen9_session` over https) is HttpOnly, SameSite=Lax, path `/`, and
+    without "Remember me" has no Max-Age (`lib/auth/cookies.ts`). The sign-in transaction
+    cookie, seen live: HttpOnly, SameSite=lax, path `/auth`, 600 s.
+  - **Valkey** holds `gen9:session:<hash>` (sealed), `gen9:session-by-sid:*`,
+    `gen9:session-by-sub:*` and `gen9:auth-txn:*` (about 5 minutes left on one seen).
+  - **Noted:** 112 `session-by-sub` sets held 132 ids of sessions already gone, and 2 live ones.
+    gen9-ui prunes a person's set only when they sign in again (`saveSession`), so the sets of
+    people who don't come back (most here were the e2e's throwaway people) stay their 30 days.
+    Each holds a person's id and session hashes only, bounded by its TTL; L6 checks what is
+    left of Quinn.
+- [x] D3 The access token gen9-ui sends to the API, decoded: issuer, audience, expiry, scopes,
   no more than needed. A token for another client refused by the API.
-- [ ] D4 Sign out, then the back button and an old tab: nothing of Quinn's shows. Keycloak's
+  - Taken from one API request on the agent's network (tcpdump in a throwaway container sharing
+    the API's network), claims only. RS256; `iss` the gen9 realm; `azp` gen9-ui; `aud`
+    gen9-agent and `account`; `typ` Bearer; lifetime 300 s; realm roles `gen9-user`,
+    `offline_access` and Keycloak's defaults.
+  - **The `account` audience is by design.** gen9-ui's Settings calls Keycloak's Account API with
+    this token (signed-in browsers, ending a session, apps with access: `lib/auth/account.ts`),
+    and the token carries `manage-account`. So the agent API receives a token that could also
+    manage the person's Keycloak account. RFC 9700 (2.3) prefers a token per resource server: a
+    token for each audience would be a design change, left for the owner (Decision Log).
+- [x] D4 Sign out, then the back button and an old tab: nothing of Quinn's shows. Keycloak's
   session gone (Admin API).
-- [ ] D5 Forgot password: the email, the link's lifetime, the new password works, the old one
+  - From the account menu, which offers Settings, Appearance (System, Light, Dark) and Sign out:
+    "You're signed out. Your Gen9 session has ended on this device." Back, and a new visit to
+    `/chat`, land on Keycloak's sign-in, with nothing of Quinn's.
+  - Keycloak shows no session for Quinn and a LOGOUT event; Valkey went from 2 sessions to 1
+    (another person's).
+- [x] D5 Forgot password: the email, the link's lifetime, the new password works, the old one
   doesn't.
+  - "Check your email. If an account exists for it, we sent a link." (it doesn't say whether one
+    does). The email ("Reset your Gen9 password") expires in 5 minutes and says the password
+    stays the same if ignored.
+  - The link leads to "Choose a password", with "Sign out of other devices" offered, not ticked
+    (ASVS 7.4.3 asks for the option). The new password signed Quinn in at once.
+  - **After signing out:** the old password, "That email and password don't match. Try again or
+    reset your password."; the new one signs in.
 - [ ] D6 Wrong passwords until lockout: the message, Keycloak's brute-force record, an admin
   unlocks from Gen9's admin page.
 - [ ] D7 Sign out everywhere from Settings: a second browser profile's session ends too, and the
@@ -4231,7 +4279,7 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-E. One chat followed through every store
 
-- [ ] E1 Quinn sends "Reply with one word: hello" in Chrome. While it streams, the network panel
+- [x] E1 Quinn sends "Reply with one word: hello" in Chrome. While it streams, the network panel
   shows the stream. Once done, the same exchange is read in each store:
   - the API: `/v1/threads`, `/runs`, the run's events;
   - gen9-postgres: the thread, run and event rows, checkpoints;
@@ -4239,6 +4287,29 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - Langfuse: the trace, its user, model and cost;
   - the router's spend log: the end-user id is Quinn's `sub`;
   - the worker's and the API's log lines: nothing of the message's text.
+  - **In Chrome:** "Reply with one word: hello" answered "hello", and the page said "Gen9
+    answered." The chat's title is the message. The text went in through the textarea's own
+    setter and an input event, then the Send button: the extension's typing didn't reach the
+    textarea.
+  - **The API (through gen9-ui):** the chat, permission mode `auto` ("Act, ask when unsure").
+    gen9-ui doesn't pass `GET …/runs` on (405); the agent API's own list waits for K.
+  - **gen9-postgres:**
+    - the thread (Quinn's) and the run, a success from 08:51:56 to 08:51:59;
+    - its events: queued, started (attempt 1), the delta "hello", completed, run completed;
+    - `langgraph` checkpoints: 15 checkpoints, 4 blobs, 21 writes. The message is there as
+      written (msgpack).
+  - **Temporal:** `run-<run id>`, a RunWorkflow, Completed, 19 events. Its payloads are
+    `binary/encrypted` (the codec); the message appears nowhere in the history as plain text.
+  - **Langfuse** (ClickHouse `events_core`; Langfuse 4 leaves the old `traces` table empty): one
+    trace with Quinn's id and the chat as its session, each middleware step, and the generation
+    on `openai/gpt-6-luna`.
+  - **The router:** the chat call, 7,242 tokens in and 5 out, $0.000727, end user Quinn's id;
+    then the search index's embedding ($0).
+  - **The logs:** API, worker and router hold the requests but not the message.
+  - **Noted for S:** Langfuse priced the call at $0.000908, 25% above what the router charged.
+  - **Noted for the docs:** chats (checkpoints, run events), their files and Langfuse's traces
+    are stored as written. docs/cryptography.md lists only what Gen9 encrypts; nothing tells an
+    operator that the rest needs encrypted disks and backups.
 - [ ] E2 Reload mid-answer, a second tab on the same chat, and Stop mid-answer: what each shows,
   and the run's final state in the API and Temporal.
 - [ ] E3 Title, rename, pin or archive (whatever the UI offers), and the list's order, checked
