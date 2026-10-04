@@ -4821,7 +4821,16 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     the tasks this client started; an unknown id, `-32001 Task not found`.
   - **Remove access** ("It's signed out of your account, and asks you again if it wants to come
     back."): the A2A and MCP refresh tokens both refused (`invalid_grant`).
-- [ ] K4 AG-UI: a run over `/v1/agui` with curl, the event stream read by eye.
+- [x] K4 AG-UI: a run over `/v1/agui` with curl, the event stream read by eye.
+  - With the CLI's token (Quinn signed in again by the device flow; `credentials.json` 0600 in a
+    0700 folder, as the CLI's README says): a `RunAgentInput` with a new `threadId` and "Reply
+    with one word: agui". Six SSE events: `RUN_STARTED` (the ids sent), `TEXT_MESSAGE_START`,
+    two `TEXT_MESSAGE_CONTENT` ("ag", "ui"), `TEXT_MESSAGE_END`, `RUN_FINISHED` with outcome
+    `success`. The chat made under that id, Quinn's, its run `success` (Gen9's own run id; the
+    client's `runId` is echoed in the events).
+  - No new message: 422. A deleted chat's id (G4's) made a new chat under it ("made on first use
+    as the caller's"): Gen9 keeps no row of a deleted chat to refuse it by; nothing of the old
+    one comes back.
 - [ ] K5 The raw API from its `/docs`: one call of each kind tried by hand, errors in one shape.
 
 ### P8-L. Admin and governance
