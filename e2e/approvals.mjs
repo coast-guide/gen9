@@ -10,7 +10,7 @@
 //   5. `gen9 ask --ask-first` shows the action in the terminal and takes "y" from stdin
 //   6. a command holding a right-to-left override (P5-C9): the card and the terminal each show it
 //      as U+202E where it is, with a warning, and never the character itself; denied
-// The user is deleted at the end, whatever happens (gen9-agent's sweep then removes its data). It
+// The user is deleted at the end, whatever happens, in Keycloak and in Gen9 (forget.mjs). It
 // reads the bootstrap admin from gen9-keycloak/.env and runs from gen9-postgres, and restarts the
 // gen9-agent worker once. It costs six short replies.
 import { spawn, spawnSync } from "node:child_process";
@@ -21,6 +21,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bypassCSP, colourScheme, injectAxe, launch } from "./browser.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { forget } from "./forget.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -275,6 +276,7 @@ try {
   check(false, "the approvals check ran to the end", e.message);
 } finally {
   if (userId) await admin(`/users/${userId}`, { method: "DELETE" }).catch(() => {});
+  forget(userId);
   rmSync(userDir, { recursive: true, force: true });
 }
 

@@ -16,6 +16,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { forget } from "./forget.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -148,6 +149,7 @@ try {
     await enable(userId, true).catch(() => {});
     if (taskId) await api(dir, "DELETE", `/v1/tasks/${taskId}`).catch(() => {});
     await admin(`/users/${userId}`, { method: "DELETE" }).catch(() => {});
+    forget(userId);
   }
   rmSync(dir, { recursive: true, force: true });
 }

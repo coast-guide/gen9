@@ -4079,10 +4079,45 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     Tried on a throwaway cluster: `127.0.0.1:37179->6443`, the kubeconfig's server
     `https://127.0.0.1:37179`, and `kubectl get nodes` Ready. The running cluster takes it when
     recreated (Q).
-- [ ] B3 Every running container's image: Gen9's by digest from `images.env`, third parties by
+- [x] B3 Every running container's image: Gen9's by digest from `images.env`, third parties by
   `tag@digest` as in the Compose files (`docker inspect`); none `latest` without a digest.
-- [ ] B4 Logging: every container on the `local` driver with rotation (`docker inspect`), and
+  - All 26 of Gen9's containers run by digest: Gen9's 7 from `images.env` (the lock's
+    registry), every other `tag@digest` as its Compose file pins it. (The one without a digest,
+    `gen9-u2-registry`, `registry:3`, is this machine's local registry for k3d, a probe of the
+    deployment work, not Gen9's.)
+- [x] B4 Logging: every container on the `local` driver with rotation (`docker inspect`), and
   docs/logging.md's table checked against two containers' actual lines.
+  - All 26 on Docker's `local` driver, `max-size 10m`, `max-file 3`. The API's and the worker's
+    lines read as docs/logging.md shows them (time in UTC, uvicorn's request lines, the
+    `gen9_agent.*` loggers).
+  - **Found in the worker's log: the deleted-users sweep held, for good.** An ERROR every 15
+    minutes since 22:29 UTC the day before (41 so far): "9 of the 11 people Gen9 knows missing
+    from Keycloak, more than half … gen9-agent-sweep shows them". Two things were wrong:
+    - **The command named nobody.** It said only how many were missing (its docstring:
+      "how many are missing"), so the admin it asks to judge couldn't see whom `--allow 9`
+      would delete.
+    - **The e2e checks caused it.** The 9 were the throwaway people of the last `make e2e`
+      (admin-api, demotion, export, recovery twice, lockout, oauth, keyboard, focus; two had a
+      chat). Seventeen checks delete their person in Keycloak only, trusting the sweep
+      ("gen9-agent's sweep removes their Gen9 data once they're gone from Keycloak"). Since its
+      guard (deploy.md, U5c-6), three or more such leftovers on an install with two seeded
+      people hold it.
+  - **Fixed:**
+    - `gen9-agent-sweep` lists each missing person (id, email, name, last visit, chats). New:
+      `--only ID…` deletes just those named, each confirmed missing from Keycloak, and nothing
+      if one isn't. Each person deleted is recorded as `account.sweep` (what `make restore`
+      reads) and the command as `account.sweep.allowed`. The worker's log line now says so.
+    - The e2e checks call `forget()` (`e2e/forget.mjs`) after deleting their person in
+      Keycloak, which runs `gen9-agent-sweep --only` in the worker.
+  - **Live, with the agent rebuilt into phase 8's lock** (`~/.cache/gen9-probes/phase8.lock`):
+    - the listing named the 9, by id and their checks' names;
+    - `--only` with a seeded person among the named: "nothing deleted …", exit 1;
+    - one leftover deleted: gone from `users`, both audit events written, and the
+      `DeleteAccountWorkflow` started in Temporal;
+    - `e2e/lockout.mjs`: all passed, and Gen9 knows as many people after as before, its person
+      removed through `forget()`;
+    - the other 8 deleted with `--only`: Gen9 knows its 2 seeded people, no chat is left, and the
+      sweep says "Keycloak has each of the 2 people Gen9 knows".
 - [ ] B5 Networks: each stack joins only the `gen9-<stack>` networks it calls (`docker network
   inspect`); one container per stack tries to reach a stack it shouldn't (refused or no route).
 - [ ] B6 Settings files: every `.env` and `*.local.env` is mode 600, ignored by git, and holds
@@ -4323,6 +4358,10 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ## Surprises & Discoveries
 
+- The deleted-users sweep's guard (deploy.md, U5c-6) made every `make e2e` leave a held sweep on
+  a small install (P8-B4): 17 checks deleted their throwaway person in Keycloak only, and three
+  or more of them gone, with 2 seeded people, is "more than half". The worker logged it every 15
+  minutes, pointing at a command that couldn't show whom it meant.
 - k3d publishes a cluster's Kubernetes API on every interface unless its config says otherwise
   (P8-B2): `k3d-gen9-serverlb … 0.0.0.0:33027->6443/tcp`. Its config-file docs show
   `kubeAPI.hostIP` ("where the Kubernetes API will be listening on") but not the default; the

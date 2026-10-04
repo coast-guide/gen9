@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { launch } from "./browser.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
 import { secondStep } from "./second-step.mjs";
+import { forget } from "./forget.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -211,6 +212,7 @@ try {
 } finally {
   for (const p of people) {
     await keycloak(`/users/${p.sub}`, { method: "DELETE" }).catch(() => {});
+    forget(p.sub);
     rmSync(p.dir, { recursive: true, force: true });
   }
   await browser.close();

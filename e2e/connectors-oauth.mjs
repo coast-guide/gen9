@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bypassCSP, injectAxe, launch } from "./browser.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { forget } from "./forget.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -222,6 +223,7 @@ try {
   check(false, "the sign-in check ran to the end", e.message);
 } finally {
   if (throwawayId) await admin(`/users/${throwawayId}`, { method: "DELETE" }).catch(() => {});
+  forget(throwawayId);
   rmSync(throwaway, { recursive: true, force: true });
   for (const c of (await api(alan, "GET", "/v1/me/connectors").catch(() => ({ body: [] }))).body ?? []) {
     if (c.name === "notes") await api(alan, "DELETE", `/v1/me/connectors/${c.id}`).catch(() => {});

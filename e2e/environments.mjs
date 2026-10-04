@@ -30,6 +30,7 @@ import { join } from "node:path";
 import { createRequire } from "node:module";
 import { launch } from "./browser.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { forget } from "./forget.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -330,6 +331,7 @@ print(len(ps))"`);
     await api(ada, "DELETE", `/v1/threads/${chat}`).catch(() => {});
   }
   if (tempId) await admin("DELETE", `/users/${tempId}`).catch(() => {});
+  forget(tempId);
   for (const dir of [alan, ada]) await gen9(dir, ["logout"]).catch(() => {});
   for (const dir of [alan, ada, temp]) rmSync(dir, { recursive: true, force: true });
 }

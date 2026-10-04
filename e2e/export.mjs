@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FIREFOX, launch } from "./browser.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { forget } from "./forget.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -143,8 +144,9 @@ try {
 } finally {
   await browser.close();
   rmSync(dir, { recursive: true, force: true });
-  // gen9-agent's sweep removes their Gen9 data once they're gone from Keycloak
+  // Deleted in Keycloak, then their Gen9 data at once (forget.mjs)
   if (id) await admin("DELETE", `/users/${id}`).catch(() => {});
+  forget(id);
 }
 console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
 process.exit(failures ? 1 : 0);

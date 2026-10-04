@@ -831,6 +831,11 @@ make e2e                    # every check below; or: cd e2e && npm ci && npm run
 `HEADED=1` shows the browser. Chrome is taken from where macOS and Linux install it
 (`/Applications/Google Chrome.app`, `/usr/bin/google-chrome`); `CHROME_PATH=…` points anywhere else.
 
+A check that makes a throwaway person deletes them at its end, whatever happened: in Keycloak,
+then in Gen9 at once with `forget()` (`forget.mjs`, `gen9-agent-sweep --only` in the worker). Left
+to gen9-agent's deleted-users sweep, a run's leftovers held it: more than half of the people a
+small install knows were gone from Keycloak (docs/plans/manual-e2e.md, P8-B4).
+
 ### Other browsers (`browser.mjs`)
 
 Every check launches its browser through `launch()` in `browser.mjs`: Chrome unless

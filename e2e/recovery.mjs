@@ -11,6 +11,7 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { launch } from "./browser.mjs";
+import { forget } from "./forget.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const env = Object.fromEntries(
@@ -214,6 +215,7 @@ try {
     () => console.log("      (throwaway user deleted)"),
     (error) => check(false, "delete the throwaway user", error.message),
   );
+  forget(plainUser?.id, user.id);
 }
 
 console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");

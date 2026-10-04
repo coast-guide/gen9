@@ -193,7 +193,8 @@ class DeletionActivities:
             if held and len(missing) > allow:
                 log.error(
                     "deleted-users sweep held, nobody deleted: %s. People deleted on purpose: "
-                    "gen9-agent-sweep shows them, gen9-agent-sweep --allow %d deletes them",
+                    "gen9-agent-sweep names them; gen9-agent-sweep --allow %d deletes them all, "
+                    "--only ID… those named",
                     held,
                     len(missing),
                 )
