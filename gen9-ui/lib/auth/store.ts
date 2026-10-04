@@ -79,8 +79,8 @@ export async function saveSession(id: string, record: SessionRecord): Promise<vo
   const client = await store();
   const hash = hashId(id);
   const ttl = ttlSeconds(record);
-  // The user index outlives sessions that ended (signed out, logged out by Keycloak, expired) and
-  // its TTL restarts with every save: drop those entries here, or it grows for as long as the user
+  // The user index outlives sessions that ended (signed out, logged out by Keycloak, expired), and
+  // every save can lengthen its TTL: drop those entries here, or it grows for as long as the user
   // keeps signing in
   const indexed = await client.sMembers(K.bySub(record.sub));
   const alive = indexed.length ? await client.mGet(indexed.map(K.session)) : [];
@@ -90,7 +90,15 @@ export async function saveSession(id: string, record: SessionRecord): Promise<vo
   // Indexes for back-channel logout (by Keycloak session id) and "sign out everywhere" (by user)
   if (record.sid) multi.sAdd(K.bySid(record.sid), hash).expire(K.bySid(record.sid), ttl);
   if (ended.length) multi.sRem(K.bySub(record.sub), ended);
-  multi.sAdd(K.bySub(record.sub), hash).expire(K.bySub(record.sub), 2_592_000);
+  // The user index lives as long as the user's longest session, and an hour more: Valkey evicts the
+  // keys closest to expiring first, so a full store drops sessions before the index that ends them
+  // all. NX sets it on a new index, GT only ever lengthens it; then it goes with the last session,
+  // and a person deleted in Keycloak (whose refresh fails) leaves no index behind for long
+  const indexTtl = ttl + 3600;
+  multi
+    .sAdd(K.bySub(record.sub), hash)
+    .expire(K.bySub(record.sub), indexTtl, "NX")
+    .expire(K.bySub(record.sub), indexTtl, "GT");
   await multi.exec();
 }
 

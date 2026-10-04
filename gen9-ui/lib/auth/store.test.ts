@@ -27,3 +27,58 @@ describe("reconnectDelay", () => {
     }
   });
 });
+
+// The user index ("sign out everywhere", back-channel logout by user) lives as long as the user's
+// longest session and an hour more, not a fixed 30 days: once the last session ends, it goes too
+// (docs/plans/manual-e2e.md, P8-Z1)
+describe("saveSession", () => {
+  it("gives the user index its longest session's lifetime, and an hour more", async () => {
+    const calls: unknown[][] = [];
+    const multi: Record<string, (...args: unknown[]) => unknown> = {};
+    for (const name of ["set", "sAdd", "sRem", "expire"]) {
+      multi[name] = (...args: unknown[]) => {
+        calls.push([name, ...args]);
+        return multi;
+      };
+    }
+    multi.exec = async () => [];
+    const client = { sMembers: async () => [], mGet: async () => [], multi: () => multi };
+    vi.resetModules();
+    vi.doMock("redis", () => ({ createClient: () => ({ on: () => ({ on: () => ({ connect: async () => client }) }) }) }));
+    vi.stubEnv("APP_URL", "http://localhost:14000");
+    vi.stubEnv("KEYCLOAK_ISSUER", "http://localhost:15000/realms/gen9");
+    vi.stubEnv("KEYCLOAK_CLIENT_ID", "gen9-ui");
+    vi.stubEnv("KEYCLOAK_CLIENT_SECRET", "test");
+    vi.stubEnv("SESSION_SECRET", "a".repeat(64));
+    vi.stubEnv("SESSION_STORE_URL", "redis://localhost:6379");
+    vi.stubEnv("GEN9_AGENT_URL", "http://localhost:17000");
+    delete (globalThis as { gen9SessionStore?: unknown }).gen9SessionStore;
+    const { saveSession } = await import("@/lib/auth/store");
+
+    const now = Date.now();
+    await saveSession("session-id", {
+      sub: "user-1",
+      sid: null,
+      email: null,
+      name: null,
+      givenName: null,
+      roles: [],
+      accessToken: "a",
+      accessTokenExpiresAt: now + 300_000,
+      refreshToken: "r",
+      refreshTokenExpiresAt: now + 1_800_000,
+      idToken: "i",
+      authTime: null,
+      createdAt: now,
+    });
+
+    const index = calls.filter(([name, key]) => name === "expire" && key === "gen9:session-by-sub:user-1");
+    expect(index.map(([, , , mode]) => mode)).toEqual(["NX", "GT"]);
+    for (const [, , seconds] of index) {
+      expect(seconds).toBeGreaterThanOrEqual(1_800 + 3_600 - 1);
+      expect(seconds).toBeLessThanOrEqual(1_800 + 3_600);
+    }
+    vi.doUnmock("redis");
+    vi.unstubAllEnvs();
+  });
+});

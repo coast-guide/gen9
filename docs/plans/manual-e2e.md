@@ -5346,7 +5346,54 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-Z. Destructive, last
 
-- [ ] Z1 `make backup DIR=…`, then `make restore DIR=…`: the same chats, users and traces after.
+- [x] Z1 `make backup DIR=…`, then `make restore DIR=…`: the same chats, users and traces after.
+  - **Before:** a fingerprint of every store, each table's rows and an md5 of their contents
+    (gen9-postgres with LangGraph's tables, Keycloak's users, credentials and events, Langfuse's
+    Postgres and ClickHouse, the router's tables), Temporal's workflows and schedules, Valkey's
+    keys, and Alan's view in Chrome (3 chats, the harbour greeting's words, "Alan weekly" active).
+  - **`make backup DIR=~/gen9-backup-p8z1`:** "Stopping 26 containers…", 15 volumes (the local
+    models left out, as docs say) and 19 settings files, 230 MB in 2 min 14 s ("About 4 minutes
+    and 1 GB for a small install"); the folder and everything in it `rwx------`/`rw-------`, the
+    manifest names the time, the commit, each volume with its Compose labels. The stacks came
+    back by themselves (gen9-edge, never set up, left out); Alan's open tab stayed signed in
+    (Valkey's append-only file).
+  - **Changed after it:** Alan deleted his chat "Reply with one word: file" ("Delete this chat?
+    The conversation, its files and its environment are deleted for good."), renamed another,
+    paused his task; Ada's first name changed with `kcadm.sh`.
+  - **Without a terminal:** `make restore` refused: "Refusing without a terminal to confirm: add
+    YES=1 (make) or --yes.", nothing changed. **With one,** "Type yes to restore: yes": 131 s, then
+    "Deleting again what was deleted after the backup was made: 0 accounts, 1 chats…", "chat
+    0cc6f059-…: deleted again".
+  - **After:** every store's fingerprint as before the backup but for what the restore deleted
+    again (the chat's thread, checkpoints, file and search rows) and what the minutes in between
+    wrote anyway (Keycloak's sign-in and admin events, a reindex `embed` call in the router's
+    log, `last_seen_at`). Alan's tab, still signed in, showed the 2 chats under their old names,
+    the greeting word for word, "Alan weekly" active (its Temporal schedule not paused), the
+    deleted chat's link "There's nothing here."; Ada's name back in Keycloak. Langfuse dropped the
+    chat's 16 events about 80 s after (its deletion queue); Temporal ran
+    `delete-thread-…-again-…` for the late passes; the audit record holds
+    `restore.thread.delete` by `gen9-agent-erase`.
+  - **An account, the same way:** Ada deleted Alan (Users, "Delete user…") after the backup:
+    gone from Keycloak, gen9-postgres, the router, Temporal's schedules at once, from Langfuse in
+    60 s. The same backup restored again (130 s): "1 accounts, 1 chats…", "account 522e881c-…:
+    deleted again", the chat went with him; Keycloak 0, gen9-postgres 0, the router 0, Langfuse 0
+    after 80 s, `delete-account-…-again-…` running its late passes, `restore.account.delete`
+    recorded. His tab went to the sign-in page.
+  - **Found:** Valkey kept `gen9:session-by-sub:<sub>`, the index of a person's sessions, for 30
+    days after they were deleted by an admin, by a restore, or in Keycloak (111 such keys here,
+    of e2e users long gone): its TTL was a fixed 30 days, renewed at each save. Only deleting
+    your own account dropped it; Keycloak's back-channel logout drops sessions one by one, by
+    `sid`.
+  - **Fixed:** the index lives as long as its user's longest session and an hour more (`EXPIRE …
+    NX`, then `GT`, so it only grows; probed on the pinned Valkey 9.1.2: NX sets a new one, GT
+    keeps the longer TTL, both inside MULTI), so Valkey's `volatile-ttl` eviction still drops
+    sessions before the index that ends them; an admin's deletion drops the index at once, as
+    one's own does. Live on gen9-ui built from the change: Zed (made with `kcadm.sh`) signed in,
+    index 5,399 s for a 1,799 s session; Ada deleted him: the index gone at once, his session
+    by the back-channel logout, every store 0.
+  - **Found too:** "1 accounts, 1 chats" (restore.sh, `gen9-agent-erase`), and a chat that goes
+    with its account counted by the one and not the other ("1 accounts, 0 chats"): fixed in its
+    own pull request.
 - [ ] Z2 `make wipe` on one stack, then all: what goes and what stays, as docs say.
 - [ ] Z3 A fresh developer from zero: `make distclean`, a new clone in a new folder, then the
   README's quick start followed word by word with nothing else known. Each step timed, each
