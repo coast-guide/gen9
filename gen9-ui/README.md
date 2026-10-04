@@ -104,7 +104,7 @@ Published on `127.0.0.1` only.
 | Lint / types | `npm run lint && npx tsc --noEmit` |
 | Unit tests | `npm test` (Vitest: auth, sessions and cookies, origin checks, what an approval shows, links, app asks, audit words, limits, and more) |
 | Build | `npm run build`: the only check that refuses a server-only module (`lib/agent.ts`, `lib/env.ts`) imported into a client component; a failed image build leaves the old container running, so check `docker compose ps` shows it recreated |
-| Sign everyone out of this app | Rotate `SESSION_SECRET` in `.env` (`./init-env.sh --force`), then `docker compose up -d`: old session records can no longer be decrypted |
+| Sign everyone out of this app | Rotate `SESSION_SECRET` in `.env` (`./init-env.sh --force`), then `docker compose up -d`: old session records can no longer be decrypted. A browser still signed in to Keycloak gets a new one at its next page; to end those too, Keycloak's `logout-all` (docs/operations.md, "Start over") |
 | Stop everything | `docker compose --profile dev down` |
 
 ## Deploy on a VM

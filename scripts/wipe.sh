@@ -33,7 +33,7 @@ holds() {
   case $1 in
     postgres) echo "app database: Gen9 users, chats, agent memory" ;;
     keycloak) echo "accounts, passwords, passkeys, sessions, sign-in history; Mailpit's emails" ;;
-    ui) echo "web sessions: everyone gets signed out" ;;
+    ui) echo "web sessions: everyone signs in again, at once while their Keycloak session lasts" ;;
     agent) echo "no data of its own" ;;
     langfuse) echo "traces, Langfuse users, projects and API keys" ;;
     temporal) echo "workflow state: running and waiting runs, schedules, workflow history" ;;

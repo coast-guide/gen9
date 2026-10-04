@@ -5504,8 +5504,18 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     warns, and doesn't fail: "warn python3 not found: make diff, make reset, make config's checks
     and the Kubernetes commands need it" (tried with a `PATH` holding everything but python3;
     doctor still exits 0).
-  - [ ] Z4e "Start over": `images.env` survives `make distclean` (Z3); `make wipe STACKS=ui`
-    "signs everyone out" holds for Gen9's sessions, not Keycloak's (Z2).
+  - [x] Z4e "Start over": `images.env` survives `make distclean` (Z3); `make wipe STACKS=ui`
+    "signs everyone out" holds for Gen9's sessions, not Keycloak's (Z2). The table's "Keeps" now
+    names `images.env` ("images and which ones run"), and the text says what wiping gen9-ui does
+    and doesn't, and how to sign everyone out of both, as tried: Keycloak's `logout-all` (`kcadm.sh
+    create realms/gen9/logout-all`) left Keycloak no session (`client-session-stats` empty) and
+    sent gen9-ui no back-channel logout, so Alan's tab kept working; `make wipe STACKS=ui YES=1`
+    and `make up STACKS=ui` after it, and his next page was Keycloak's sign-in. `make wipe`'s
+    own words for gen9-ui and gen9-ui's README (rotating `SESSION_SECRET`) say the same. Keycloak
+    needn't restart with gen9-ui, though the wipe suggests it: after `make up STACKS=ui` alone,
+    `kcadm.sh create users/<Alan>/logout` reached the new container ("sid logged out, 1
+    session(s) removed"). The suggestion stays, as for other stacks restarting the callers is the
+    safe default.
   - [ ] Z4f The API's two error shapes, `{"detail": "…"}` and FastAPI's validation list, and the
     validation wording ("at most 8000 items") (K, M5).
   - [ ] Z4g `PRIVACY_CONTROLLER` among what to set before going live (O2).
