@@ -4938,8 +4938,29 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     JavaScript and CSS; `/redoc` 404; a path out of the folder 404; `info.version` 0.1.0;
     headless Chrome draws "Gen9 Agent API 0.1.0" with 77 operations from 5 requests, none to
     another site, no console error.
-- [ ] M2 CORS: the API from a foreign origin (a preflight with curl), refused unless listed.
-- [ ] M3 CSRF: the app's state-changing routes posted from a foreign page, refused.
+- [x] M2 CORS: the API from a foreign origin (a preflight with curl), refused unless listed.
+  - **The API** sends no CORS headers: a preflight from `https://evil.example` to `/v1/me`,
+    `/v1/threads`, `/mcp` and `/a2a` gets 403 "Forbidden Origin" and no
+    `Access-Control-Allow-Origin` (paths the API has no `OPTIONS` route for fall through to the MCP
+    app mounted after it, whose origin guard answers); a GET with that Origin, 401 and no CORS
+    header either.
+  - **The Temporal codec**, the one endpoint with CORS: the foreign origin 400 with no
+    allow-origin; Temporal's UI (`http://localhost:18000`) 200 with it, POST only, its headers
+    listed, `max-age` 600.
+  - **The web app's** `/api/…`: 204 to a preflight but with no CORS headers, so a browser stops
+    there.
+- [x] M3 CSRF: the app's state-changing routes posted from a foreign page, refused.
+  - **The attacker that matters** is same-site: a page on `localhost:18999` is the same site as
+    the app, so Quinn's `SameSite=Lax` cookie goes with its requests. Served by
+    `python3 -m http.server` and opened in Quinn's signed-in Chrome.
+  - **What it tried:** a run started in one of her chats (a no-cors fetch with a JSON body as
+    text/plain, and a form), a sign-out (a form to `/auth/logout`), and a POST to `/api/threads`.
+    None did anything: no run (the API never saw the call), no new chat (58 before and after),
+    Quinn still signed in; the answers framed into the attacker's page were blocked by the app's
+    `frame-ancestors 'none'`. A CORS fetch stopped at its preflight.
+  - **Why:** every state-changing route handler (11, listed by grep) checks that `Origin` is the
+    app's own, a missing one failing too (`lib/auth/origin.ts`); Next.js checks server actions'
+    Origin itself.
 - [ ] M4 Cross-user access: Quinn's token on Alan's thread, file, task and run IDs (404, nothing
   leaked); Alan's on Quinn's.
   - **Alan's token on Quinn's chat** (thread, its runs, a run, its files, a file, cancel, rename,
