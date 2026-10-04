@@ -4549,8 +4549,11 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     (`langgraph.checkpoint_blobs`, `checkpoint_writes`), `audit_events` and the router's log: 0
     each. The same searches find the command's URL (91 Langfuse events, 3 run events, 13
     checkpoint rows), so they would have found it; the router's log keeps no prompts at all.
-- [ ] G5 The environment removed after its idle time (or the chat's deletion): sandbox, volume
+- [x] G5 The environment removed after its idle time (or the chat's deletion): sandbox, volume
   and workflow gone.
+  - **Idle:** F6's chat's environment, last used at 10:42 (`SANDBOX_IDLE_S`, 30 minutes):
+    "Terminating sandbox: 6399f68f…" at 11:11:57, terminated a second later; its two containers
+    and its volume gone, `environment-<thread>` COMPLETED.
   - **The chat's deletion** (G4's chat, "Chat options" > "Delete chat": "Delete this chat? The
     conversation and its history are deleted for good."): within 2 s its `sandbox-<id>` and
     `sandbox-egress-<id>` containers and its `opensandbox-runtime-<id>` volume were gone,
