@@ -4831,7 +4831,18 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - No new message: 422. A deleted chat's id (G4's) made a new chat under it ("made on first use
     as the caller's"): Gen9 keeps no row of a deleted chat to refuse it by; nothing of the old
     one comes back.
-- [ ] K5 The raw API from its `/docs`: one call of each kind tried by hand, errors in one shape.
+- [x] K5 The raw API from its `/docs`: one call of each kind tried by hand, errors in one shape.
+  - **`/docs`** (Swagger UI from gen9-agent's own files, M1) in Quinn's Chrome: Authorize offers
+    "HTTPBearer … Keycloak access token with aud=gen9-agent"; the CLI's token pasted from its
+    file shows as "Authorized … Value: ******". `GET /v1/me`, Try it out, Execute: 200, Quinn's
+    record, `cache-control: no-store`. 77 operations (30 GET, 27 POST, 11 DELETE, 5 PATCH, 4 PUT).
+  - **One of each kind** with the same token: GET a list 200; POST a chat (it takes no body: a
+    malformed one is ignored); PATCH a rename 200; GET memory 200; DELETE 204, then 404.
+  - **Errors:** always `{"detail": …}`: a sentence for 401 ("Authentication required"), 403
+    ("Requires role gen9-admin"), 404 ("Thread not found") and the NUL refusal (422, "Text here
+    can't contain the NUL character (U+0000)."); FastAPI's list (`type`, `loc`, `msg`, `input`,
+    `ctx`) for a request that fails validation (422, an empty title). For Z4: no doc tells an API
+    user these two shapes.
 
 ### P8-L. Admin and governance
 
