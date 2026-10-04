@@ -4908,8 +4908,20 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - **Not tried live:** the line an agent adds when it writes to other people through a
     connector ("Written by Gen9, an AI system, on behalf of …"): no connector here sends
     messages; the rule is in the agent's instructions.
-- [ ] L6 Quinn deletes her account: gone from Keycloak, gen9-postgres, Langfuse, the router's
-  records, the environments and Valkey, as docs/operations.md promises.
+- [x] L6 Quinn deletes her account: gone from Keycloak, gen9-postgres, Langfuse, the router's
+  records, the environments and Valkey, as docs/operations.md promises. Done in Chrome as Quinn,
+  2026-10-04, after counting her footprint (69 threads, 81 runs, 1,796 checkpoints, 1,955 Langfuse
+  events, 284 router spend logs, 91 Temporal workflows, 36 Mailpit emails). Settings asked a fresh
+  sign-in and her typed email, then answered in 2.2 s "Your account was deleted…". At once: her
+  user row and memory 0, her Keycloak user 0 (kcadm), the router's spend logs, daily end-user
+  spend and end-user rows 0, Valkey's `gen9:session-by-sub:<sub>` and her sessions 0. About a
+  minute later: her threads, files, search rows, checkpoints and writes 0, Langfuse 0
+  (ClickHouse `events_core`). The DeleteAccountWorkflow ran its late passes and COMPLETED; after
+  them the router and Langfuse were still 0. Her `gen9` CLI then said "You're not signed in, or
+  your sign-in ended. Run `gen9 login`." Kept by design, as docs/logging.md says: the audit
+  record (33 rows by her, 5 about her, `account.delete` among them), Keycloak's events (30 days),
+  the closed DeleteThread/DeleteAccount workflows (Temporal's 72 h retention), Mailpit's dev
+  emails and MinIO's raw events (1 day). No defect.
 
 ### P8-M. Security, by hand
 
