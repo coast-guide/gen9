@@ -4164,8 +4164,29 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     development.md does (24.21 or later).
 ### P8-C. Nothing signed in: the public surface
 
-- [ ] C1 Every published URL (the app, API, Keycloak, Mailpit, Langfuse, Temporal UI, the API
+- [x] C1 Every published URL (the app, API, Keycloak, Mailpit, Langfuse, Temporal UI, the API
   docs) opened in Chrome signed out: what each shows and asks for.
+  - **Signed out:**
+    - the app: its landing page (what Gen9 does, Sign in, Create an account, a sample exchange);
+    - Keycloak's root: the master realm's admin sign-in (PKCE, S256);
+    - Mailpit: 401, `Basic realm="Login"` (with curl: a browser's basic-auth dialog would block
+      the automation);
+    - Temporal's UI: "Continue to SSO" only;
+    - the API's `/docs` and `/openapi.json`: 200;
+    - the apps' sandbox (14003): only its relay page (M7 looks further);
+    - Langfuse: its sign-in, with "No account yet? Sign up".
+  - **Found: anyone who reaches Langfuse could make an account** there, and organizations of
+    their own. `AUTH_DISABLE_SIGNUP` was set nowhere, and Langfuse's docs ("Authentication and
+    SSO") leave sign-up on unless it's `true`; restricting who makes organizations is Enterprise
+    only. They couldn't read Gen9's project without an invitation, but under a domain gen9-edge
+    publishes Langfuse at `traces.<domain>`. Fixed: `AUTH_DISABLE_SIGNUP` is true unless
+    gen9-langfuse's `.env` says otherwise. Since that also stops an invited person with no
+    account, gen9-langfuse's README says how to let one in.
+  - **Live:**
+    - with `false`, Langfuse's old default, an uninvited sign-up got 200 and an account;
+    - with the new default, "Sign up is disabled." (422), and no account;
+    - the README's flow (false in `.env`, `make up STACKS=langfuse`, then back) worked, and
+      `make diff` was clean after it; the probe account was deleted.
 - [ ] C2 The API without a token: every `/v1` path answers 401 with a JSON `detail`. `/healthz`,
   `/readyz`, `/v1/version` and `/openapi.json` say only what they should.
 - [ ] C3 The landing page, privacy page and sign-in entry in Chrome, light and dark, desktop and

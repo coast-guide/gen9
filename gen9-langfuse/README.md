@@ -61,6 +61,12 @@ LANGFUSE_SECRET_KEY=   # LANGFUSE_INIT_PROJECT_SECRET_KEY from .env
 | Stop (keeps data)                  | `docker compose down`                                        |
 | Reset (**deletes all data**) | `docker compose down -v`, then `./init-env.sh ... --force` |
 
+Who signs in: the first user `make setup` asked for, and the people they invite (Settings,
+Members). Nobody can sign up uninvited (`AUTH_DISABLE_SIGNUP`, true unless `.env` says
+otherwise), and that also stops someone invited who has no account yet. So, to add someone:
+invite them, set `AUTH_DISABLE_SIGNUP=false` in `.env` and `make up STACKS=langfuse`, let them
+sign up, then take the line out and `make up STACKS=langfuse` again.
+
 ## Disk
 
 Traces grow with every run; Gen9 erases a chat's or an account's traces when they're deleted

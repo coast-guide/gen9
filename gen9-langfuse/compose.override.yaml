@@ -28,6 +28,12 @@ services:
       # Next.js listens on $HOSTNAME, which Docker sets to the container ID: that is one address on
       # one network. Listen on every interface, so gen9-agent reaches it on the gen9-langfuse network.
       HOSTNAME: 0.0.0.0
+      # Nobody signs themselves up: Gen9 makes Langfuse's first user, and anyone else is invited.
+      # Langfuse's default lets anyone who reaches it make an account and organizations of their
+      # own (which only its Enterprise Edition can restrict), and under a domain gen9-edge publishes
+      # it at traces.<domain>. To let someone you invited make their account: false in .env, then
+      # back (gen9-langfuse/README.md, "Operate"; docs/plans/manual-e2e.md, P8-C1)
+      AUTH_DISABLE_SIGNUP: ${AUTH_DISABLE_SIGNUP:-true}
       <<: &tls
         # Stores elsewhere over TLS, checked against a CA of certs/ (docs/operations.md, "External
         # services"): Node's own NODE_EXTRA_CA_CERTS for ClickHouse's and S3's clients, Langfuse's
