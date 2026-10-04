@@ -5110,7 +5110,22 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - **Kept, on purpose:** "Needs you" and "Gen9 needs your answer" for a run waiting for Retry
     (the design's status words: the person has to act); a finished one-off's "Done" badge beside
     its run's "· Done" (the task and its run); "Once, on 2026-10-04 …" (unambiguous).
-- [ ] O4 Settings page, section by section: each control does what it says (checked in the API).
+- [x] O4 Settings page, section by section: each control does what it says (checked in the API).
+  - **Profile:** "Edit" goes through Keycloak's update-profile action, which first asks for the
+    password ("Confirm it's you to continue."); last name "Phase Eight" → "Eighth": Settings, the
+    account menu and Gen9's `users.name` say "Quinn Eighth".
+  - **Memory:** "Add", "Prefers answers in one sentence.", Save: "Updated just now", and
+    `GET /v1/me/memory` returns it. "Remember things about me" and "Search and reference past
+    chats" off and on: `users.remember` and `users.search_past_chats` false, then true.
+  - **Notifications:** "Only when a task needs me": `users.notify` `needs_you`; back to `all`.
+  - **Appearance:** Dark: the page's `dark` class, kept in the browser (localStorage) across a
+    reload; back to System.
+  - **Where you're signed in:** "HeadlessChrome on Linux … This browser … Gen9 CLI signed in
+    through it too." (its sign-out everywhere: D7). **About:** "0.1.0, commit 58f1e51" (the web
+    app's build). **Skills:** Gen9's own research-brief (F3).
+  - **Covered elsewhere:** Connectors (J1–J3), Plugins (J6), Environment secrets (G4), Apps
+    with access (K2, K3), Your data (L5), the password and authenticator (D5, L4); passkeys are
+    `e2e/passkeys.mjs`'s, not repeated by hand. Delete account: L6.
 
 ### P8-P. A domain and TLS (gen9-edge)
 
