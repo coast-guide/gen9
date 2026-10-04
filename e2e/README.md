@@ -1,6 +1,6 @@
 # e2e
 
-End-to-end checks that cross stacks, run in real Chrome against the running stacks. It is not a stack: nothing here runs in Docker.
+End-to-end checks that cross stacks, run in real Chrome against the running stacks. It is not a stack: nothing here runs in Docker. To run them: [Run](#run) (`make e2e`, with every stack up).
 
 Under a domain (`make setup DOMAIN=…`, gen9-edge), a check takes its addresses from `APP_URL`, `KEYCLOAK_URL` and `LANGFUSE_URL` where it reads them, and `E2E_INSECURE_CERTS=1` lets Chrome take certificates from gen9-edge's own CA, which this machine doesn't trust (what is served, redirects and cookies are unchanged). `apps.mjs` takes the connectors' Views' address as gen9-ui does, `MCP_APPS_SANDBOX_URL`. A check that signs in on the terminal (`gen9 login`, `signin.mjs`) also takes `GEN9_ISSUER` and `GEN9_API` (the domain's `id.` and `api.` hosts), and the terminal client and Node's own requests trust gen9-edge's root as `SSL_CERT_FILE` and `NODE_EXTRA_CA_CERTS` (its file: gen9-edge/README.md, "Caddy's own CA").
 

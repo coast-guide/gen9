@@ -118,6 +118,8 @@ Import runs only for realms that don't exist yet. Either:
 
 ## Deploy on a VM
 
+The simplest way: `make setup DOMAIN=…` and `make up` put gen9-edge (Caddy) in front of every stack, with its certificates, addresses and redirect URIs ([docs/operations.md, "Under a domain, over TLS"](../docs/operations.md#under-a-domain-over-tls)). Behind a TLS proxy of your own instead:
+
 Put TLS in front of `127.0.0.1:15000` (and rate-limit `/realms/gen9/device` there: [Upgrade](#upgrade)), generate `.env` with `--url https://id.example.com` and the public app URLs, and keep the management port (`15001`) private. For production, also replace the temporary bootstrap admin with a permanent one, and swap Mailpit for a real SMTP server in the realm's email settings, over TLS (SSL or StartTLS) with its user ([docs/development.md, "Connections"](../docs/development.md#connections-and-what-each-side-shows)).
 
 ## Upgrade

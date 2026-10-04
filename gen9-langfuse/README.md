@@ -98,6 +98,8 @@ A public media URL (below) is reached as it is.
 
 ## Deploy on a VM
 
+The simplest way: `make setup DOMAIN=…` and `make up` put gen9-edge (Caddy) in front of every stack, with its certificates, addresses and redirect URIs ([docs/operations.md, "Under a domain, over TLS"](../docs/operations.md#under-a-domain-over-tls)). Behind a TLS proxy of your own instead:
+
 Put a TLS reverse proxy in front of `127.0.0.1:13000` (UI/API) and `127.0.0.1:13001` (media), and generate `.env` with its public URLs:
 
 ```bash

@@ -3959,28 +3959,106 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     start for the same reason. Fixed: `doctor` leaves out a stack that isn't set up, with
     `make up`'s note; a selection left with no stacks checks only the tools (`--no-stacks`); each
     port is checked once.
-- [ ] A3 Finding the commands: from the README, how many clicks to `make help`, to operations.md,
+- [x] A3 Finding the commands: from the README, how many clicks to `make help`, to operations.md,
   to "how to run the tests". Every make target in the Makefile appears in `make help` and in
   operations.md; every target the docs name exists.
-- [ ] A4 Every command block in README.md, docs/*.md, each stack's README and e2e/README.md
+  - **Seen:** plain `make` lists every target with a line each, and operations.md's "Everyday
+    commands" shows it; every target is in `make help` and every operator target in
+    operations.md (the developer ones, design, evals and `k8s-e2e`, are in development.md and
+    e2e/README.md). From the README: `make` is one click away (operations.md). How to run the
+    tests is three (Documentation, development.md, then AGENTS.md's "Checks"), and that last page
+    presents itself as rules for agents.
+- [x] A4 Every command block in README.md, docs/*.md, each stack's README and e2e/README.md
   inventoried (file, line, command), sorted into what this phase runs where (here, in later
   sections, or in Z on a fresh clone).
-- [ ] A5 Organization against Diátaxis: each doc sorted into tutorial, how-to, reference or
+  - **131 commands** in 18 files' code blocks (the list: the phase's scratch file
+    `doc-commands.tsv`), besides those inline in prose. Where they run:
+    - **B:** the everyday make commands, and each stack README's "Verify" commands (B11);
+    - **K:** the CLI's 13;
+    - **P and Q:** the domain's and Kubernetes';
+    - **R:** a release's (not before the first release: none is tagged);
+    - **Z3:** setting up a single stack by hand (`./init-env.sh`, `docker compose up` in its
+      folder), which writes settings;
+    - **the owner's:** `git tag` (U8).
+  - **Where it's hard to find:** e2e/README.md's "Run" comes at line 826 of 888, after every
+    check's description, and its opening doesn't point to it. gen9-agent's README (1,284 lines)
+    keeps its tests near the end, which suits a reference.
+- [x] A5 Organization against Diátaxis: each doc sorted into tutorial, how-to, reference or
   explanation. Where kinds are mixed in one page, where one kind is missing, and where the same
   fact is told twice and disagrees.
-- [ ] A6 The map in AGENTS.md ("Where things live") checked row by row against the files.
+  - **Tutorial:** the README's quick start, and gen9-learn's guided trace, which teaches how Gen9
+    works rather than how to use it.
+  - **How-to:** operations.md (with some reference: the make targets), the stacks' "Quick start"
+    and "Operate", development.md's "Add a stack" and "Releasing".
+  - **Reference:** gen9-agent's README (its API, runs, connectors …), gen9-learn's Reference,
+    e2e/README.md, `make help`.
+  - **Explanation:** auth-architecture, temporal, cryptography, logging, secrets, ai-act, and
+    development.md's "How stacks stay decoupled".
+  - **What's missing:**
+    - a guide for the person using Gen9 (connectors, tasks, approvals, memory), who has only the
+      UI, gen9-agent's API reference and gen9-learn;
+    - a "when something goes wrong" page (A10);
+    - the developer's tools in one place (A8).
+  - **Mixed:** development.md holds explanation, how-to and the repository's settings (reference)
+    on one page, each under its own heading, so it reads well enough.
+- [x] A6 The map in AGENTS.md ("Where things live") checked row by row against the files.
   Whether a person (not an agent) would find that map from the README.
-- [ ] A7 Each stack's README read in turn: what it is, how to run and check it alone, its settings,
+  - All 20 rows' paths exist (`config.yaml` is gen9-models', as its row says). The README links the
+    map ("Anything else, by topic"), so a person finds it in one click.
+- [x] A7 Each stack's README read in turn: what it is, how to run and check it alone, its settings,
   ports and data. Same shape across the nine, and each fact linked rather than copied.
-- [ ] A8 Contributor path: CONTRIBUTING.md, docs/development.md, the issue and PR templates. Can a
+  - **One shape for the data stacks:** Quick start, Files, Ports, Verify, Operate, Upgrade
+    (postgres, temporal, langfuse, models, sandbox, keycloak, ui, edge). gen9-agent's is a
+    reference by topic (Setup, Run, then API … Deletion).
+  - **Found, out of step:** gen9-ui, gen9-keycloak and gen9-langfuse each have a "Deploy on a
+    VM" that describes the manual way (your own TLS proxy, `APP_URL` and Keycloak's redirect URIs
+    by hand), with no word of `make setup DOMAIN=…` and gen9-edge, which do it all.
+- [x] A8 Contributor path: CONTRIBUTING.md, docs/development.md, the issue and PR templates. Can a
   newcomer tell how to run each project's checks, and what CI will run.
-- [ ] A9 Kubernetes and releases from the docs alone: could a newcomer run Gen9 on kind or k3d,
+  - CONTRIBUTING.md and the templates are clear about how to propose a change. CI's checks are
+    described in development.md.
+  - **Missing:** the tools to develop with, in one place. Each is found somewhere: uv in
+    gen9-agent's README, Node 24 in e2e's `engines` and CI (24.21.0), Chrome in e2e/README.md,
+    Docker for shellcheck in the workflow.
+- [x] A9 Kubernetes and releases from the docs alone: could a newcomer run Gen9 on kind or k3d,
   and consume a release, without reading the plans.
-- [ ] A10 Troubleshooting: what the docs say when something fails (a port taken, no provider key,
+  - **Run a release:** clear, but there is no release yet (no tag), and nothing says so.
+  - **Kubernetes:** the reference is thorough (the cluster's needs, sandboxes, settings, the
+    domain). To try it before a release, though, a newcomer must put together:
+    - a local registry;
+    - a bake for one platform;
+    - the lock, written with `jq`, which isn't among the requirements;
+    - the cluster's registry setting;
+    - the Gateway's values.
+    No worked recipe or example values file says how; this phase's own runs relied on files
+    outside the repository. Q writes one and runs it.
+- [x] A10 Troubleshooting: what the docs say when something fails (a port taken, no provider key,
   not enough memory, a stack unhealthy, a sign-in loop), and whether `make doctor`'s messages
   point to them.
-- [ ] A11 gen9-learn: whether the README tells a newcomer it exists and how to open it.
+  - No page or section for when something fails. What exists is scattered:
+    - `make doctor` names a taken port with the `lsof` to run;
+    - `make setup` says which keys are missing;
+    - gen9-ui has `/auth/error`;
+    - gen9-learn has a "Debugging map".
+    Neither the README nor operations.md points to the last two.
+- [x] A11 gen9-learn: whether the README tells a newcomer it exists and how to open it.
 
+  - Yes: the README names it twice ("Also in the repository", and "Understand Gen9 end to end")
+    and says to open `gen9-learn/index.html`.
+- **A's findings, fixed** (the docs for a newcomer; this section's own pull request):
+  - **The README's quick start** names the systems (macOS or Linux), python3, the two keys and
+    what each is for (with where to get them), `make doctor` first, `make` to list commands,
+    and the new "When something goes wrong".
+  - **operations.md:** python3 among the requirements; its own-registry recipe reads digests
+    with Docker's `--format '{{.Manifest.Digest}}'` (tried: the same digest as before) rather
+    than `jq`; a new "When something goes wrong" points to `make doctor`, `ps`, `logs`, `diff`
+    and gen9-learn's Debugging map.
+  - **e2e/README.md** says at its top where "Run" is.
+  - **development.md** lists the tools the checks need.
+  - **The three "Deploy on a VM" sections** lead with `make setup DOMAIN=…`.
+  - **Left for later:** how long the first `make up` takes and how much disk it needs (Z3
+    measures them); a local Kubernetes recipe (Q runs one); a guide for the person using Gen9
+    (Z4 decides).
 ### P8-B. Operator: the running Docker install, by hand
 
 - [ ] B1 `make stacks`, `make ps`, `make doctor`, `make config`, `make diff`: each output read for

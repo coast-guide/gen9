@@ -109,6 +109,8 @@ Published on `127.0.0.1` only.
 
 ## Deploy on a VM
 
+The simplest way: `make setup DOMAIN=…` and `make up` put gen9-edge (Caddy) in front of every stack, with its certificates, addresses and redirect URIs ([docs/operations.md, "Under a domain, over TLS"](../docs/operations.md#under-a-domain-over-tls)). Behind a TLS proxy of your own instead:
+
 Put a TLS reverse proxy in front of `127.0.0.1:14000`, set `APP_URL=https://…` (cookies become `__Host-`, `Secure`, and pages send `Strict-Transport-Security: max-age=63072000; includeSubDomains`; checked behind a local TLS proxy, sign-in to sign-out), register the new redirect and post-logout URIs and the back-channel logout URL in Keycloak, and keep Valkey private. A chat's answer and a run waiting for you are server-sent events: the API pings every 15 s while one is quiet and responses say `X-Accel-Buffering: no`, so a proxy's usual idle timeout (nginx's `proxy_read_timeout`, 60 s) and buffering leave them open, given `proxy_http_version 1.1` (checked behind nginx 1.29: a run waiting 150 s, its stream never cut). For more than one instance, all instances share the Valkey session store.
 
 Connectors' apps need the sandbox on a site of its own, never a subdomain of the app's: a wildcard

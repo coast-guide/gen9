@@ -23,12 +23,15 @@ Gen9 is an agent platform you host yourself: a general-purpose AI agent your tea
 
 ## Quick start
 
-You need Docker with Compose 2.24 or newer (at least 8 GiB of memory for Docker), GNU Make, bash and openssl ([requirements](docs/operations.md#requirements)). Then:
+On macOS or Linux, you need Docker with Compose 2.24 or newer (at least 8 GiB of memory for Docker), GNU Make, bash, openssl and python3 ([requirements](docs/operations.md#requirements)), and two model provider keys: [OpenRouter's](https://openrouter.ai/keys), which every chat uses, and [OpenAI's](https://platform.openai.com/api-keys), for speech and images. Then:
 
 ```bash
-make setup     # generates every secret and setting; asks for your model provider keys
+make doctor    # checks this machine: Docker, Compose, memory, free ports
+make setup     # generates every secret and setting; asks for the two keys and Langfuse's first user
 make up        # starts every stack and waits until each is healthy
 ```
+
+`make` alone lists every command; [docs/operations.md](docs/operations.md) says what each does, and what to do [when something goes wrong](docs/operations.md#when-something-goes-wrong).
 
 Other ways to run it, all in [docs/operations.md](docs/operations.md): [a published release](docs/operations.md#run-a-release), [on Kubernetes](docs/operations.md#kubernetes), [under a domain, over TLS](docs/operations.md#under-a-domain-over-tls), [with your own databases and stores](docs/operations.md#external-services).
 

@@ -12,7 +12,7 @@ active, and how every session starts, is in [AGENTS.md, "Start of every session"
 
 ## Checks
 
-Which checks each part of the repository needs before a commit: [AGENTS.md, "Checks"](../AGENTS.md#checks).
+Which checks each part of the repository needs before a commit: [AGENTS.md, "Checks"](../AGENTS.md#checks). They need, besides what running Gen9 needs ([operations.md, "Requirements"](operations.md#requirements)): [uv](https://docs.astral.sh/uv/) (gen9-agent and gen9-cli; it brings their Python), Node 24 (gen9-ui, e2e, gen9-learn's verifier; CI uses 24.21.0), and Google Chrome (e2e). Shellcheck runs in Docker, as CI runs it.
 
 Design system: `make design-sync` copies `gen9-design` into the apps; `make design-check` fails if a copy drifted.
 

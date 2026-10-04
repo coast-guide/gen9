@@ -8,7 +8,7 @@ to day, upgrade it, back it up, stop its agents, and start over. What each stack
 
 ## Requirements
 
-Docker with Compose 2.24 or newer, GNU Make (macOS's built-in 3.81 is enough), bash, openssl. With gen9-langfuse, give Docker at least 8 GiB of memory: all stacks idle used 5.8 GiB after a day of use (Langfuse 2.9, Keycloak 1.4, the model router 0.6, Temporal 0.5, measured). `make doctor` checks all of this and the ports each stack needs; `make setup` and `make up` run the same checks first and stop before starting anything. It stops a start if a secret is missing from gen9-langfuse/.env (Langfuse's own compose file would fall back to a published default), or if a stack leaves a bundled store out with no setting naming another ([External services](#external-services)). On a running install it also checks Temporal's certificate, and warns of a deletion still running after a day (a step that keeps failing).
+Docker with Compose 2.24 or newer, GNU Make (macOS's built-in 3.81 is enough), bash, openssl, and python3 (`make diff`, `make reset` and `make config`'s checks run Python scripts). With gen9-langfuse, give Docker at least 8 GiB of memory: all stacks idle used 5.8 GiB after a day of use (Langfuse 2.9, Keycloak 1.4, the model router 0.6, Temporal 0.5, measured). `make doctor` checks all of this and the ports each stack needs; `make setup` and `make up` run the same checks first and stop before starting anything. It stops a start if a secret is missing from gen9-langfuse/.env (Langfuse's own compose file would fall back to a published default), or if a stack leaves a bundled store out with no setting naming another ([External services](#external-services)). On a running install it also checks Temporal's certificate, and warns of a deletion still running after a day (a step that keeps failing).
 
 ## First-time setup
 
@@ -85,7 +85,7 @@ configuration files come from it. Images of your own, in your registry:
 ```bash
 REGISTRY=registry.example/gen9 TAG=mine docker buildx bake --push   # both platforms (docker-bake.hcl)
 for i in gen9-agent gen9-ui gen9-keycloak gen9-postgres gen9-sandbox gen9-sandbox-egress gen9-sandbox-execd; do
-  echo "registry.example/gen9/$i@$(docker buildx imagetools inspect registry.example/gen9/$i:mine --format '{{json .Manifest}}' | jq -r .digest)"
+  echo "registry.example/gen9/$i@$(docker buildx imagetools inspect registry.example/gen9/$i:mine --format '{{.Manifest.Digest}}')"
 done > images.lock
 ```
 
@@ -273,6 +273,18 @@ aside, which Langfuse runs without checking).
 
 A store elsewhere is backed up by whoever runs it: `make backup` copies the bundled stores'
 volumes.
+
+## When something goes wrong
+
+- `make doctor`: Docker, memory, free ports, missing settings files and secrets; each failure says
+  what to do.
+- `make ps`, then `make logs STACKS=<stack>` (`FOLLOW=1` to watch): which container is unhealthy,
+  and why.
+- `make diff`: what runs differently from what's declared, a change made by hand among it;
+  `make reset` puts it back.
+- Symptom by symptom (a sign-in ending on `/auth/error?reason=…`, a chat failing with 401, the
+  agent's API answering 503, no traces, a limit reached …), where to look first: gen9-learn's
+  Debugging map (open `gen9-learn/index.html#debug` in a browser).
 
 ## Upgrade
 
