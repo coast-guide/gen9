@@ -169,7 +169,7 @@ a service that joins another stack's network `gen9-<x>` there has that stack's n
 pods' DNS search domains here, after its own, so every name given on that network resolves. Each
 stack's NetworkPolicy lets in only the stacks that call it.
 
-Settings: `deploy/values.yaml`, or your own file as `K8S_VALUES=<file>`. A setting Compose reads
+Settings: `deploy/values.yaml`, or your own files as `K8S_VALUES="<file> …"`, each overriding the ones before it (Helm's `-f`), as `deploy/k3d-domain.yaml` does over `deploy/values.yaml`. A setting Compose reads
 as `${X:-default}` is `settings.X` there for every stack, or `<stack>.settings.X` for one; a
 stack's sizes go under its services (`keycloak: {services: {postgres: {storage: {postgres_data:
 50Gi}}}}`). A key the charts don't know fails the install, with its path, and so does a setting no stack's Compose files read (`settings.X` is checked across every stack, `<stack>.settings.X` against that stack's): one misspelt would otherwise install and do nothing. Every setting, with its default, is in gen9-learn's Reference, "Settings". Secrets: each stack's
@@ -186,7 +186,39 @@ the stack's NetworkPolicy. On kind, `cloud-provider-kind` provides a Gateway (Ga
 `cloud-provider-kind`; where Docker runs in a VM, with `--enable-lb-port-mapping`); on k3s,
 Traefik's Gateway provider.
 
-To try it here: `kind create cluster --config deploy/kind.yaml` makes a cluster whose containerd
+### Try it on this machine
+
+Before a release there are no published images, so the cluster pulls Gen9's own from a registry
+on this machine. With k3d (the steps were followed as written, docs/plans/manual-e2e.md, P8-Q):
+
+```bash
+docker run -d --name gen9-registry --restart unless-stopped -p 127.0.0.1:5000:5000 \
+  registry:3.1.2@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8
+k3d cluster create --config deploy/k3d.yaml --registry-config deploy/k3d-registries.yaml
+docker network connect k3d-gen9 gen9-registry      # the nodes pull from it by name
+
+# Gen9's 7 images, built here and pushed there, then the lock that names them by digest
+REGISTRY=127.0.0.1:5000/gen9 TAG=dev docker buildx bake --set '*.platform=linux/amd64' --push
+for i in gen9-agent gen9-ui gen9-keycloak gen9-postgres gen9-sandbox gen9-sandbox-egress gen9-sandbox-execd; do
+  echo "127.0.0.1:5000/gen9/$i@$(docker buildx imagetools inspect 127.0.0.1:5000/gen9/$i:dev --format '{{.Manifest.Digest}}')"
+done > images.lock
+
+# Under gen9.localhost: the Gateway, a certificate for it, and the settings for the domain
+kubectl --context k3d-gen9 apply -f deploy/k3d-gateway.yaml
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 -keyout tls.key -out tls.crt -subj /CN=gen9.localhost \
+  -addext "subjectAltName=DNS:gen9.localhost,DNS:*.gen9.localhost,DNS:*.apps.gen9.localhost"
+kubectl --context k3d-gen9 -n gen9-gateway create secret tls gen9-tls --cert tls.crt --key tls.key
+make setup DOMAIN=gen9.localhost
+K8S_CONTEXT=k3d-gen9 K8S_VALUES="deploy/values.yaml deploy/k3d-domain.yaml" make k8s-up IMAGES=images.lock
+```
+
+Then open https://gen9.localhost; the browser warns once about the certificate, made here and
+trusted by nothing else (or trust `tls.crt`). Without the domain, leave out the last block but
+`make setup` and `make k8s-up` (`K8S_VALUES` unset), and use `make k8s-e2e`'s forwards to reach
+the stacks at their usual `localhost` ports. `make setup DOMAIN=localhost` gives the settings files
+back to Docker's addresses; the cluster keeps its Secrets until the next `make k8s-up`.
+
+Other clusters: `kind create cluster --config deploy/kind.yaml` makes a cluster whose containerd
 can pull from a registry on this machine (kind's [local registry](https://kind.sigs.k8s.io/docs/user/local-registry/)
 recipe: connect the registry to the `kind` network and give each node a `hosts.toml`); `k3d
 cluster create --config deploy/k3d.yaml` makes a k3s one (a registry of your own with

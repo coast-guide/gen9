@@ -17,7 +17,7 @@ case "${1:-}" in
     rm -f images.env
     echo "Gen9's images: built on this machine (images.env removed)"
     exit 0 ;;
-  http://*|https://*) lock=$(curl -fsSL "$1") || { echo "couldn't download $1" >&2; exit 1; } ;;
+  http://*|https://*) lock=$(curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-all-errors "$1") || { echo "couldn't download $1" >&2; exit 1; } ;;
   *) lock=$(cat "$1") || exit 1 ;;
 esac
 

@@ -18,7 +18,7 @@
 #   scripts/k8s.sh resume-agents   the worker back, then what the stop paused unpaused
 #
 # The cluster is kubectl's current context, or K8S_CONTEXT. Settings: deploy/values.yaml, or the
-# file in K8S_VALUES. Secrets: one per settings file make setup wrote (gen9-<stack>/.env becomes the
+# files in K8S_VALUES, separated by spaces, each overriding the ones before it. Secrets: one per settings file make setup wrote (gen9-<stack>/.env becomes the
 # Secret env, keycloak.local.env keycloak-local-env), applied server-side, so no copy of a value
 # lands in an annotation; nothing here prints a value.
 set -eu
@@ -31,6 +31,13 @@ case "$action" in
 esac
 ctx=${K8S_CONTEXT:-$(kubectl config current-context)}
 values=${K8S_VALUES:-deploy/values.yaml}
+# One file, or several separated by spaces, each overriding the ones before it (helm's -f): the
+# settings, then for instance deploy/k3d-domain.yaml for a domain on k3d
+value_args=""
+for f in $values; do
+  [ -f "$f" ] || { echo "K8S_VALUES: no file $f" >&2; exit 2; }
+  value_args="$value_args -f $f"
+done
 kc() { kubectl --context "$ctx" "$@"; }
 
 # Gen9's images by digest, from the lock make up IMAGES=… wrote: --set global.images.<name>=<ref>
@@ -61,7 +68,8 @@ check_settings() {
 {{ range keys (.Values.settings | default dict) }}# {{ . }}
 {{ end }}
 TEMPLATE
-  keys=$(helm template s "$chart" -f "$values" | sed -n 's/^# \([A-Za-z_][A-Za-z0-9_]*\)$/\1/p')
+  # shellcheck disable=SC2086 # value_args: -f and a file, for each file K8S_VALUES names
+  keys=$(helm template s "$chart" $value_args | sed -n 's/^# \([A-Za-z_][A-Za-z0-9_]*\)$/\1/p')
   rm -rf "$chart"
   unread=""
   for key in $keys; do
@@ -115,7 +123,8 @@ prerequisites() {
   [ -f "$list" ] || return 0
   grep -vE '^[[:space:]]*(#|$)' "$list" | while read -r url sum; do
     file=$(mktemp)
-    curl -fsSL "$url" -o "$file"
+    # Bounded and retried: a stalled connection to GitHub held make k8s-up for good (manual-e2e.md, P8-Q)
+    curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-all-errors "$url" -o "$file"
     [ "$(sha256 "$file")" = "$sum" ] || { echo "$url: not the file pinned in $list" >&2; rm -f "$file"; exit 1; }
     if [ "${2:-}" ]; then
       kc diff --server-side --force-conflicts -f "$file" || echo drift > "$2"
@@ -156,7 +165,7 @@ case "$action" in
       helm dependency update "gen9-$s/chart" >/dev/null
       if [ "$action" = reset ]; then how="--server-side=false --force-replace"; else how="--server-side=true --force-conflicts"; fi
       # shellcheck disable=SC2086 # set_images and how are lists of flags
-      helm --kube-context "$ctx" upgrade --install "$ns" "gen9-$s/chart" -n "$ns" -f "$values" \
+      helm --kube-context "$ctx" upgrade --install "$ns" "gen9-$s/chart" -n "$ns" $value_args \
         $set_images --set-json "fromEnv=$(from_env "$s")" --set-json "secretHashes=$(secret_hashes "$s")" $how --wait --timeout 15m
     done ;;
   diff)
@@ -170,7 +179,7 @@ case "$action" in
       prerequisites "$s" "${TMPDIR:-/tmp}/gen9-k8s-drift.$$"
       helm dependency update "gen9-$s/chart" >/dev/null
       # shellcheck disable=SC2086 # set_images is a list of flags
-      helm --kube-context "$ctx" diff upgrade "$ns" "gen9-$s/chart" -n "$ns" -f "$values" $set_images --set-json "fromEnv=$(from_env "$s")" \
+      helm --kube-context "$ctx" diff upgrade "$ns" "gen9-$s/chart" -n "$ns" $value_args $set_images --set-json "fromEnv=$(from_env "$s")" \
         --set-json "secretHashes=$(secret_hashes "$s")" \
         --three-way-merge --detailed-exitcode --no-color --no-hooks || { rc=$?; [ "$rc" = 2 ] && drift=1 || exit "$rc"; }
       # (Hooks aside: the one-shot Jobs are gone once done, as they should be)

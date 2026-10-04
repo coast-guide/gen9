@@ -4544,8 +4544,23 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-M. Security, by hand
 
-- [ ] M1 Response headers on every surface (the app, API, Keycloak, Langfuse, Temporal UI, the
+- [x] M1 Response headers on every surface (the app, API, Keycloak, Langfuse, Temporal UI, the
   sandbox origin): CSP, frame rules, referrer, content type, HSTS on https (ASVS 3.4).
+  - **gen9-ui** (pages and `/api`): `nosniff`, `strict-origin-when-cross-origin`, `X-Frame-Options:
+    DENY`, `Cross-Origin-Opener-Policy: same-origin`, a Permissions-Policy, and a CSP with a nonce
+    per request and `strict-dynamic`; pages `no-store`.
+  - **The API:** `nosniff`, `no-store`, `DENY` and `frame-ancestors 'none'`.
+  - **The apps' sandbox (14003):** `default-src 'none'` and only what a view needs; `no-referrer`.
+  - **Keycloak's** own (`frame-ancestors 'self'`, `no-referrer`, HSTS). **Langfuse's** allows
+    posthog and sentry in its CSP, but its telemetry is off here (`TELEMETRY_ENABLED=false`).
+    **Temporal's UI** sends `nosniff` and `SAMEORIGIN` only (Temporal's; it sits behind sign-in).
+  - **HSTS and the `__Host-` cookie under https:** P.
+  - **Found:** the API's `/docs` (FastAPI's Swagger UI) loads its script and stylesheet from
+    cdn.jsdelivr.net, `swagger-ui-dist@5` (any 5.x, no integrity hash), and a favicon from
+    fastapi.tiangolo.com. Everything else Gen9 runs is pinned, and under a domain `/docs` is
+    public at `api.<domain>`, where a person pastes a token into "Authorize": a release of that
+    package, or the CDN, would run script on the API's origin. To fix in its own unit (serve the
+    files from gen9-agent's image, pinned).
 - [ ] M2 CORS: the API from a foreign origin (a preflight with curl), refused unless listed.
 - [ ] M3 CSRF: the app's state-changing routes posted from a foreign page, refused.
 - [ ] M4 Cross-user access: Quinn's token on Alan's thread, file, task and run IDs (404, nothing
@@ -4589,16 +4604,59 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-Q. Kubernetes, by hand (k3d)
 
-- [ ] Q1 The same images on both: each Gen9 pod's image digest equals Docker's for the same lock.
-- [ ] Q2 One chat end to end on k3d (at https://gen9.localhost), followed into the cluster's
+- [x] Q1 The same images on both: each Gen9 pod's image digest equals Docker's for the same lock.
+  - The k3d cluster, recreated from `deploy/k3d.yaml` (B2's fix: its API on `127.0.0.1:34529`), runs
+    the same 19 images, by digest, as Docker, Gen9's 7 from phase 8's lock among them. The one
+    seen only there, Temporal's admin tools, is a one-off on Docker that had exited.
+- [x] Q2 One chat end to end on k3d (at https://gen9.localhost), followed into the cluster's
   stores as in E1.
-- [ ] Q3 Drift: a change by hand (`kubectl set env`, a deleted Secret key, a scaled Deployment).
+  - Alan signed in to the cluster's Gen9 under `gen9.localhost` from the terminal (`e2e/token.mjs`:
+    `gen9 login`, its code confirmed in headless Chrome), then `gen9 ask` "Reply with one word:
+    kubernetes": "kubernetes". Followed into the cluster's stores:
+    - gen9-postgres: the run succeeded, with its events and 15 checkpoints;
+    - Temporal: a RunWorkflow, COMPLETED (through the stack's `cli` one-off, which
+      `e2e/k8s/docker` makes a pod);
+    - the router: the call ($0.000727, as on Docker), its end user set;
+    - Langfuse: 15 events for the chat.
+  - Every host answered over the Gateway's TLS, verified with its certificate: the app and
+    Langfuse 200, `id.` 302, Temporal's UI 200; seven HTTPRoutes.
+- [x] Q3 Drift: a change by hand (`kubectl set env`, a deleted Secret key, a scaled Deployment).
   `make k8s-diff` names each and `make k8s-reset` puts it back.
-- [ ] Q4 NetworkPolicies: from one pod, a namespace it shouldn't reach refused; the ones it calls
+  - `kubectl set env deploy/api P8_DRIFT=1` and Temporal's UI scaled to 2. `make k8s-diff`, exit
+    2: "gen9-temporal, ui, Deployment (apps) has changed: replicas 2 → 1" and "Deployment/api:
+    changed by kubectl-set (Update)".
+  - `make k8s-reset`: the variable gone, 1 replica. `make k8s-diff`, exit 0.
+- [x] Q4 NetworkPolicies: from one pod, a namespace it shouldn't reach refused; the ones it calls
   reachable.
-- [ ] Q5 Secrets: no value in annotations or Helm's release (`helm get values`, `kubectl get
+  - From throwaway pods: gen9-postgres refused from gen9-ui's and gen9-langfuse's namespaces, the
+    router from gen9-ui's; both reachable from gen9-agent's.
+- [x] Q5 Secrets: no value in annotations or Helm's release (`helm get values`, `kubectl get
   secret -o yaml` read for names only).
-- [ ] Q6 `make k8s-stop-agents` and `k8s-resume-agents` as on Docker.
+  - The Secret `env` has no annotations. Helm's stored values hold only the key names
+    (`fromEnv`) and each settings file's hash (`secretHashes`). A real value of
+    `GEN9_SECRET_KEYS`, searched for in `helm get all`, is found 0 times, and once in the Secret
+    itself.
+- [x] Q6 `make k8s-stop-agents` and `k8s-resume-agents` as on Docker.
+
+  - The worker scaled to 0 ("stopped: 0 runs, 0 scheduled tasks paused"), then back to 1, ready
+    ("resumed"); `operator.stop` and `operator.resume` in the cluster's audit log.
+- **Q's findings, fixed** (this section's own pull request):
+  - **A worked recipe for k3d** (A9): operations.md's "Try it on this machine" and three files:
+    - `deploy/k3d-registries.yaml`: the nodes pull from a registry on this machine by its name;
+    - `deploy/k3d-gateway.yaml`: a Gateway on k3s's Traefik;
+    - `deploy/k3d-domain.yaml`: the domain and that Gateway, over `deploy/values.yaml`.
+    `K8S_VALUES` now takes several files, each overriding the ones before it, as Helm's `-f` does.
+  - **Every step run as written:**
+    - a registry on 5000;
+    - `docker buildx bake … --push` (7 images, 5 s from cache);
+    - the lock's loop;
+    - the Gateway (Accepted, Programmed), its certificate, `make setup DOMAIN=gen9.localhost`;
+    - `make k8s-up` with the overlay;
+    - a throwaway cluster pulling `gen9-postgres` by digest through `deploy/k3d-registries.yaml`.
+  - **`make k8s-up` could hang for good:** its `curl` of agent-sandbox's manifest stalled with no
+    timeout. It and `images.sh`'s download of a lock now time out and retry (`--connect-timeout
+    10 --max-time 120 --retry 3 --retry-all-errors`). The rerun of sandbox, agent and ui went
+    through.
 
 ### P8-R. Releases
 
@@ -4611,9 +4669,33 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-S. Observability
 
-- [ ] S1 Langfuse as an operator: Quinn's traces, costs and users; the raw events' expiry rule.
-- [ ] S2 Temporal's UI as an admin: workflows by search attribute; payloads only through the codec,
+- [x] S1 Langfuse as an operator: Quinn's traces, costs and users; the raw events' expiry rule.
+  - **Erasure:** the deleted chat's events (H4) and those of the e2e's eight leftovers (B4) are
+    gone from `events_core` and `events_full`, and the leftovers' rows from the router's spend log.
+  - **E1's 25% explained.** 7,239 of the call's 7,242 input tokens were written to the provider's
+    prompt cache.
+    - OpenAI charges cache writes for gpt-6-luna at $0.125 a million (its pricing page: input
+      $0.10, cached $0.01, cache writes $0.125, output $0.50), and Langfuse's price table
+      matches it.
+    - On this machine the router reaches the model straight through OpenAI, by a LOCAL-RUN-ONLY
+      line priced by hand with input and output only, so it charges cache writes as input.
+    - The committed config goes through OpenRouter and records OpenRouter's own cost per call
+      (gen9-models/README.md, "Cost"; LiteLLM asks it for `usage.include`). LiteLLM v1.103.1's
+      price list doesn't know gpt-6-luna at all.
+    So only this machine's local line undercounts; its cache prices are added locally (not
+    committed).
+  - **The raw events' expiry:** `gen9-expire-raw-events`, Enabled, prefix `events/`, 1 day (the
+    one-shot `minio-lifecycle`'s output).
+  - **Langfuse's own UI** wasn't signed in to: its CSP blocks the page from fetching the password
+    from a local one-shot server, and typing it would show it. Its data was read in its stores
+    instead (ClickHouse, Postgres, MinIO).
+- [x] S2 Temporal's UI as an admin: workflows by search attribute; payloads only through the codec,
   and a non-admin refused.
+  - Ada's Keycloak session carried her into Temporal's UI ("Continue to SSO", no second sign-in):
+    namespace gen9, 904 workflows (1 running, 898 completed, 5 cancelled).
+  - On `http://localhost` a run's input stays `binary/encrypted`. The UI sends the admin's token
+    only to an `https://` codec endpoint, as gen9-temporal's README says; under a domain it
+    decodes (P).
 - [ ] S3 The router's admin: keys, budgets and spend per user, with the docs' description.
 
 ### P8-T. gen9-learn by hand
@@ -4640,6 +4722,18 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ## Surprises & Discoveries
 
+- A new k3d cluster here pulled images through a DNS that failed at random (P8-Q).
+  - **What failed:** containerd's lookups of Docker Hub's CDN failed under parallel downloads
+    ("dial tcp: lookup production.cloudfront.docker.com: Try again"), with k3d's fix-DNS address
+    (192.168.65.2) and with Docker Desktop's own resolver (192.168.65.7) alike, while single
+    queries answered.
+  - **What helped:** each pod's pull recovered on a retry (containerd keeps the layers it has),
+    so Langfuse's and Temporal's pods were deleted until they ran.
+  - **What not to do:** pointing the node at 192.168.65.7 broke the pulls from the local registry
+    ("lookup gen9-u2-registry: no such host"). Only Docker's embedded DNS knows container names,
+    and k3d's address leads to it.
+  - **Separately, `make k8s-up` hung on GitHub:** its `curl` of agent-sandbox's manifest stalled
+    for minutes, with no timeout. The same file then came in 0.7 s. It is bounded and retried now.
 - The deleted-users sweep's guard (deploy.md, U5c-6) made every `make e2e` leave a held sweep on
   a small install (P8-B4): 17 checks deleted their throwaway person in Keycloak only, and three
   or more of them gone, with 2 seeded people, is "more than half". The worker logged it every 15

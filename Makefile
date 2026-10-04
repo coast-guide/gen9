@@ -123,7 +123,7 @@ help:
 	@echo "  make reset           put back what differs: those containers recreated as declared"
 	@echo "  make admin-code      the seeded admin's authenticator code now (admins need a second step)"
 	@echo
-	@echo "Kubernetes (kubectl's context, or K8S_CONTEXT=…; settings: deploy/values.yaml, or K8S_VALUES=file):"
+	@echo "Kubernetes (kubectl's context, or K8S_CONTEXT=…; settings: deploy/values.yaml, or K8S_VALUES=\"files…\"):"
 	@echo "  make k8s-up IMAGES=<lock>  each stack a Helm release in its namespace gen9-<stack>, images by digest"
 	@echo "  make k8s-diff        what differs from what's declared, changes by hand too (exit 2 if any)"
 	@echo "  make k8s-reset       put back what was changed by hand: each object replaced with what's declared"

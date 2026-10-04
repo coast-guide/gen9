@@ -61,7 +61,7 @@ Also in the repository, none of them a stack:
 | [`gen9-design`](gen9-design/README.md) | The design system (tokens, font, logo) that the apps copy in |
 | [`gen9-cli`](gen9-cli/README.md) | The terminal client: `gen9 login` signs in with a one-time code confirmed in a browser, then `gen9 ask` |
 | [`e2e`](e2e/README.md) | End-to-end checks in real Chrome against the running stacks |
-| [`deploy`](deploy/) | Kubernetes: the library chart every stack's chart uses (`deploy/helm/gen9-lib`), the settings (`deploy/values.yaml`), and clusters to try it on (`kind.yaml`, `k3d.yaml`) |
+| [`deploy`](deploy/) | Kubernetes: the library chart every stack's chart uses (`deploy/helm/gen9-lib`), the settings (`deploy/values.yaml`), and clusters to try it on (`kind.yaml`, `k3d.yaml` with its registry, Gateway and domain: [Try it on this machine](docs/operations.md#try-it-on-this-machine)) |
 | [`certs`](certs/.gitignore) | The CAs of your stores elsewhere, when Gen9 reaches them over TLS (your own files, never committed) |
 | [`docs`](docs/) | How Gen9 is operated, developed, secured and designed; the plans of work |
 
