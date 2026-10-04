@@ -4144,9 +4144,16 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - `TAIL=2` gives each container its last two lines. `FOLLOW=1` follows one stack, and with two:
     "FOLLOW=1 follows one stack: make logs STACKS=ui FOLLOW=1". `make admin-code`: "ada@gen9.test:
     <code> (for 4 s more; a code works once)".
-- [ ] B9 `make stop-agents` during a running chat turn, then `make resume-agents`: what the person
+- [x] B9 `make stop-agents` during a running chat turn, then `make resume-agents`: what the person
   sees, the run's state in the API and in Temporal, paused Schedules, the audit log.
   - **Moved to after E1:** it needs a chat turn under way.
+  - **Done after E1.** The turn ended (in 6 s) before the stop reached it: "stopped: 0 runs, 0
+    scheduled tasks paused", then the worker stopped. A message sent while stopped stays
+    `queued`, as operations.md says ("what they ask meanwhile waits"). `make resume-agents`: it
+    ran and answered. The audit log has `operator.stop` and `operator.resume`.
+  - **Found, for O3:** while stopped, the page says "Thinking … Gen9 is answering…" for a run that
+    hasn't started and won't until an operator resumes. (A "22:51" in a first audit query was mine:
+    ordering by the alias `at::time(0)` sorts by time of day.)
 - [x] B10 `make updates`, `make audit`, `make design-check` read as an operator would.
 
   - **`make design-check`:** "design system copies are in sync".
@@ -4310,15 +4317,33 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - **Noted for the docs:** chats (checkpoints, run events), their files and Langfuse's traces
     are stored as written. docs/cryptography.md lists only what Gen9 encrypts; nothing tells an
     operator that the rest needs encrypted disks and backups.
-- [ ] E2 Reload mid-answer, a second tab on the same chat, and Stop mid-answer: what each shows,
+- [x] E2 Reload mid-answer, a second tab on the same chat, and Stop mid-answer: what each shows,
   and the run's final state in the API and Temporal.
-- [ ] E3 Title, rename, pin or archive (whatever the UI offers), and the list's order, checked
+  - **Reload mid-answer:** the page follows the same answer ("Gen9 is answering…"). A second tab
+    opened later shows it finished. Both end with the same 3,019 characters and the question once.
+  - **Stop at 2.5 s** (the button is labelled "Stop"): "This answer didn't finish." The run is
+    `cancelled` (queued, started, completed; no text had come yet), CANCELED in Temporal.
+- [x] E3 Title, rename, pin or archive (whatever the UI offers), and the list's order, checked
   against the API.
-- [ ] E4 An error turn: the router stopped (`docker stop` its container) mid-chat. The message
+  - The chat menu offers Rename and Delete chat (no pin or archive). A chat is named after its
+    first message. Rename (an inline field, saved through its form) changed the API's title, the
+    page's and the sidebar's to "Phase 8 chat".
+- [x] E4 An error turn: the router stopped (`docker stop` its container) mid-chat. The message
   the person sees, the run's error in the API, and the retry once it's back.
-- [ ] E5 Permission modes: each one offered in the UI, with what it changes seen in a turn that
+  - With the router's container stopped: "Gen9 couldn't finish. The model provider didn't answer.
+    Retry in a moment." with Retry. The worker tried 3 times (one line each:
+    `OpenAIConnectionError`), then the run waits for the person (`waiting`, `input.requested`).
+    With the router back, Retry answered.
+  - **For O3:** the same page also says "Needs you. Gen9 needs your answer.", words for a question,
+    where Gen9 needs a retry.
+- [x] E5 Permission modes: each one offered in the UI, with what it changes seen in a turn that
   needs a tool.
 
+  - Two, each described where it's chosen: "Act, ask when unsure: Gen9 acts, and asks only when
+    it needs to know something" and "Ask before acting: Anything that changes something waits
+    for your Allow".
+  - In "Act", a story's turn ran a Python command to count its words before answering, unasked. In
+    "Ask before acting", a command waited for Allow (F4).
 ### P8-F. The agent's capabilities
 
 - [ ] F1 Web search: an answer with its sources shown; the search calls in the router's log and
@@ -4326,8 +4351,15 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 - [ ] F2 Subagent: a fact-check delegated, the chat naming it, the subagent's steps in Langfuse.
 - [ ] F3 Skills: the research-brief skill read when asked for a brief (once: it is the costly
   one); an edit to the skill refused.
-- [ ] F4 Approvals: in "ask" mode a tool call waits for approval. Approve once and deny once:
+- [x] F4 Approvals: in "ask" mode a tool call waits for approval. Approve once and deny once:
   the card, the run's waiting state in Temporal, and the audit trail.
+  - "Gen9 wants to run a command in this chat's environment", the command shown, Deny or Allow.
+    The run `waiting` meanwhile.
+  - **Allow:** "Ran: …", the output, and the file it made shared (p8.txt, 7 B).
+  - **Deny:** first asks "What should Gen9 do instead? (optional)", then "You declined: run a
+    command in this chat's environment", and the agent says the command wasn't run. The file is
+    still there (`cat` in the sandbox).
+  - Both are in `run_inputs` (approval: approve, then reject).
 - [ ] F5 Questions: the agent asks Quinn a question with choices, the answer resumes the run, and
   the answer is in the run's events.
 - [ ] F6 Vision: an image attached and described (`vision` alias), its file stored and served
@@ -4337,12 +4369,30 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-G. Files and environments
 
-- [ ] G1 A command run in the chat's environment: the sandbox created (`docker ps`), its
+- [x] G1 A command run in the chat's environment: the sandbox created (`docker ps`), its
   workflow in Temporal, the output in the chat.
+  - The chat's sandbox (`sandbox-<id>`, with its `sandbox-egress-<id>` sidecar) appeared when the
+    command was allowed, labelled with the chat (`gen9-thread`) and Quinn (`gen9-user`).
+  - **Its image is `python:3.12-slim`**, a tag without a pinned digest on this stack. #88, which
+    pins it, is main-based and not merged yet.
+  - **Noted:** OpenSandbox keeps each sandbox's egress token in a label
+    (`opensandbox.io/egress-auth-token`), readable by whoever can inspect containers (on
+    Kubernetes, read pods in `gen9-sandboxes`). It's OpenSandbox's design and expires with the
+    sandbox.
 - [ ] G2 A file uploaded, read by the agent in the environment, a file written to `/work/out`,
   shared in the chat, downloaded in Chrome with its headers (attachment, type, name).
-- [ ] G3 The sandbox's limits by hand: no route to gen9-postgres, Keycloak or the Docker socket,
+  - **So far:** the file the environment made is in `chat_files` (origin output, `/work/out/p8.txt`,
+    text/plain, 7 B, its sha256) and comes back as written ("phase8\n") through gen9-ui, with
+    `nosniff` and `private, no-store`. The extension blanks Content-Type and Content-Disposition
+    in what it returns, so those wait for curl in K. Uploading a file: still to do.
+- [x] G3 The sandbox's limits by hand: no route to gen9-postgres, Keycloak or the Docker socket,
   egress only as configured, memory and process limits as documented.
+  - From inside a chat's sandbox: no Docker socket, memory 1 GiB, 4,096 processes, a reduced
+    capability set, no new privileges (the command runs as root in its own container).
+  - None of gen9-postgres, Keycloak, the agent, the router or host.docker.internal resolves, and
+    neither does any internet name (egress is closed until `SANDBOX_EGRESS_ALLOW` opens it).
+  - A TCP connect to 169.254.169.254 succeeded: the egress sidecar accepts. But no HTTP gets
+    through, to it or to public IP literals (each timed out).
 - [ ] G4 Environment secrets from Settings: set one, used in a command, never shown back, and
   absent from logs and Langfuse.
 - [ ] G5 The environment removed after its idle time (or the chat's deletion): sandbox, volume
