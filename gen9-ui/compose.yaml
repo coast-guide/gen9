@@ -164,18 +164,17 @@ services:
     # Memory is capped: anyone can start a sign-in, and each start stores a 10-minute record. At the
     # cap, keys closest to expiring go first (volatile-ttl): sign-in records before sessions. Every
     # key has a TTL. 256 MB holds about 60,000 signed-in sessions.
+    # The password goes in as config on stdin (`-`), not as `--requirepass`: an argument stays in
+    # PID 1's command line, which `docker inspect` shows and any user of a Docker Engine host can
+    # read (/proc/<pid>/cmdline). Its `"` and `\` are escaped for the
+    # config's quotes. The image's entrypoint still runs it as the valkey user (manual-e2e.md, P8-M6)
     command:
-      - valkey-server
-      - --requirepass
-      - ${VALKEY_PASSWORD:?run ./init-env.sh first}
-      - --appendonly
-      - "yes"
-      - --save
-      - ""
-      - --maxmemory
-      - ${VALKEY_MAXMEMORY:-256mb}
-      - --maxmemory-policy
-      - volatile-ttl
+      - sh
+      - -c
+      - |
+        exec docker-entrypoint.sh valkey-server - --appendonly yes --save "" --maxmemory "${VALKEY_MAXMEMORY:-256mb}" --maxmemory-policy volatile-ttl <<EOF
+        requirepass "$$(printf '%s' "$$VALKEY_PASSWORD" | sed 's/[\\"]/\\&/g')"
+        EOF
     restart: unless-stopped
     volumes:
       - valkey_data:/data

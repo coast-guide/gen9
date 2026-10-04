@@ -4980,8 +4980,27 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - **Titles:** a tab and double spaces collapse to one; 81 characters, 422; a zero-width space,
     an emoji and a right-to-left override (U+202E, which shows "gpj.exe" as "exe.jpg") are kept
     as typed. A title is seen only by its owner, so the override can fool only them: noted.
-- [ ] M6 Secrets: the logs of every container grepped for tokens, keys and passwords (patterns,
+- [x] M6 Secrets: the logs of every container grepped for tokens, keys and passwords (patterns,
   never printing a value), and `docker inspect` env checked for what it exposes.
+  - **The values:** every `*PASSWORD*`, `*SECRET*`, `*KEY*`, `*TOKEN*`, `*SALT*`,
+    `*ENCRYPTION*` value of 12 characters or more in the stacks' `.env` and `*.local.env` files
+    (54 from 19 files, 37 distinct once URLs and public keys are left out), kept in a 0600 file.
+  - **Logs:** the full logs of all 47 containers (the environments included): 0 of those values,
+    and no JWT, Bearer header or `sk-` key.
+  - **`docker inspect`:** the secrets are in containers' environments, each stack's own, as
+    docs/secrets.md describes (e.g. the API: its database password, its router key, its sealing
+    keys, Keycloak's admin client secret; the worker also Langfuse's and the sandbox's).
+  - **Found:** one in a command line too: Valkey's password, passed as `--requirepass`, stays in
+    PID 1's arguments (`tini`'s), which `docker inspect` shows as `Cmd` and any user of a Docker
+    Engine host reads in `/proc/<pid>/cmdline` (Docker Desktop keeps it in its VM). In
+    Kubernetes the pod spec holds `$(VALKEY_PASSWORD)`, but the kubelet expands it into the
+    process's arguments.
+  - **Fixed:** Valkey reads it as config on stdin (`valkey-server -`, a heredoc in `sh -c`), its
+    `"` and `\` escaped; the image's entrypoint still drops to the `valkey` user. Probed in a
+    throwaway container and Compose project (a password with spaces, quotes and a backslash:
+    accepted; a wrong one refused; graceful stop on SIGTERM) and in a throwaway pod on k3d with
+    the chart's rendered args (the kubelet turns `$$` into `$` as Compose does). Live: Valkey
+    recreated, healthy, its 3 sessions kept, the value in no command line and not in `inspect`.
 - [ ] M7 The sandbox origin (port 14003): it serves only what MCP Apps need, never the app's
   cookies.
 
@@ -4993,7 +5012,9 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 - [ ] N3 Keycloak down: signed-in people go on (until their token needs a refresh); a sign-in
   shows a clear page.
 - [ ] N4 Langfuse down: chats work, and traces resume when it's back.
-- [ ] N5 Valkey restarted: sessions survive (AOF).
+- [x] N5 Valkey restarted: sessions survive (AOF).
+  - Recreated with M6's change (`make up STACKS=ui`, 11:52): 3 sessions before and after, and
+    Quinn, Alan and Ada each still signed in on reload.
 
 ### P8-O. Using it as a person: UX and accessibility
 
