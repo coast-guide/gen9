@@ -5568,8 +5568,29 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     start, its documentation map, operations.md's requirements, first-time setup, "When something
     goes wrong", "Before people use it" and "Start over", read in that order. One gap: neither the
     README's map nor AGENTS.md's "Where things live" named "Before people use it"; both do now.
-- [ ] Z5 Everything this phase made removed; the seeded state back; the phase's spend measured;
+- [x] Z5 Everything this phase made removed; the seeded state back; the phase's spend measured;
   `make e2e` once at the end as the second net, not as the verification.
+  - **Removed:** the scratch scripts in `e2e/` (`.p8.mjs` and the rest), the headless Chromes on
+    ports 9351 to 9354, the session index's worktree, the fresh clone, Z1's two backups (they held
+    a gone install's keys), this phase's probe folders and logs, and every copy of a password, a
+    key, a token or Quinn's export kept on the way. Alan's chats from Z4's checks deleted through
+    the API. Kept: the deploy loop's own files (`~/gen9-backup-u5c6`, its locks).
+  - **The seeded state:** this copy set up again after Z3 (new secrets; the router's
+    `config.yaml` with its local lines, untouched), the stacks on the phase's lock
+    (`phase8.lock`: gen9-agent and gen9-ui built from the stack's top). Keycloak holds Ada and
+    Alan, gen9-postgres their two rows and nothing else.
+  - **`make e2e`, the second net:** all 49 scripts pass, one check skipped as always (reranking
+    is off by default). Two failed on the way, one check each, each fixed in its own pull request
+    and its script then passing in full: `background.mjs` read a task's title as before #111
+    (its code word is now cut off; #141), and `audit.mjs` met rows reading
+    `account.sweep.allowed`, whose action and actor had no words, nor did the held sweep's
+    (#142; the test meant to catch that missed both). After it, a leftover: `demotion.mjs`'s
+    signed-in person still in gen9-postgres, because `forget.mjs` gave both of its people to one
+    `gen9-agent-sweep --only`, which deletes nobody when one is declined (#143; removed with
+    `gen9-agent-sweep --only`, and the check re-run left nobody).
+  - **Spend:** $0.061625 on 2026-10-04 up to Z2's wipe (the router's daily totals, the morning
+    before the phase included), $0.000154 in Z3's clone, $0.059283 after the wipe (Z4's checks
+    and the e2e runs): about $0.1211, under the $0.30.
 
 ## Surprises & Discoveries
 
@@ -6528,6 +6549,59 @@ What to do better:
   verifier (160 checks) and a diff of its observations against the last run found what changed,
   and 13 references pointing at moved lines (d97de63). Run it at each phase's end, not only
   `page.mjs`.
+
+### Phase 8
+
+Asked for and done on 2026-10-04, A to Z but Y1, which waits on upstream releases due from
+2026-10-07. Every item was done by hand on the live stacks and followed into each store
+(Chrome, the terminal, the API, gen9-postgres with LangGraph's tables, Keycloak, Langfuse's
+ClickHouse, the router, Valkey, Temporal, MinIO, the logs); the docs were read as a newcomer
+would (A, Z3, Z4). Then `make e2e` as the second net, all 49 scripts passing. Model spend about
+$0.1211 of the $0.30.
+
+Found and fixed, each verified live, each its own pull request:
+- **What people see:** signing out everywhere says so (#107); an answer built on a subagent's
+  searches shows their pages (#108); long step labels and chat titles cut at a word (#109,
+  #111); the model told which connectors it can't use (#113); five pieces of wording (#121); a
+  Keycloak that doesn't answer named (#119); a refused provider key named (#130); a long message
+  refused in a text's words (#135); the audit log words the sweep's hold and the operator
+  allowing it (#142).
+- **Security and privacy:** Valkey's password off every command line (#115); HSTS on every host
+  the edge serves (#123); a deleted person's session index goes with them (#126); `make setup`
+  keeps an operator's closed hosts closed (#136).
+- **Running it:** `make doctor` leaves out stacks not set up (#95); k3d's API kept on this
+  machine (#97); the sweep names whom it would delete (#98); nobody signs up to Langfuse alone
+  (#100); the A2A card gives Gen9's version (#102); `make k8s-up` doesn't hang on a stalled
+  download (#104); the API's docs page without a CDN (#105); a connector that doesn't answer
+  slows a turn once a minute (#116); a second copy of Gen9 refuses to act on the first (#124);
+  the restore's counts (#127); images built without failing pulls (#131); `make setup` ends with
+  the sign-ins (#132); `make doctor` and python3 (#133).
+- **The docs:** read as a newcomer (#96); Start over (#134); the API's errors (#135); before
+  people use it (#136); mounted config files (#137); the spend recipes (#138); the `vision`
+  alias (#139); both maps (#140).
+- **The checks:** two of `make e2e`'s were stale or blind (#141, #142), and its cleanup left a
+  person behind (#143).
+
+What worked:
+- A fingerprint of every store (each table's rows and an md5 of their contents) made "the same
+  after a restore" a diff to read, not an impression (Z1, Z2).
+- Following a person into every store found what no screen shows: the session index of people
+  deleted by an admin, a restore or Keycloak (Z1), and the spend log losing deleted people's rows
+  (Z2).
+- Setup's first-run paths tried in a scratch export with a `docker` stand-in, never on the
+  running install (Z4c, Z4g).
+
+What to do better:
+- **A change to wording or limits runs the e2e scripts that read it.** #111 cut titles at 80
+  characters and passed its own checks; `background.mjs`, which reads a title, failed only at
+  Z5. Grep `e2e/` for the text a change touches.
+- **A test that lists what to cover must find it the way the code writes it.** The audit words
+  test read three call shapes and missed two actions written otherwise (#142).
+- **Measure spend at each section's end, from a total deletions don't touch.** The spend log
+  loses deleted people's rows; the router's daily totals don't. This phase measured at Z2 and Z5
+  only.
+- **A file mounted on its own needs a recreate after a save that replaces it** (Z3, Z4h):
+  Docker Desktop's restart may keep the old one.
 
 ## Context
 
