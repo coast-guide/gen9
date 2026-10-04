@@ -5498,7 +5498,12 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     42 lines, no "Next:" block, then "Ready. Next: make up" and "To sign in:" with Gen9's two
     people, Keycloak's console and Langfuse's user; `gen9-temporal/init-env.sh` alone still
     prints its "Next:".
-  - [ ] Z4d `make doctor` and python3, which the README lists (Z3).
+  - [x] Z4d `make doctor` and python3, which the README lists (Z3). Setting up and starting
+    Gen9 don't need it; `make diff`, `make reset`, `make config`'s checks and the Kubernetes
+    commands do (operations.md's requirements say which). So doctor now says "ok python3", or
+    warns, and doesn't fail: "warn python3 not found: make diff, make reset, make config's checks
+    and the Kubernetes commands need it" (tried with a `PATH` holding everything but python3;
+    doctor still exits 0).
   - [ ] Z4e "Start over": `images.env` survives `make distclean` (Z3); `make wipe STACKS=ui`
     "signs everyone out" holds for Gen9's sessions, not Keycloak's (Z2).
   - [ ] Z4f The API's two error shapes, `{"detail": "…"}` and FastAPI's validation list, and the

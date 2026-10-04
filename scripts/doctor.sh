@@ -65,6 +65,9 @@ fi
 for tool in openssl od; do
   if command -v "$tool" >/dev/null; then ok "$tool"; else fail "$tool not found: make setup uses it to generate secrets"; fi
 done
+# Not needed to set up or start Gen9, so a warning: the commands that read Compose's JSON need it
+if command -v python3 >/dev/null; then ok "python3"
+else warn "python3 not found: make diff, make reset, make config's checks and the Kubernetes commands need it"; fi
 
 if $docker_ok; then
   if ! $PREFLIGHT && [[ " ${STACKS[*]} " == *" langfuse "* ]]; then
