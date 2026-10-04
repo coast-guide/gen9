@@ -5542,7 +5542,15 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     copy of e2e's own list up to date. Live: both set to `[]`, gen9-agent ready with `[] []`, a
     second `make setup` kept them; in a scratch export, a new install got e2e's lists, an older
     e2e list was brought up to date, an operator's own list and `[]` were kept.
-  - [ ] Z4h gen9-edge's README: how a Caddyfile change is applied (P4).
+  - [x] Z4h gen9-edge's README: how a Caddyfile change is applied (P4). Probed with the edge's
+    pinned Caddy 2.11.6 in a throwaway container, the Caddyfile mounted on its own as the edge
+    mounts it: edited in place, `caddy reload` (in `/etc/caddy`) served the new site at once;
+    replaced (`mv`), `caddy reload` and `docker compose restart` both kept serving the old one,
+    and `docker compose up -d --force-recreate` served the new. gen9-edge's README now says to
+    reload, and to recreate after a save that replaces the file. The router's `config.yaml` is
+    mounted the same way (Z3's surprise): replaced with the same content, the running router kept
+    the old inode and `--force-recreate` took the new, so gen9-models' README says `docker compose
+    up -d --force-recreate litellm` where it said `restart`.
   - [ ] Z4i The spend-per-user recipe: its column is the person's `sub`, and how to find whose
     (S3).
   - [ ] Z4j The `vision` alias: what it is for, since Gen9 sends images to `chat` (F6).

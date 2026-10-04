@@ -45,6 +45,11 @@ server (the default, 127.0.0.1, serves only this machine).
 | `.env` | `GEN9_DOMAIN`, and the other settings below; `make setup DOMAIN=…` writes it |
 | `certs/` | A wildcard certificate of your own for `*.apps.`, if you give one (not in git) |
 
+To change the `Caddyfile`, edit it, then `docker compose exec -w /etc/caddy edge caddy reload`:
+Caddy takes it with no downtime. The file is mounted on its own, so after a save that replaces
+it (git, `sed -i`, many editors) the running edge still reads the old one, through a reload or a
+restart: `docker compose up -d --force-recreate edge` gives it the new one.
+
 ## Settings
 
 | Setting | Default | What |

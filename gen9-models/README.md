@@ -101,8 +101,11 @@ To serve an alias with another model or provider:
    Ollama, and OpenRouter reaches most of them with one key.
 2. Put the provider's key in `.env`, then run `docker compose up -d litellm`. It recreates the
    container: `docker compose restart` keeps the old environment, so a new key doesn't arrive.
-3. For a change to `config.yaml` alone, run `docker compose restart litellm`. The router reads
-   the file only when it starts, and `up` doesn't restart it for that file.
+3. For a change to `config.yaml` alone, run `docker compose up -d --force-recreate litellm`. The
+   router reads the file only when it starts, and `up` alone doesn't restart it for that file.
+   The file is mounted on its own, so after a save that replaces it (git, `sed -i`, many
+   editors) a container keeps the old one through a restart: a new container reads the new
+   one.
 
 gen9-agent needs no change. Several deployments of one alias share its traffic, and a failing one
 is skipped.
@@ -146,7 +149,7 @@ in their volumes, and `make wipe` keeps them too ([docs/operations.md, "Start ov
 
 To serve an existing alias locally, point it at Ollama in `config.yaml`, for example `embed` at
 `{model: ollama/embeddinggemma, api_base: "http://ollama:11434"}`. Then run
-`docker compose restart litellm`; gen9-agent needs no change.
+`docker compose up -d --force-recreate litellm`; gen9-agent needs no change.
 
 Things to know:
 - A different embedding model means different vectors (and dimensions). gen9-agent re-embeds its
