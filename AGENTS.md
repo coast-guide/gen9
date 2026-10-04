@@ -7,7 +7,9 @@ this repository; they are not behavior of Gen9's own agent.
 ## Start of every session
 
 1. `git status`, `git log --oneline -15` and `gh pr view` (if a PR is open): what changed last.
-2. Read the active plan in `docs/plans/` (today `docs/plans/deploy.md`, the owner's deployment
+2. Read the active plan in `docs/plans/` (today `docs/plans/manual-e2e.md`'s Phase 8, the
+   owner's request of 2026-10-04: everything verified by hand and the docs judged as a newcomer,
+   with that plan's standing instructions; then `docs/plans/deploy.md`, the owner's deployment
    and release work, with its standing instructions; then `docs/plans/release.md`, then
    `docs/plans/gen9-learn.md`, then `docs/plans/manual-e2e.md` from P6-B6, where the owner had
    paused it, resumed by their instruction to finish the repository's remaining items; its
@@ -107,9 +109,10 @@ Only then implement. The same applies to design and UX work, and to any change o
   isn't there to ask.
 - The verification work ran as a loop of phases in `docs/plans/manual-e2e.md` (each phase's
   last task the next one: /rigor first, then the next large list) until the owner stopped it
-  after phase 7 (2026-10-01). Start another phase only when the owner asks; P7-Z2 says what it
-  would cover. Its open waits (P7-A1 to A3) are done when they land. No keep-alive cron is
-  needed meanwhile.
+  after phase 7 (2026-10-01). Start another phase only when the owner asks. They asked for
+  phase 8 on 2026-10-04 (a full audit by hand, the docs judged as a newcomer), the current
+  work; P7-Z2's ASVS chapters wait for a later one. Its open waits (P7-A1 to A3) are done when
+  they land.
 - Secrets: never print, commit or paste values of `.env` or `*.local.env` files; print key names.
   Scripts that need a user's token use `e2e/token.mjs` (device flow, confirmed in headless Chrome).
 - Browser automation driven by an agent must not type passwords; password flows run in Puppeteer

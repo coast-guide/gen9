@@ -22,8 +22,9 @@ Given by the owner, for this plan and for every session that resumes it:
 3. **Passwords (owner's exception to AGENTS.md for this plan only).** In Chrome driven by an
    agent, test passwords are pasted, never typed or shown: a shell command copies the value from
    `gen9-keycloak/.env` (seeded users) or from a `chmod 600` file in the scratchpad (throwaway
-   users made here) to the macOS clipboard with `pbcopy`, and the agent presses Cmd+V. Only on
-   localhost, only for test users. The values never appear in chat, logs or commits.
+   users made here) to the clipboard (`pbcopy` on macOS, `wl-copy` on a Linux Wayland desktop),
+   and the agent presses Cmd+V or Ctrl+V. Only on localhost, only for test users. The values
+   never appear in chat, logs or commits.
 4. **Provider keys across `make distclean`.** Before it, copy `OPENAI_API_KEY` and
    `OPENROUTER_API_KEY` from `gen9-models/.env` to a `chmod 600` file in the scratchpad, never
    printed; give them back to the fresh install (`make setup` reads the OpenAI key on stdin, the
@@ -44,7 +45,8 @@ Given by the owner, for this plan and for every session that resumes it:
    through it the same way. Each new list goes deeper where the last one found problems, covers
    what it couldn't reach, and adds what changed since.
    **Stopped by the owner after phase 7** (2026-10-01: "stop after phase 7"). Another phase
-   starts only when they ask; P7-Z2 lists what it would cover.
+   starts only when they ask. **They asked for phase 8 on 2026-10-04**: a full independent
+   audit by hand, and the docs judged as a newcomer (Phase 8). After it, the loop stops again.
 8. **A 5-minute keep-alive** (a session cron job, `*/5 * * * *`, re-created by any session that
    finds none: session jobs die with the session and expire after 7 days) re-reads this file
    and continues the first unchecked item. It changes nothing while work is under way. Not
@@ -3883,8 +3885,10 @@ served as attachments with `nosniff` and a sandbox CSP (P2-F6, P3-F2).
     summarized", "conversation history") or over 400 characters.
   - **Rerun from `context` to the end:** 321 checks, none failed.
   - **Spend:** $0.216 for the whole chain (2.0795 to 2.2953 USD).
-- [ ] Z2 Start phase 8 (standing instruction 7): today's sources first, then the next large list.
+- [x] Z2 Start phase 8 (standing instruction 7): today's sources first, then the next large list.
   - **Not taken:** the owner stopped the loop after phase 7 (2026-10-01).
+  - **Taken on the owner's request of 2026-10-04**, as a different phase than the one below: a
+    full independent audit by hand (Phase 8). The ASVS chapters below wait for a later phase.
   - **What phase 8 would cover**, from OWASP ASVS 5.0's chapters not yet walked requirement by
     requirement (read today):
     - **V6 (authentication):** every way to sign in documented with its controls (6.1.1,
@@ -3897,6 +3901,310 @@ served as attachments with `nosniff` and a sandbox CSP (P2-F6, P3-F2).
       application (3.5.4); `postMessage` checks in MCP Apps (3.5.5).
     - **Then V1 (encoding, injection), V2 (validation, business logic) and V15 (secure coding)**,
       which would complete ASVS 5.0 at L2. V17 (WebRTC) has nothing in Gen9.
+
+## Phase 8
+
+Asked by the owner on 2026-10-04: "make large checklist and do full live verification of
+everything yourself, full thing end to end, don't trust the automated scripts, its a like another
+developer and expert verfying and auditing stuff himself indpendently, live outputs, apis msgs
+databse, things from ui on chrome etc. … also check how helpful the readme and docs is to a fresh
+dev, specifically running commands etc, how to find it and how it is organized".
+
+So this phase is an independent audit of everything, from a newcomer's first look at the
+README to a wiped machine (Decision Log, "Phase 8's list"):
+
+- **As an outsider.** Nothing is taken from earlier phases or from a script's "all checks
+  passed".
+- **Followed through every store.** Each scenario is done where a person does it (Chrome, a
+  terminal, the CLI). Then it is followed into what holds it: the API's answers, gen9-postgres's
+  rows, Temporal's history, Langfuse's trace, the router's spend log, Valkey's keys, Keycloak's
+  events and the logs. The scenario passes only when all of them agree with what the person saw.
+- **What changed since phase 7.** Kubernetes, releases, the domain edge, stores elsewhere and the
+  drift checks.
+- **The docs judged as a newcomer would judge them.** Can they find how to run, check and
+  operate Gen9, does every command they're shown work as written, and is it organized around
+  what they need: Diátaxis's tutorials, how-to guides, reference and explanation, and GitHub's
+  "What the project does … How users can get started … Where users can get help".
+
+Baseline: the router on Docker had spent $0.192772 over 707 calls (2026-10-04 08:03 UTC).
+Budget: $0.30 of router spend for the phase, measured at each section's end.
+
+### P8-A. A fresh developer reads (no command run yet)
+
+- [ ] A1 The repository on github.com in Chrome, as a stranger: in the README's first screen,
+  what Gen9 is, who it is for, what it needs and how to start. Every badge and link resolves.
+- [ ] A2 Requirements: what the README and docs/operations.md ask for (OS, Docker and Compose
+  versions, memory, disk, ports, accounts and keys), compared with what `make doctor` checks.
+  Anything asked but unchecked, or checked but unsaid, noted.
+- [ ] A3 Finding the commands: from the README, how many clicks to `make help`, to operations.md,
+  to "how to run the tests". Every make target in the Makefile appears in `make help` and in
+  operations.md; every target the docs name exists.
+- [ ] A4 Every command block in README.md, docs/*.md, each stack's README and e2e/README.md
+  inventoried (file, line, command), sorted into what this phase runs where (here, in later
+  sections, or in Z on a fresh clone).
+- [ ] A5 Organization against Diátaxis: each doc sorted into tutorial, how-to, reference or
+  explanation. Where kinds are mixed in one page, where one kind is missing, and where the same
+  fact is told twice and disagrees.
+- [ ] A6 The map in AGENTS.md ("Where things live") checked row by row against the files.
+  Whether a person (not an agent) would find that map from the README.
+- [ ] A7 Each stack's README read in turn: what it is, how to run and check it alone, its settings,
+  ports and data. Same shape across the nine, and each fact linked rather than copied.
+- [ ] A8 Contributor path: CONTRIBUTING.md, docs/development.md, the issue and PR templates. Can a
+  newcomer tell how to run each project's checks, and what CI will run.
+- [ ] A9 Kubernetes and releases from the docs alone: could a newcomer run Gen9 on kind or k3d,
+  and consume a release, without reading the plans.
+- [ ] A10 Troubleshooting: what the docs say when something fails (a port taken, no provider key,
+  not enough memory, a stack unhealthy, a sign-in loop), and whether `make doctor`'s messages
+  point to them.
+- [ ] A11 gen9-learn: whether the README tells a newcomer it exists and how to open it.
+
+### P8-B. Operator: the running Docker install, by hand
+
+- [ ] B1 `make stacks`, `make ps`, `make doctor`, `make config`, `make diff`: each output read for
+  sense, not only exit codes.
+- [ ] B2 Every published port bound to 127.0.0.1 only (`ss -ltnp`), and each one matches the
+  README and `make stacks`.
+- [ ] B3 Every running container's image: Gen9's by digest from `images.env`, third parties by
+  `tag@digest` as in the Compose files (`docker inspect`); none `latest` without a digest.
+- [ ] B4 Logging: every container on the `local` driver with rotation (`docker inspect`), and
+  docs/logging.md's table checked against two containers' actual lines.
+- [ ] B5 Networks: each stack joins only the `gen9-<stack>` networks it calls (`docker network
+  inspect`); one container per stack tries to reach a stack it shouldn't (refused or no route).
+- [ ] B6 Settings files: every `.env` and `*.local.env` is mode 600, ignored by git, and holds
+  every key its stack reads (names only, never values).
+- [ ] B7 A change by hand (`docker run`-style env override via `docker compose up` with an extra
+  variable, or a container stopped): `make diff` names it, exit 2; `make reset` puts it back; diff
+  0.
+- [ ] B8 `make logs` (TAIL, FOLLOW, STACKS) and `make admin-code` as documented.
+- [ ] B9 `make stop-agents` during a running chat turn, then `make resume-agents`: what the person
+  sees, the run's state in the API and in Temporal, paused Schedules, the audit log.
+- [ ] B10 `make updates`, `make audit`, `make design-check` read as an operator would.
+
+### P8-C. Nothing signed in: the public surface
+
+- [ ] C1 Every published URL (the app, API, Keycloak, Mailpit, Langfuse, Temporal UI, the API
+  docs) opened in Chrome signed out: what each shows and asks for.
+- [ ] C2 The API without a token: every `/v1` path answers 401 with a JSON `detail`. `/healthz`,
+  `/readyz`, `/v1/version` and `/openapi.json` say only what they should.
+- [ ] C3 The landing page, privacy page and sign-in entry in Chrome, light and dark, desktop and
+  phone width.
+
+### P8-D. Identity: Quinn signs up and signs in
+
+- [ ] D1 Sign-up in Chrome: Keycloak's form, the verification email in Mailpit, its link, then
+  Gen9. Keycloak's events and the user's record in the Admin API.
+- [ ] D2 Gen9's session: the cookie's attributes in DevTools (HttpOnly, Secure where served
+  over https, SameSite), the Valkey key holding it (names and TTL, never values), and what
+  `/v1/me` says.
+- [ ] D3 The access token gen9-ui sends to the API, decoded: issuer, audience, expiry, scopes,
+  no more than needed. A token for another client refused by the API.
+- [ ] D4 Sign out, then the back button and an old tab: nothing of Quinn's shows. Keycloak's
+  session gone (Admin API).
+- [ ] D5 Forgot password: the email, the link's lifetime, the new password works, the old one
+  doesn't.
+- [ ] D6 Wrong passwords until lockout: the message, Keycloak's brute-force record, an admin
+  unlocks from Gen9's admin page.
+- [ ] D7 Sign out everywhere from Settings: a second browser profile's session ends too, and the
+  CLI's token stops refreshing.
+- [ ] D8 Ada (admin) signs in: the second step (`make admin-code`), the admin pages appear for her
+  and not for Quinn (UI and API: 403).
+
+### P8-E. One chat followed through every store
+
+- [ ] E1 Quinn sends "Reply with one word: hello" in Chrome. While it streams, the network panel
+  shows the stream. Once done, the same exchange is read in each store:
+  - the API: `/v1/threads`, `/runs`, the run's events;
+  - gen9-postgres: the thread, run and event rows, checkpoints;
+  - Temporal's UI: the workflow, its history, payloads shown only through the codec;
+  - Langfuse: the trace, its user, model and cost;
+  - the router's spend log: the end-user id is Quinn's `sub`;
+  - the worker's and the API's log lines: nothing of the message's text.
+- [ ] E2 Reload mid-answer, a second tab on the same chat, and Stop mid-answer: what each shows,
+  and the run's final state in the API and Temporal.
+- [ ] E3 Title, rename, pin or archive (whatever the UI offers), and the list's order, checked
+  against the API.
+- [ ] E4 An error turn: the router stopped (`docker stop` its container) mid-chat. The message
+  the person sees, the run's error in the API, and the retry once it's back.
+- [ ] E5 Permission modes: each one offered in the UI, with what it changes seen in a turn that
+  needs a tool.
+
+### P8-F. The agent's capabilities
+
+- [ ] F1 Web search: an answer with its sources shown; the search calls in the router's log and
+  Langfuse.
+- [ ] F2 Subagent: a fact-check delegated, the chat naming it, the subagent's steps in Langfuse.
+- [ ] F3 Skills: the research-brief skill read when asked for a brief (once: it is the costly
+  one); an edit to the skill refused.
+- [ ] F4 Approvals: in "ask" mode a tool call waits for approval. Approve once and deny once:
+  the card, the run's waiting state in Temporal, and the audit trail.
+- [ ] F5 Questions: the agent asks Quinn a question with choices, the answer resumes the run, and
+  the answer is in the run's events.
+- [ ] F6 Vision: an image attached and described (`vision` alias), its file stored and served
+  back only to Quinn.
+- [ ] F7 Speech and image generation, once each (`speak`, `transcribe`, `image`), if the UI
+  offers them; cost read from the router.
+
+### P8-G. Files and environments
+
+- [ ] G1 A command run in the chat's environment: the sandbox created (`docker ps`), its
+  workflow in Temporal, the output in the chat.
+- [ ] G2 A file uploaded, read by the agent in the environment, a file written to `/work/out`,
+  shared in the chat, downloaded in Chrome with its headers (attachment, type, name).
+- [ ] G3 The sandbox's limits by hand: no route to gen9-postgres, Keycloak or the Docker socket,
+  egress only as configured, memory and process limits as documented.
+- [ ] G4 Environment secrets from Settings: set one, used in a command, never shown back, and
+  absent from logs and Langfuse.
+- [ ] G5 The environment removed after its idle time (or the chat's deletion): sandbox, volume
+  and workflow gone.
+
+### P8-H. Memory, search, export and deletion
+
+- [ ] H1 Memory: told to remember, shown in Settings, edited, cleared; the store's rows each time.
+- [ ] H2 Search past chats by words and by meaning in the UI; another user's chats never appear
+  (Alan searches for Quinn's words).
+- [ ] H3 Export from Settings: the archive downloaded and opened. Everything Quinn made is in it,
+  and nothing else.
+- [ ] H4 A chat deleted: gone from the UI, the API (404), gen9-postgres, its files, its search
+  rows, Langfuse's traces and the environment.
+
+### P8-I. Scheduled tasks, triggers, notifications and background work
+
+- [ ] I1 A scheduled task for the next minute: created in the UI, its Temporal Schedule, its run,
+  its chat. Then paused, resumed and deleted, with the Schedule following each.
+- [ ] I2 An API trigger for a task: the trigger URL and token, fired with curl, a wrong token
+  refused, and the trigger removed.
+- [ ] I3 Notifications: what Settings offers, and one received (email in Mailpit or in the app).
+- [ ] I4 A background task (if offered): started, left, its result found later; its workflow.
+- [ ] I5 The limits: a task fired too often refused (429), and what the person is told.
+
+### P8-J. Connectors, MCP apps, the directory and plugins
+
+- [ ] J1 A connector added from the directory or by URL: its tools listed, one used in a turn, its
+  calls in Langfuse.
+- [ ] J2 A connector that needs OAuth: the sign-in, the token stored (encrypted, not shown), and
+  the connector removed with its token.
+- [ ] J3 An MCP App's UI rendered in the chat's sandboxed frame. Its calls go through Gen9, and
+  the frame's sandbox and CSP are checked in DevTools.
+- [ ] J4 Elicitation from a connector: the form shown, the answer sent back, a refusal handled.
+- [ ] J5 Tool changes: a connector's tools change, and what the person is told.
+- [ ] J6 Plugins: an admin adds a plugin source and syncs it; a person turns a plugin on; its
+  skill is used; turned off again.
+
+### P8-K. Other programs
+
+- [ ] K1 The CLI as its README says: install, `gen9 login` (device flow in Chrome), ask, list,
+  approvals and questions from the terminal, `gen9 logout`.
+- [ ] K2 Gen9 as an MCP server: the MCP Inspector (or curl) against `/mcp` with a token. Its tools
+  listed and one called; without a token, 401 with the resource metadata.
+- [ ] K3 A2A: the agent card, a task sent and its answer, auth required.
+- [ ] K4 AG-UI: a run over `/v1/agui` with curl, the event stream read by eye.
+- [ ] K5 The raw API from its `/docs`: one call of each kind tried by hand, errors in one shape.
+
+### P8-L. Admin and governance
+
+- [ ] L1 Ada's users page: search, disable Quinn (her session ends and a queued message errors),
+  enable, sign her out, reset her password, unlock. Each in Keycloak and in the audit log.
+- [ ] L2 Budgets and limits: Quinn's spend limit shown in Settings, set low by an admin, the next
+  turn refused with the reset time, then raised again.
+- [ ] L3 The audit log page: every admin action of this section listed with actor, target and
+  outcome; filters work; the API's answer matches.
+- [ ] L4 An admin demoted: her admin pages and API go at once.
+- [ ] L5 The AI Act disclosures (docs/ai-act.md): what the UI and exports mark as AI-made, checked
+  where the doc says.
+- [ ] L6 Quinn deletes her account: gone from Keycloak, gen9-postgres, Langfuse, the router's
+  records, the environments and Valkey, as docs/operations.md promises.
+
+### P8-M. Security, by hand
+
+- [ ] M1 Response headers on every surface (the app, API, Keycloak, Langfuse, Temporal UI, the
+  sandbox origin): CSP, frame rules, referrer, content type, HSTS on https (ASVS 3.4).
+- [ ] M2 CORS: the API from a foreign origin (a preflight with curl), refused unless listed.
+- [ ] M3 CSRF: the app's state-changing routes posted from a foreign page, refused.
+- [ ] M4 Cross-user access: Quinn's token on Alan's thread, file, task and run IDs (404, nothing
+  leaked); Alan's on Quinn's.
+- [ ] M5 Input edges: NUL, oversized bodies, very long messages, odd Unicode in names: one clear
+  refusal each, nothing stored broken.
+- [ ] M6 Secrets: the logs of every container grepped for tokens, keys and passwords (patterns,
+  never printing a value), and `docker inspect` env checked for what it exposes.
+- [ ] M7 The sandbox origin (port 14003): it serves only what MCP Apps need, never the app's
+  cookies.
+
+### P8-N. Failure and recovery
+
+- [ ] N1 The worker killed mid-turn: the turn resumes on restart (Temporal), with no duplicate
+  messages.
+- [ ] N2 gen9-postgres restarted: the API answers 503 meanwhile, and recovers on its own.
+- [ ] N3 Keycloak down: signed-in people go on (until their token needs a refresh); a sign-in
+  shows a clear page.
+- [ ] N4 Langfuse down: chats work, and traces resume when it's back.
+- [ ] N5 Valkey restarted: sessions survive (AOF).
+
+### P8-O. Using it as a person: UX and accessibility
+
+- [ ] O1 The whole chat flow by keyboard only: focus visible, order sensible, no trap.
+- [ ] O2 Phone width and dark mode on every page.
+- [ ] O3 Every empty, loading and error state met in this phase: is its wording clear, and does
+  it say what to do.
+- [ ] O4 Settings page, section by section: each control does what it says (checked in the API).
+
+### P8-P. A domain and TLS (gen9-edge)
+
+- [ ] P1 `make setup DOMAIN=gen9.localhost`, `make up`: Caddy's internal CA. How docs say to trust
+  it, done, and the app opened at https in Chrome.
+- [ ] P2 HSTS, the redirect from http, the cookie's Secure flag, and each service's own host.
+- [ ] P3 An MCP App on its own host (on-demand TLS, the ask endpoint): an unknown host refused.
+- [ ] P4 Back to localhost: `make setup DOMAIN=localhost`, `make up`, `make diff` 0.
+
+### P8-Q. Kubernetes, by hand (k3d)
+
+- [ ] Q1 The same images on both: each Gen9 pod's image digest equals Docker's for the same lock.
+- [ ] Q2 One chat end to end on k3d (at https://gen9.localhost), followed into the cluster's
+  stores as in E1.
+- [ ] Q3 Drift: a change by hand (`kubectl set env`, a deleted Secret key, a scaled Deployment).
+  `make k8s-diff` names each and `make k8s-reset` puts it back.
+- [ ] Q4 NetworkPolicies: from one pod, a namespace it shouldn't reach refused; the ones it calls
+  reachable.
+- [ ] Q5 Secrets: no value in annotations or Helm's release (`helm get values`, `kubectl get
+  secret -o yaml` read for names only).
+- [ ] Q6 `make k8s-stop-agents` and `k8s-resume-agents` as on Docker.
+
+### P8-R. Releases
+
+- [ ] R1 The release workflow's last dry run read job by job. The bundle built here twice by
+  `scripts/release-bundle.sh`: identical, and its contents as docs say.
+- [ ] R2 The bundle used as an operator would, in a scratch folder: its README's steps followed
+  as far as they go without published images, and noted where they stop.
+- [ ] R3 `scripts/check-version.py` and the version shown by the API, the UI, the CLI and the
+  images' labels: one version everywhere.
+
+### P8-S. Observability
+
+- [ ] S1 Langfuse as an operator: Quinn's traces, costs and users; the raw events' expiry rule.
+- [ ] S2 Temporal's UI as an admin: workflows by search attribute; payloads only through the codec,
+  and a non-admin refused.
+- [ ] S3 The router's admin: keys, budgets and spend per user, with the docs' description.
+
+### P8-T. gen9-learn by hand
+
+- [ ] T1 The page opened as its README says; the guided trace followed step by step against the
+  live install; five reference rows checked by hand against the code they point to.
+
+### P8-Y. Upstream
+
+- [ ] Y1 P7-A1 to A3, carried: each when it lands (deepagents 0.7.21 from 2026-10-07; Keycloak
+  26.8.0 and Temporal UI v2.55.0 from 2026-10-08; OpenSandbox 1.1.1 and #1759; the watches).
+
+### P8-Z. Destructive, last
+
+- [ ] Z1 `make backup DIR=…`, then `make restore DIR=…`: the same chats, users and traces after.
+- [ ] Z2 `make wipe` on one stack, then all: what goes and what stays, as docs say.
+- [ ] Z3 A fresh developer from zero: `make distclean`, a new clone in a new folder, then the
+  README's quick start followed word by word with nothing else known. Each step timed, each
+  stumble written down; then a first chat.
+- [ ] Z4 The docs' findings of A and Z3 fixed (each its own pull request), then read again as a
+  newcomer.
+- [ ] Z5 Everything this phase made removed; the seeded state back; the phase's spend measured;
+  `make e2e` once at the end as the second net, not as the verification.
 
 ## Surprises & Discoveries
 
@@ -4603,6 +4911,18 @@ served as attachments with `nosniff` and a sandbox CSP (P2-F6, P3-F2).
     takes them after it.
   - **Gen9's own state:** phase 6's waits (D1c1, D1c4, D1c6, D6a, A3) carried as P7-A1 and A3.
 
+- Decision (Phase 8's list, 2026-10-04): an audit of everything by hand, followed into every store,
+  ordered as a newcomer meets Gen9. It starts with the docs read before anything is run (A) and
+  ends with a fresh clone on a wiped machine (Z3), the destructive steps last as standing
+  instruction 6 says. Why: the owner asked for it in those terms (Phase 8's opening). The docs
+  are judged by Diátaxis (diataxis.fr: "four distinct forms of documentation", tutorials,
+  how-to guides, reference and explanation, "organised around the structures of those needs") and
+  by GitHub's own README guidance (docs.github.com, "About READMEs": "What the project does …
+  Why the project is useful … How users can get started … Where users can get help … Who
+  maintains and contributes"), both read on 2026-10-04. P7-Z2's ASVS chapters (V6, V7, the rest
+  of V3, V1, V2, V15) are left for a later phase; M1 covers V3's headers, which the audit needs
+  anyway.
+
 ## Outcomes & Retrospective
 
 ### Phase 1
@@ -4803,7 +5123,8 @@ Spend since a point in time (standing instruction 2):
     docker exec gen9-models-postgres-1 psql -U litellm -d litellm -tAc \
       "select round(sum(spend)::numeric,6), count(*) from \"LiteLLM_SpendLogs\" where \"startTime\" >= timestamp '<UTC start>'"
 
-The plan started with $7.667783 over 6,052 calls on the router in total.
+The plan started with $7.667783 over 6,052 calls on the router in total. Phase 8 started with
+$0.192772 over 707 calls (the router's log on this machine, 2026-10-04 08:03 UTC).
 
 Deleting an account erases its rows in that log (P3, Surprises), so also read the worker key's own
 counter, which resets at 00:00 UTC each day:
