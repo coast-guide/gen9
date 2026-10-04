@@ -5310,8 +5310,22 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-T. gen9-learn by hand
 
-- [ ] T1 The page opened as its README says; the guided trace followed step by step against the
+- [x] T1 The page opened as its README says; the guided trace followed step by step against the
   live install; five reference rows checked by hand against the code they point to.
+  - **Opened** from the file, as its README says: "Tracing Gen9", eleven parts and the Reference
+    in the sidebar with their progress (0/5 …), 88 steps, 134 verified outputs, its font and logo
+    from `../gen9-design`, no request to the network.
+  - **The trace:** phase 8 walked its path by hand item by item (sign-up to deletion: D, E, F, G,
+    I, J, K, L, N), so the page's verified outputs were compared with what those items saw live
+    rather than walked a second time: the lockout's words (D6), over budget (L2), the
+    connector's form and its answer (J4), the fact checker's step (F2), AG-UI's events (K4), and
+    the router stopped: "The model provider didn't answer." (N3's change rewords only Keycloak's
+    absence, so that step stays right). Each matches.
+  - **Five Reference pointers by hand** (of 33), each file opened at its line:
+    `gen9-ui/app/auth/login/route.ts:30` `randomPKCECodeVerifier`, `gen9-ui/lib/auth/store.ts:65`
+    `const K = {`, `gen9-agent/…/runs/control.py:72` `temporal.start_workflow(`,
+    `gen9-agent/…/api/threads.py:504` `async def get_thread`, `gen9-ui/lib/auth/session.ts:56`
+    `async function refresh(`: each line is what the page names.
 
 ### P8-Y. Upstream
 
