@@ -4677,12 +4677,46 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-J. Connectors, MCP apps, the directory and plugins
 
-- [ ] J1 A connector added from the directory or by URL: its tools listed, one used in a turn, its
+- [x] J1 A connector added from the directory or by URL: its tools listed, one used in a turn, its
   calls in Langfuse.
-- [ ] J2 A connector that needs OAuth: the sign-in, the token stored (encrypted, not shown), and
+  - **The directory** (Settings > Connectors > "Browse the directory"): a search of Gen9's copy
+    of the MCP Registry (23,460 servers, synced 10:55), "as their publishers describe them. Gen9
+    hasn't reviewed them." "cloudflare" puts Cloudflare's own first (`com.cloudflare.mcp/mcp`,
+    docs.mcp.cloudflare.com); every word must match; DeepWiki isn't in the registry.
+  - **Add** fills the form ("From the MCP Registry: … Not reviewed by Gen9: add it only if you
+    trust who runs it."), name `cloudflare`, its URL. Added: "docs.mcp.cloudflare.com · 2 tools"
+    (`search_cloudflare_documentation`, `migrate_pages_to_workers_guide`), policy `ask`, no token
+    stored, `connector.add` audited.
+  - **Used:** a question about Workers KV's free daily writes: "Gen9 wants to use cloudflare:
+    search cloudflare documentation" with its query, Allow, "Used cloudflare: …", "1,000 key
+    writes per day, … resets daily at 00:00 UTC" (as Cloudflare's docs say). `run_inputs`:
+    approve. Langfuse: the TOOL span `cloudflare__search_cloudflare_documentation` with its
+    query, under Quinn and the chat's session.
+- [x] J2 A connector that needs OAuth: the sign-in, the token stored (encrypted, not shown), and
   the connector removed with its token.
-- [ ] J3 An MCP App's UI rendered in the chat's sandboxed frame. Its calls go through Gen9, and
+  - e2e's OAuth test server (`fixtures/oauth_mcp.py`, its own authorization server, approving
+    every sign-in) on 17801; Quinn's Chrome maps `host.docker.internal` as e2e does.
+  - "Add a connector", `notes`, its URL: the browser went to the server and back, "Signed in.
+    Gen9 can use notes now.", "1 tool". The server saw, in order: the 401, its protected resource
+    metadata, its authorization server metadata, `POST /register` (dynamic registration), then
+    `/authorize` with `code_challenge_method=S256`, a `state` and `resource` (RFC 8707), and
+    `POST /token`. Stored sealed (`k20260930:…`, no token text), never on the page.
+  - **Remove** ("Gen9 stops using its tools, and its token is deleted."): two `POST /revoke`
+    (RFC 7009) at once, the row gone, `connector.remove` audited.
+- [x] J3 An MCP App's UI rendered in the chat's sandboxed frame. Its calls go through Gen9, and
   the frame's sandbox and CSP are checked in DevTools.
+  - e2e's board server (`fixtures/apps_mcp.py`) on 17803, added as `board`, "Don't ask". "Show me
+    a board of 3 cells": "Used board: show board", "App from board, not made by Gen9", the View
+    under its step.
+  - **The frame:** `http://<connector id>.apps.localhost:14003/` (an origin per connector),
+    `sandbox="allow-scripts allow-same-origin allow-forms"`, the View inside it in a `srcdoc`
+    frame with the same sandbox. Its CSP: `default-src 'none'`, `connect-src` only what it
+    declared (`https://api.example.com`), `frame-src 'none'`, `object-src 'none'`,
+    `frame-ancestors http://localhost:14000`; `nosniff`, `no-referrer`; no cookie set or seen.
+  - **The View's own report:** `cells: 3`, isolated "yes" (it can't reach the page), blocked
+    "blocked" (a request to an undeclared origin).
+  - **Its call:** "Play cell 1" went through Gen9 (`POST /v1/me/connectors/<id>/app/call` 200,
+    from the web app's server), "played 1", and the server's moves `[1]`.
 - [ ] J4 Elicitation from a connector: the form shown, the answer sent back, a refusal handled.
 - [ ] J5 Tool changes: a connector's tools change, and what the person is told.
 - [ ] J6 Plugins: an admin adds a plugin source and syncs it; a person turns a plugin on; its
