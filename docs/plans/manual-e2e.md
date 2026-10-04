@@ -4061,10 +4061,24 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     (Z4 decides).
 ### P8-B. Operator: the running Docker install, by hand
 
-- [ ] B1 `make stacks`, `make ps`, `make doctor`, `make config`, `make diff`: each output read for
+- [x] B1 `make stacks`, `make ps`, `make doctor`, `make config`, `make diff`: each output read for
   sense, not only exit codes.
-- [ ] B2 Every published port bound to 127.0.0.1 only (`ss -ltnp`), and each one matches the
+  - All five read clearly. `make stacks` and `make config` agree with the README's table (ports,
+    order); `config` checks shared network names, that the bake file builds what Compose builds,
+    and that the version is the same in three places (0.1.0). `make diff` says each stack is as
+    declared (exit 0); it leaves gen9-edge out without the note `up`, `config` and `doctor`
+    print (minor). `make doctor` failed before P8-A2's fix.
+- [x] B2 Every published port bound to 127.0.0.1 only (`ss -ltnp`), and each one matches the
   README and `make stacks`.
+  - Every port Gen9 publishes (13000–13007, 14000, 14002, 14003, 15000–15003, 16000, 17000,
+    18000, 18001, 19000, 19001, 20000) listens on 127.0.0.1 only (`ss -ltnp`); 14001, gen9-ui's dev
+    server, runs on demand.
+  - **Found: the k3d cluster's Kubernetes API on every interface** (`0.0.0.0:33027->6443`,
+    k3d's load balancer), reachable from the network. `deploy/k3d.yaml` set no `kubeAPI`, and
+    k3d's default is all interfaces; kind's is 127.0.0.1. Fixed: `kubeAPI.hostIP: "127.0.0.1"`.
+    Tried on a throwaway cluster: `127.0.0.1:37179->6443`, the kubeconfig's server
+    `https://127.0.0.1:37179`, and `kubectl get nodes` Ready. The running cluster takes it when
+    recreated (Q).
 - [ ] B3 Every running container's image: Gen9's by digest from `images.env`, third parties by
   `tag@digest` as in the Compose files (`docker inspect`); none `latest` without a digest.
 - [ ] B4 Logging: every container on the `local` driver with rotation (`docker inspect`), and
@@ -4309,6 +4323,10 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ## Surprises & Discoveries
 
+- k3d publishes a cluster's Kubernetes API on every interface unless its config says otherwise
+  (P8-B2): `k3d-gen9-serverlb … 0.0.0.0:33027->6443/tcp`. Its config-file docs show
+  `kubeAPI.hostIP` ("where the Kubernetes API will be listening on") but not the default; the
+  default was seen here. kind binds 127.0.0.1 by default.
 - `make doctor` failed on a healthy install (P8-A2): it checked the ports of gen9-edge, which
   isn't set up (no `gen9-edge/.env`), because only `make up`, `config` and `diff` took
   `OPTIONAL` into account. Before: `FAIL  gen9-edge needs port 80, which another program uses`,

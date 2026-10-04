@@ -6,6 +6,10 @@ metadata:
   name: gen9
 image: rancher/k3s:v1.37.1-k3s1@sha256:ca7f37d993d82ef0dcdcfecb2e0e2618ea541dbaffc620c8cedebe01a82acd0d
 servers: 1
+# The Kubernetes API on this machine only, as kind does by default: without it k3d publishes it on
+# every interface (0.0.0.0, a random port), so other machines on the network reach it
+kubeAPI:
+  hostIP: "127.0.0.1"
 files:
   # The kubelet settings sandboxes need, as in deploy/kind.yaml: k3s takes a kubelet config file
   # given as --kubelet-arg=config=… into its own drop-in directory, after its defaults
