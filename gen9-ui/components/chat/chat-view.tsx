@@ -934,7 +934,7 @@ export function ChatView({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
-            <AlertDialogDescription>The conversation and its history are deleted for good.</AlertDialogDescription>
+            <AlertDialogDescription>The conversation, its files and its environment are deleted for good.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

@@ -22,6 +22,8 @@ export function describeStep(step: Step): string {
   const args = (step.args ?? {}) as Record<string, unknown>;
   // Denied in a chat set to "Ask before acting" (gen9-agent's approvals.py)
   if (step.status === "declined") return `You declined: ${actionWords({ name: step.name, args })}`;
+  // Failed: what it tried, not "Edited …" beside a Failed icon (manual-e2e.md, P8-O3)
+  if (step.status === "error") return `Couldn’t ${actionWords({ name: step.name, args })}`;
   const text = (value: unknown) => (typeof value === "string" ? value : "");
   switch (step.name) {
     case "web_search":
@@ -112,8 +114,10 @@ const callKey = (name: string, args: unknown): string =>
 
 /** Steps in words; a step an approval holds reads "Waiting for you: …", as its card reads "Gen9
  *  wants to …", not "Used …" for what hasn't happened (manual-e2e.md, P3-D4). */
-export function stepWords(step: Step, awaiting: Pick<Action, "name" | "args">[] = []): { text: string; waits: boolean } {
-  const waits = step.status === "running" && awaiting.some((a) => callKey(a.name, a.args) === callKey(step.name, step.args));
+export function stepWords(step: Step, awaiting: Pick<Action, "name" | "args">[] = [], waiting = false): { text: string; waits: boolean } {
+  // Held by an approval, or a connector's tool whose server asked the person (its form below)
+  const asked = waiting && step.name.includes("__");
+  const waits = step.status === "running" && (asked || awaiting.some((a) => callKey(a.name, a.args) === callKey(step.name, step.args)));
   return waits ? { text: `Waiting for you: ${actionWords({ name: step.name, args: step.args as Record<string, unknown> })}`, waits } : { text: describeStep(step), waits };
 }
 
@@ -161,7 +165,7 @@ export function Activity({
       {shown.length > 0 && (
         <ul className="space-y-1 text-sm text-muted-foreground" aria-label="Tools used">
           {shown.map((step) => {
-            const words = stepWords(step, awaiting);
+            const words = stepWords(step, awaiting, waiting);
             return (
               <li key={step.id} className="flex items-start gap-2">
                 {/* Its words say it waits: the icon's label would say it twice */}
@@ -193,7 +197,7 @@ export function Activity({
   return (
     <details className="group mb-3 text-sm">
       <summary className="cursor-pointer text-muted-foreground select-none hover:text-foreground">
-        {shown.length === 1 && !todos.length ? stepWords(shown[0], awaiting).text : stepsSummary(shown.length, todos.length > 0)}
+        {shown.length === 1 && !todos.length ? stepWords(shown[0], awaiting, waiting).text : stepsSummary(shown.length, todos.length > 0)}
       </summary>
       {list}
     </details>

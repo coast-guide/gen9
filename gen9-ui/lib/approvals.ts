@@ -15,6 +15,9 @@ export function actionWords(action: Pick<Action, "name" | "args">): string {
   }
   // A command in the chat's environment (gen9-agent's environments.py)
   if (action.name === "execute") return "run a command in this chat's environment";
+  // A file, by its path: "use write file" said nothing of which (manual-e2e.md, P8-O3)
+  const verb = { edit_file: "edit", write_file: "write", read_file: "read" }[action.name];
+  if (verb) return `${verb} ${text(args.file_path)}`;
   // A connector's tool (gen9-agent's connectors.py): <connector>__<tool>
   const [connector, tool] = action.name.split("__");
   if (tool) return `use ${connector}: ${tool.replaceAll("_", " ")}`;

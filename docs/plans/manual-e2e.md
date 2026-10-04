@@ -5091,8 +5091,25 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     hyphen; the privacy page says "The organization running this Gen9 hasn't named itself here
     yet" until the operator sets `PRIVACY_CONTROLLER` (gen9-ui's README): for Z4, whether the
     operations guide names it among what to set before going live.
-- [ ] O3 Every empty, loading and error state met in this phase: is its wording clear, and does
+- [x] O3 Every empty, loading and error state met in this phase: is its wording clear, and does
   it say what to do.
+  - **Clear as they are** (met above): the lockout and its unlock (D6), the signed-out pages (D7),
+    over budget with its reset time (L2), "You need admin access" (L4), the database and Keycloak
+    down (N2, N3: now naming the right service), the empty Scheduled and plugin pages, a
+    question's "Answer the question first.", a paused or over-limit trigger (I2, I5).
+  - **Fixed** (gen9-ui; live on the rebuilt image):
+    - a failed step said what it would have done ("Edited /skills/…/SKILL.md" beside a Failed
+      icon, F3): now "Couldn't edit /skills/research-brief/SKILL.md"; an approval of a file write
+      would have read "Gen9 wants to use write file": now "write <path>";
+    - a connector's tool waiting on the person's form read "Used travel: plan trip" (J4): now
+      "Waiting for you: use travel: plan trip";
+    - a background task's card quoted its answer's Markdown ("**9.1.2**", I4): now "9.1.2";
+    - "Remove p8-market? Its 1 plugin go too" (J6): now "Its plugin goes too";
+    - deleting a chat said "The conversation and its history are deleted for good." (G5): now
+      "The conversation, its files and its environment are deleted for good."
+  - **Kept, on purpose:** "Needs you" and "Gen9 needs your answer" for a run waiting for Retry
+    (the design's status words: the person has to act); a finished one-off's "Done" badge beside
+    its run's "· Done" (the task and its run); "Once, on 2026-10-04 …" (unambiguous).
 - [ ] O4 Settings page, section by section: each control does what it says (checked in the API).
 
 ### P8-P. A domain and TLS (gen9-edge)

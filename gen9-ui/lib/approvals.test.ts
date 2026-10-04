@@ -11,6 +11,8 @@ describe("approvals in words", () => {
     expect(actionWords({ name: "edit_file", args: { file_path: MEMORY_FILE } })).toBe("update your memory");
     expect(actionWords({ name: "write_file", args: { file_path: MEMORY_FILE } })).toBe("update your memory");
     expect(actionWords({ name: "send_email", args: {} })).toBe("use send email");
+    expect(actionWords({ name: "write_file", args: { file_path: "/work/out/a.txt" } })).toBe("write /work/out/a.txt");
+    expect(actionWords({ name: "edit_file", args: { file_path: "/skills/research-brief/SKILL.md" } })).toBe("edit /skills/research-brief/SKILL.md");
     expect(actionWords({ name: "deepwiki__ask_wiki_question", args: {} })).toBe("use deepwiki: ask wiki question");
   });
 

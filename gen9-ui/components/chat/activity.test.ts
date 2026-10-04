@@ -30,6 +30,18 @@ describe("describeStep", () => {
     expect(clip("a".repeat(121))).toBe(`${"a".repeat(119)}…`);
   });
 
+  it("says what a failed step tried, not what it would have done", () => {
+    const failed: Step = { id: "1", name: "edit_file", args: { file_path: "/skills/research-brief/SKILL.md" }, status: "error" };
+    expect(describeStep(failed)).toBe("Couldn’t edit /skills/research-brief/SKILL.md");
+    expect(describeStep({ ...failed, name: "travel__plan_trip", args: {} })).toBe("Couldn’t use travel: plan trip");
+  });
+
+  it("says a connector's tool waits for the person while its server asks them", () => {
+    const asking: Step = { id: "1", name: "travel__plan_trip", args: {}, status: "running" };
+    expect(stepWords(asking, [], true)).toEqual({ text: "Waiting for you: use travel: plan trip", waits: true });
+    expect(stepWords(asking, [], false).waits).toBe(false);
+  });
+
   it("names the person's memory instead of its file", () => {
     expect(describeStep(step("edit_file", { file_path: "/memories/AGENTS.md" }))).toBe("Updated your memory");
     expect(describeStep(step("write_file", { file_path: "/memories/AGENTS.md" }))).toBe("Updated your memory");

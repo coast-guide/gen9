@@ -116,7 +116,8 @@ export function SourceRow({ source }: { source: PluginSource }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Its {plural(source.plugins, "plugin")} go too, for everyone. You can add the repository again later.
+              {source.plugins === 1 ? "Its plugin goes" : `Its ${plural(source.plugins, "plugin")} go`} too, for everyone. You can add the
+              repository again later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
