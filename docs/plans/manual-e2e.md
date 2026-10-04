@@ -4317,6 +4317,10 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     signed in, or your sign-in ended. Run `gen9 login`." (exit 1), its credentials file gone.
   - **Found:** B then showed "You're signed out. Your Gen9 session has ended on this device.",
     the words of a plain sign-out, after the person had just signed out everywhere.
+  - **Fixed:** sign out everywhere now lands on `/signed-out?reason=everywhere`: "You're signed
+    out everywhere. Your Gen9 sessions have ended on every browser and device. A terminal signed
+    in to Gen9 stops within 5 minutes." Live on the rebuilt gen9-ui, from B again, with A sent to
+    sign-in; a plain sign-out from the account menu still says "on this device".
 - [x] D8 Ada (admin) signs in: the second step (`make admin-code`), the admin pages appear for her
   and not for Quinn (UI and API: 403).
 

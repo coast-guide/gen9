@@ -18,7 +18,12 @@ export default async function SignedOut({ searchParams }: PageProps<"/signed-out
             "Your account is being deleted.",
             "Nobody can sign in to it now. Your chats, memory, scheduled tasks, connectors and sign-in methods are being removed from Gen9, which finishes on its own.",
           ]
-        : ["You’re signed out.", "Your Gen9 session has ended on this device."];
+        : reason === "everywhere"
+          ? [
+              "You’re signed out everywhere.",
+              "Your Gen9 sessions have ended on every browser and device. A terminal signed in to Gen9 stops within 5 minutes.",
+            ]
+          : ["You’re signed out.", "Your Gen9 session has ended on this device."];
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 pt-safe pb-safe">
       <Mark className="size-9" />

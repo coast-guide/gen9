@@ -23,7 +23,7 @@ export async function signOutEverywhere(): Promise<void> {
   await agentJson<void>(session, "/v1/me/sign-out-everywhere", { method: "POST" });
   await deleteSessionsBySub(session.user.sub);
   (await cookies()).set(endedSessionCookie());
-  redirect("/signed-out");
+  redirect("/signed-out?reason=everywhere");
 }
 
 /**
