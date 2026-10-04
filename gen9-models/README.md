@@ -373,7 +373,8 @@ curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $evals" -H 'C
 | Task | Command |
 | --- | --- |
 | Status | `docker compose ps -a` (`keys` shows `Exited (0)`: it ran) |
-| Spend per user | `docker compose exec postgres psql -U litellm -d litellm -c 'select end_user, round(sum(spend)::numeric, 4) from "LiteLLM_SpendLogs" group by 1 order by 2 desc'` |
+| Spend per user | `docker compose exec postgres psql -U litellm -d litellm -c 'select end_user, round(sum(spend)::numeric, 4) from "LiteLLM_SpendLogs" group by 1 order by 2 desc'`. `end_user` is the person's Keycloak id (`sub`); empty, Gen9's own calls (search's reindexing). Whose: `(cd ../gen9-postgres && docker compose exec postgres psql -U postgres -d gen9_agent -c 'select sub, email from users')` |
+| Spend per day, people since deleted included | `docker compose exec postgres psql -U litellm -d litellm -c 'select date, round(sum(spend)::numeric, 4), sum(api_requests) from "LiteLLM_DailyUserSpend" group by 1 order by 1 desc'`: deleting a person deletes their rows in the spend log, not these totals |
 | Stop (keeps data) | `docker compose down` |
 | Reset (**deletes keys and spend**) | `docker compose down -v`, then `./init-env.sh --force --agent-env-file ../gen9-agent/models.local.env --agent-api-env-file ../gen9-agent/models-api.local.env --evals-env-file ../gen9-agent/models-evals.local.env` |
 

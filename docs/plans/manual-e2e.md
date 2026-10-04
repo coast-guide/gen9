@@ -5551,8 +5551,12 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     mounted the same way (Z3's surprise): replaced with the same content, the running router kept
     the old inode and `--force-recreate` took the new, so gen9-models' README says `docker compose
     up -d --force-recreate litellm` where it said `restart`.
-  - [ ] Z4i The spend-per-user recipe: its column is the person's `sub`, and how to find whose
-    (S3).
+  - [x] Z4i The spend-per-user recipe: its column is the person's `sub`, and how to find whose
+    (S3). gen9-models' "Operate" now says `end_user` is the person's Keycloak id, that an empty
+    one is Gen9's own calls, and gives the query of gen9-postgres's `users` that says whose; and
+    a second recipe, spend per day from `LiteLLM_DailyUserSpend`, which deleting a person
+    leaves (Z2 measured the phase's spend that way). Each command run as written: Alan's `sub`
+    with 0.0001 and the empty one; the `users` row naming him; 2026-10-04's total over 4 calls.
   - [ ] Z4j The `vision` alias: what it is for, since Gen9 sends images to `chat` (F6).
   - [ ] Z4k A guide for the person using Gen9 (A): decided below.
 - [ ] Z5 Everything this phase made removed; the seeded state back; the phase's spend measured;
