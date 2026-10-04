@@ -5392,8 +5392,16 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     index 5,399 s for a 1,799 s session; Ada deleted him: the index gone at once, his session
     by the back-channel logout, every store 0.
   - **Found too:** "1 accounts, 1 chats" (restore.sh, `gen9-agent-erase`), and a chat that goes
-    with its account counted by the one and not the other ("1 accounts, 0 chats"): fixed in its
-    own pull request.
+    with its account counted by the one and not the other ("1 accounts, 0 chats").
+  - **Fixed** (its own pull request): both say "1 account, 1 chat", and the erase names a chat
+    that went with its account. Live, with gen9-agent built from the change and this copy's
+    `restore.sh`: Yan (made with `kcadm.sh`) asked one question, a second backup (133 s, 233 MB),
+    Yan deleted the chat, Ada deleted Yan (her sign-in over 5 minutes old: "For your security,
+    sign in again first. You'll come back to this.", password and code, back in the dialog); the
+    restore (131 s): "Deleting again what was deleted after the backup was made: 1 account, 1
+    chat…", "account 7424a40a-…: deleted again", "chat 12012bb1-…: deleted with its account",
+    "deleted again: 1 account, 1 chat". Langfuse's 16 events of his, back with the backup, gone
+    80 s later; every store 0; his index, back too, now expiring in 4,917 s, not 30 days.
 - [ ] Z2 `make wipe` on one stack, then all: what goes and what stays, as docs say.
 - [ ] Z3 A fresh developer from zero: `make distclean`, a new clone in a new folder, then the
   README's quick start followed word by word with nothing else known. Each step timed, each
