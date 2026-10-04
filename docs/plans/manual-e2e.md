@@ -4786,9 +4786,24 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     ended". The README now says so. Its `--ask-first` paragraph also said only memory waits for
     Allow; it now names commands and connectors' tools, as the web app and its next sentence
     do.
-- [ ] K2 Gen9 as an MCP server: the MCP Inspector (or curl) against `/mcp` with a token. Its tools
+- [x] K2 Gen9 as an MCP server: the MCP Inspector (or curl) against `/mcp` with a token. Its tools
   listed and one called; without a token, 401 with the resource metadata.
-- [ ] K3 A2A: the agent card, a task sent and its answer, auth required.
+  - **Without a token:** 401, `WWW-Authenticate: Bearer scope="gen9-mcp",
+    resource_metadata="…/.well-known/oauth-protected-resource/mcp"`; the metadata names
+    `http://localhost:15000/realms/gen9` and the scope.
+  - **Signed in as a client would** (a script: the public client `gen9-mcp`, PKCE S256, a state,
+    `resource`, a loopback redirect on a random port; consent in Quinn's Chrome): "Allow Agents
+    (MCP and A2A) to use your account? It will be able to: use Gen9 from this app: ask it, and
+    read and search your chats; …" with the warning about links someone sent. The token: `aud`
+    `http://localhost:17000/mcp` only, `azp` `gen9-mcp`, Quinn's `sub`, 5 minutes, a refresh
+    token; kept in a 0600 file.
+  - **FastMCP's client** with it: `ask`, `read_chat`, `list_chats`, `search_chats`, each with an
+    output schema. `ask` "Reply with one word: mcp": a new chat, `status` `done`, "mcp", its id
+    and address; `read_chat` shows both messages; `search_chats` "harbour greeting" finds that
+    chat first. The MCP token on the API: 401 "The access token is invalid".
+  - **Settings > Apps with access:** "Agents (MCP and A2A)", with what it may do and "Allowed Oct
+    4, 2026."; its Remove access ends it (K3).
+- [x] K3 A2A: the agent card, a task sent and its answer, auth required.
   - **The card** (`/.well-known/agent-card.json`, public as A2A intends): JSON-RPC at `/a2a`,
     protocol 1.0, OAuth through Keycloak (authorization code with PKCE) for the scope `gen9-a2a`,
     one skill, "Research and answer".
@@ -4796,7 +4811,16 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     the CLI say, and the release work meant one version everywhere (deploy.md, U7). Fixed: the
     card takes the package's version, as `/v1/version` does. A test checks it, failing with the
     old value. Live, with the agent rebuilt: "card version: 0.1.0".
-  - **Still to do:** a task sent over A2A (it needs a client signed in for `gen9-a2a`).
+  - **A task:** without a token, 401 "Sign in to Gen9 first". A token for `gen9-a2a` from the
+    same client (a second consent: "work with Gen9 for you: send it tasks and read their
+    results") carries both audiences and both scopes: Keycloak adds the earlier consent's and
+    ignores `resource` (RFC 8707). Both are Gen9's, for the same person: noted, not a defect.
+    `SendMessage` "Reply with one word: a2a": `TASK_STATE_COMPLETED`, artifact `answer` "a2a",
+    the question and answer as history; the task is a run (`success`) and its context a chat
+    marked `a2a_client` `gen9-mcp`. `GetTask` honours `historyLength`; `ListTasks` lists only
+    the tasks this client started; an unknown id, `-32001 Task not found`.
+  - **Remove access** ("It's signed out of your account, and asks you again if it wants to come
+    back."): the A2A and MCP refresh tokens both refused (`invalid_grant`).
 - [ ] K4 AG-UI: a run over `/v1/agui` with curl, the event stream read by eye.
 - [ ] K5 The raw API from its `/docs`: one call of each kind tried by hand, errors in one shape.
 
