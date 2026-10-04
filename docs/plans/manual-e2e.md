@@ -4277,10 +4277,46 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     (ASVS 7.4.3 asks for the option). The new password signed Quinn in at once.
   - **After signing out:** the old password, "That email and password don't match. Try again or
     reset your password."; the new one signs in.
-- [ ] D6 Wrong passwords until lockout: the message, Keycloak's brute-force record, an admin
+- [x] D6 Wrong passwords until lockout: the message, Keycloak's brute-force record, an admin
   unlocks from Gen9's admin page.
-- [ ] D7 Sign out everywhere from Settings: a second browser profile's session ends too, and the
+  - **The realm,** read with gen9-keycloak's README recipe (`kcadm.sh config credentials`, which
+    worked as written): `failureFactor` 5, `waitIncrementSeconds` 60, `maxFailureWaitSeconds` 900,
+    strategy `MULTIPLE`, no permanent lockout, as the README's table says.
+  - **Five wrong passwords** for Quinn on the real sign-in page (a fresh headless Chrome, 2 s
+    apart): "That email and password don't match. Try again or reset your password." each time;
+    Keycloak logged five `LOGIN_ERROR invalid_user_credentials`, then
+    `USER_DISABLED_BY_TEMPORARY_LOCKOUT`. Its record: 5 failures, 1 lockout, not before +60 s.
+  - **Her right password while locked:** "Too many sign-in attempts. Wait a few minutes and try
+    again, or reset your password." under the password field. Wrong guesses during a lock get the
+    same words and add no failure.
+  - **After the lock ended,** one more wrong password locked her again at once, for 60 s (6
+    failures, lockout 2): past the threshold every failure locks, the wait growing by 60 s each 5
+    failures. That's Keycloak's `MULTIPLE` strategy, and the README's "growing by 60 s" holds.
+  - **Ada's Users page** showed "Locked: too many sign-in attempts" on Quinn's row. Its actions
+    menu (Unlock sign-in, Send password reset, Sign out everywhere, Make admin…, Disable
+    account…, Delete user…) opened from the keyboard. "Unlock sign-in" toasted "Sign-in
+    unlocked." and the badge went, at 10:03:23, 28 s before the lock would have ended.
+  - **Records:** the API's `POST /v1/admin/users/{id}/unlock` 204; `audit_events` row
+    `admin.user.unlock` by Ada, target Quinn; Keycloak's admin event `DELETE USER_LOGIN_FAILURE`
+    on `attack-detection/brute-force/users/{id}`. Keycloak's record: 0 failures, not disabled.
+    Quinn's right password signed her in at 10:03:33, inside the lock's minute.
+- [x] D7 Sign out everywhere from Settings: a second browser profile's session ends too, and the
   CLI's token stops refreshing.
+  - **Before:** Quinn signed in on two headless Chrome profiles, A and B, each its own browser,
+    and the CLI's `gen9 login` approved in A ("Allow Gen9 CLI to use your account?", which warns
+    against codes someone else sent). Keycloak had 3 sessions for her (D6's sign-in, A and B),
+    and gen9-ui's Valkey her `session-by-sub` set with 3 sessions.
+  - **From B:** Settings, "Sign out everywhere" ("Ends your Gen9 sessions on every browser and
+    device."), its dialog "Sign out of every device? You'll be signed out of Gen9 on all
+    browsers and devices, including this one.", confirmed. Keycloak logged the admin action
+    `users/{id}/logout`, then had 0 sessions for her; her Valkey set emptied, with only one other
+    person's session left.
+  - **A,** reloaded: Keycloak's sign-in page. **The CLI:** `gen9 whoami` still answered while its
+    access token lived (gen9-agent checks tokens locally: 5 minutes, as its README says); at its
+    first refresh, Keycloak's `REFRESH_TOKEN_ERROR invalid_token` for `gen9-cli`, and "You're not
+    signed in, or your sign-in ended. Run `gen9 login`." (exit 1), its credentials file gone.
+  - **Found:** B then showed "You're signed out. Your Gen9 session has ended on this device.",
+    the words of a plain sign-out, after the person had just signed out everywhere.
 - [x] D8 Ada (admin) signs in: the second step (`make admin-code`), the admin pages appear for her
   and not for Quinn (UI and API: 403).
 
