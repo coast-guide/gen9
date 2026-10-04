@@ -5254,8 +5254,17 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     containers untouched; from the repository, `make doctor` 0 failures.
   - **Where the steps stop:** this machine runs Gen9 already, so the bundle's `make setup` and
     `make up` aren't run here; Z3 starts from nothing (after `make distclean`) and goes through.
-- [ ] R3 `scripts/check-version.py` and the version shown by the API, the UI, the CLI and the
+- [x] R3 `scripts/check-version.py` and the version shown by the API, the UI, the CLI and the
   images' labels: one version everywhere.
+  - `scripts/check-version.py`: "Version: 0.1.0, in gen9-agent, gen9-cli and gen9-ui". The API's
+    `/v1/version` `0.1.0` with its commit (58f1e51…), its OpenAPI `0.1.0` (M1's fix), its A2A card
+    `0.1.0` (K3's), the web app's About "0.1.0, commit 58f1e51", the CLI's `gen9 --version` "gen9
+    0.1.0" and `whoami` "Gen9 0.1.0, commit 58f1e51".
+  - **Images' labels:** images built here carry no `org.opencontainers.image.version` or
+    `revision` (docker-bake.hcl: they "come from CI's metadata (set-meta-labels)",
+    images.yml); gen9-keycloak's shows Keycloak's own "26.7.5" from its base. The published ones
+    can't be read from here: GHCR answers 403 to an anonymous pull until the owner makes the
+    packages public (deploy.md).
 
 ### P8-S. Observability
 
