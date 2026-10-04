@@ -4379,12 +4379,15 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     (`opensandbox.io/egress-auth-token`), readable by whoever can inspect containers (on
     Kubernetes, read pods in `gen9-sandboxes`). It's OpenSandbox's design and expires with the
     sandbox.
-- [ ] G2 A file uploaded, read by the agent in the environment, a file written to `/work/out`,
+- [x] G2 A file uploaded, read by the agent in the environment, a file written to `/work/out`,
   shared in the chat, downloaded in Chrome with its headers (attachment, type, name).
   - **So far:** the file the environment made is in `chat_files` (origin output, `/work/out/p8.txt`,
     text/plain, 7 B, its sha256) and comes back as written ("phase8\n") through gen9-ui, with
     `nosniff` and `private, no-store`. The extension blanks Content-Type and Content-Disposition
     in what it returns, so those wait for curl in K. Uploading a file: still to do.
+  - Uploading: `gen9 ask --attach` (K1). Downloading, with curl and Quinn's token:
+    `attachment; filename*=UTF-8''count.txt` (RFC 8187), `text/plain; charset=utf-8`, `nosniff`,
+    `private, no-store`, `frame-ancestors 'none'`, and the body as written.
 - [x] G3 The sandbox's limits by hand: no route to gen9-postgres, Keycloak or the Docker socket,
   egress only as configured, memory and process limits as documented.
   - From inside a chat's sandbox: no Docker socket, memory 1 GiB, 4,096 processes, a reduced
@@ -4408,7 +4411,7 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
   - **Clear** first asks "Clear everything Gen9 remembers about you? … You can't undo this.", then
     "Nothing yet. Tell Gen9 to remember something in a chat, or add it here." The store's row is
     gone.
-- [ ] H2 Search past chats by words and by meaning in the UI; another user's chats never appear
+- [x] H2 Search past chats by words and by meaning in the UI; another user's chats never appear
   (Alan searches for Quinn's words).
   - **Quinn, in Chrome:**
     - By words, "lighthouse": "1 chat matches its words", the chat, the passage.
@@ -4420,9 +4423,16 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     tab was `hidden` (Chrome's window behind the terminal here), where animation frames don't
     fire and React waits for one to reveal a boundary. The same caused the screenshot timeouts
     and the lost clicks. Not Gen9's.
-  - **Still to do:** Alan searching Quinn's words (K, M4).
-- [ ] H3 Export from Settings: the archive downloaded and opened. Everything Quinn made is in it,
+  - **Alan** (signed in as the seeded member) finds nothing of Quinn's by words, by meaning or by
+    title: "No chats match" each time.
+- [x] H3 Export from Settings: the archive downloaded and opened. Everything Quinn made is in it,
   and nothing else.
+  - `GET /v1/me/export` (what Settings' Download calls), with Quinn's token: a ZIP, served as an
+    attachment (`gen9-export-2026-10-04.zip`, `application/zip`, `nosniff`).
+  - **In it:** account, apps (the CLI's consent), audit (the chat deletion), connectors,
+    conversations (the one remaining chat, 14 messages; the deleted one isn't there),
+    environment secrets, memory (empty, cleared), plugins, sign-ins (19 events), tasks and
+    usage. Its README explains each file. No token-like string; nothing of anyone else.
 - [x] H4 A chat deleted: gone from the UI, the API (404), gen9-postgres, its files, its search
   rows, Langfuse's traces and the environment.
 
@@ -4463,8 +4473,23 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-K. Other programs
 
-- [ ] K1 The CLI as its README says: install, `gen9 login` (device flow in Chrome), ask, list,
+- [x] K1 The CLI as its README says: install, `gen9 login` (device flow in Chrome), ask, list,
   approvals and questions from the terminal, `gen9 logout`.
+  - **`gen9 login`:** a link and a code, valid 10 minutes. Keycloak's page asks "Allow Gen9 CLI to
+    use your account?", lists what it may see (role, email, name), and warns "If someone sent you
+    a link or a code, choose Don't allow".
+  - **Signed in:** "Signed in as Quinn Phase Eight", Gen9's version and commit, the AI
+    disclosure. `credentials.json` is 600 in a 700 folder. `whoami` and `--version` work.
+  - **`ask`, `search` and `tasks`** answer, each with the command to go on ("gen9 ask --thread
+    …"). `ask --ask-first --attach trees.csv`: the CSV arrived at `/work/in/trees.csv`, the
+    command was shown as typed with "Allow? [y/N]", and "y" ran it ("3"). `files` lists both, and
+    downloads one.
+  - **Found, docs:** the README said the terminal's access ends when "that browser session" is
+    signed out "in Settings (Where you're signed in)". Signing Quinn out from the web app's menu
+    ended it too: the device grant's session is the browser's, so `whoami` said "your sign-in
+    ended". The README now says so. Its `--ask-first` paragraph also said only memory waits for
+    Allow; it now names commands and connectors' tools, as the web app and its next sentence
+    do.
 - [ ] K2 Gen9 as an MCP server: the MCP Inspector (or curl) against `/mcp` with a token. Its tools
   listed and one called; without a token, 401 with the resource metadata.
 - [ ] K3 A2A: the agent card, a task sent and its answer, auth required.
@@ -4501,6 +4526,10 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 - [ ] M3 CSRF: the app's state-changing routes posted from a foreign page, refused.
 - [ ] M4 Cross-user access: Quinn's token on Alan's thread, file, task and run IDs (404, nothing
   leaked); Alan's on Quinn's.
+  - **Alan's token on Quinn's chat** (thread, its runs, a run, its files, a file, cancel, rename,
+    delete, the stream, a new run): 404 each, `{"detail":"Thread not found"}` or none; her chat
+    unchanged. Quinn's token on Alan's: waits for Quinn signed in again (her CLI's sign-in ended
+    with her browser's, K1).
 - [ ] M5 Input edges: NUL, oversized bodies, very long messages, odd Unicode in names: one clear
   refusal each, nothing stored broken.
 - [ ] M6 Secrets: the logs of every container grepped for tokens, keys and passwords (patterns,
