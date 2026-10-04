@@ -4400,14 +4400,44 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ### P8-H. Memory, search, export and deletion
 
-- [ ] H1 Memory: told to remember, shown in Settings, edited, cleared; the store's rows each time.
+- [x] H1 Memory: told to remember, shown in Settings, edited, cleared; the store's rows each time.
+  - "Remember for future chats: my favourite tree is the oak-p8": the turn used 3 tools.
+    Settings > Memory showed "Their favourite tree is the oak-p8. Updated just now"; the store
+    holds it as `/AGENTS.md` in `langgraph.store`, prefix `memories.<Quinn's id>`.
+  - **Edit** (birch-p8): the page and the store changed together.
+  - **Clear** first asks "Clear everything Gen9 remembers about you? … You can't undo this.", then
+    "Nothing yet. Tell Gen9 to remember something in a chat, or add it here." The store's row is
+    gone.
 - [ ] H2 Search past chats by words and by meaning in the UI; another user's chats never appear
   (Alan searches for Quinn's words).
+  - **Quinn, in Chrome:**
+    - By words, "lighthouse": "1 chat matches its words", the chat, the passage.
+    - By meaning, "a keeper of a coastal light tower at night": the same chat.
+    - Modes All, Words, Meaning and Title.
+  - **It looked like a bug:** opening a search's address directly left the "Searching" skeleton
+    in place. The server streamed the results within 26 ms (fetched from the page; every inline
+    script carried the CSP nonce), and the page held them in `S:0` without revealing them. The
+    tab was `hidden` (Chrome's window behind the terminal here), where animation frames don't
+    fire and React waits for one to reveal a boundary. The same caused the screenshot timeouts
+    and the lost clicks. Not Gen9's.
+  - **Still to do:** Alan searching Quinn's words (K, M4).
 - [ ] H3 Export from Settings: the archive downloaded and opened. Everything Quinn made is in it,
   and nothing else.
-- [ ] H4 A chat deleted: gone from the UI, the API (404), gen9-postgres, its files, its search
+- [x] H4 A chat deleted: gone from the UI, the API (404), gen9-postgres, its files, its search
   rows, Langfuse's traces and the environment.
 
+  - The chat with the environment and the file. The dialog: "Delete this chat? The conversation
+    and its history are deleted for good." Afterwards the page went to a new chat and the API
+    answered 404.
+  - **Before, then after:** thread 1 → 0, runs 2 → 0, run events 25 → 0, files 1 → 0, search rows
+    2 → 0, checkpoints 49 → 0, checkpoint writes 74 → 0. The sandbox and its sidecar are gone.
+    The audit log has `thread.delete`.
+  - **Langfuse** still had its 56 events right after; its erasure runs in late passes (S1 looks
+    again).
+  - **Found, docs:** operations.md said "the deletion dialogs" mention backups. Only the
+    account-deletion ones do (Settings', the admin's); the chat's says "deleted for good", and the
+    privacy page tells it for chats. Now: "the dialogs that delete an account mention it (the
+    privacy page says it for chats too)".
 ### P8-I. Scheduled tasks, triggers, notifications and background work
 
 - [ ] I1 A scheduled task for the next minute: created in the UI, its Temporal Schedule, its run,
