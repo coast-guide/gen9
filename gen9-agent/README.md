@@ -404,6 +404,10 @@ join that person's chats, named `<connector>__<tool>` ("Used deepwiki: read wiki
 - **Per person, per run.** The agent is compiled once for everyone, so connector tools are added
   to each model call by a middleware and run through it (LangChain's runtime tool registration).
   A name is only ever looked up among that person's own tools.
+- **Listed at once, kept a minute.** A person's connectors are listed together, so a server that
+  hangs costs a model call its own wait (at most 15 s), not the sum of all. What came of a
+  listing, its tools or its failure, is reused for a minute, so a server that doesn't answer
+  isn't waited for on every call; meanwhile the model is told it couldn't be reached.
 - **Asking first.** The connector's policy decides when a call waits for Allow or Deny:
   - `ask` (the default): always;
   - `changes`: unless the server marks the tool read-only;

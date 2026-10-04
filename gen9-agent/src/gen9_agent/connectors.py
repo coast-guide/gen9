@@ -105,8 +105,11 @@ def unavailable_note(missing: list[str]) -> str:
 
 
 DISCOVER_TIMEOUT_S = 15
-# How long a connector's tools are reused before they are listed again
+# How long a connector's tools, or its failure to list them, are reused before it is listed again:
+# a server that hangs costs one wait a minute, not one each model call (manual-e2e.md, P8-N1)
 TOOLS_FRESH_S = 60
+# Why a connector the person has can't be used: its server didn't answer when last listed
+UNREACHABLE = "couldn't be reached just now"
 # Revoking a connector's tokens as it goes: per request, best effort
 REVOKE_TIMEOUT_S = 10
 # A View's calls and reads through Gen9, and how large a resource or a call's answer it may relay
@@ -296,6 +299,8 @@ class _Listed:
     at: float
     updated_at: datetime
     tools: list[BaseTool]
+    # Why it gave no tools (UNREACHABLE, SIGN_IN), when listing it failed
+    why: str | None = None
 
 
 class ConnectorTools(AgentMiddleware):
@@ -314,10 +319,10 @@ class ConnectorTools(AgentMiddleware):
         # Their connectors the model can't use now, each with why (`unavailable_note`)
         self._unavailable: dict[str, list[str]] = {}
 
-    async def tools_of(self, sub: str) -> dict[str, _Loaded]:
-        """This person's connector tools by their names here, listing any not fresh."""
+    async def _rows(self, sub: str) -> list[Any]:
+        """This person's connectors, by name."""
         async with self.engine.connect() as conn:
-            rows = list(
+            return list(
                 await conn.execute(
                     select(Connector)
                     .join(User, User.id == Connector.user_id)
@@ -330,36 +335,26 @@ class ConnectorTools(AgentMiddleware):
                     .order_by(Connector.name)
                 )
             )
+
+    async def tools_of(self, sub: str) -> dict[str, _Loaded]:
+        """This person's connector tools by their names here, listing any not fresh."""
+        rows = await self._rows(sub)
+        # Waiting for the person to sign in (again): no tools until they do
+        ready = [row for row in rows if row.status == "ready"]
+        # Each one not listed lately, all at once: a slow server costs one wait, not the sum
+        await asyncio.gather(
+            *(self._list(row, sub) for row in ready if self._stale(row))
+        )
         loaded: dict[str, _Loaded] = {}
         unavailable: list[str] = []
         for row in rows:
-            # Waiting for the person to sign in (again): no tools until they do
             if row.status != "ready":
                 unavailable.append(f"{row.name}: {SIGN_IN}")
                 continue
-            listed = self._listed.get(row.id)
-            if (
-                listed is None
-                or listed.updated_at != row.updated_at
-                or time.monotonic() - listed.at > TOOLS_FRESH_S
-            ):
-                try:
-                    if row.sealed_tokens:
-                        token = await self._access_token(row.id, sub)
-                        if token is None:
-                            unavailable.append(f"{row.name}: {SIGN_IN}")
-                            continue
-                    else:
-                        token = self._header_token(row, sub)
-                    tools = await discover(
-                        row.url, row.header, token, self.allow_private
-                    )
-                except (ConnectorError, ValueError) as e:
-                    log.warning("connector %s of %s left out: %s", row.name, sub, e)
-                    unavailable.append(f"{row.name}: couldn't be reached just now")
-                    continue
-                listed = _Listed(time.monotonic(), row.updated_at, tools)
-                self._listed[row.id] = listed
+            listed = self._listed[row.id]
+            if listed.why:
+                unavailable.append(f"{row.name}: {listed.why}")
+                continue
             same, changed = changes(row.tools, listed.tools)
             if changed != (row.changed or []):
                 await self._record_changes(row.id, changed)
@@ -381,6 +376,33 @@ class ConnectorTools(AgentMiddleware):
         self._people[sub] = loaded
         self._unavailable[sub] = unavailable
         return loaded
+
+    def _stale(self, row: Connector | Row[Any]) -> bool:
+        """Whether its last listing, or failure, is older than TOOLS_FRESH_S or from before
+        the person changed it (a new sign-in, say)."""
+        listed = self._listed.get(row.id)
+        return (
+            listed is None
+            or listed.updated_at != row.updated_at
+            or time.monotonic() - listed.at > TOOLS_FRESH_S
+        )
+
+    async def _list(self, row: Connector | Row[Any], sub: str) -> None:
+        """Lists a connector's tools, keeping what came of it, a failure too."""
+        tools: list[BaseTool] = []
+        why = None
+        try:
+            if row.sealed_tokens:
+                token = await self._access_token(row.id, sub)
+                why = SIGN_IN if token is None else None
+            else:
+                token = self._header_token(row, sub)
+            if why is None:
+                tools = await discover(row.url, row.header, token, self.allow_private)
+        except (ConnectorError, ValueError) as e:
+            log.warning("connector %s of %s left out: %s", row.name, sub, e)
+            why = UNREACHABLE
+        self._listed[row.id] = _Listed(time.monotonic(), row.updated_at, tools, why)
 
     async def _record_changes(
         self, connector_id: uuid.UUID, changed: list[dict[str, Any]]
@@ -540,11 +562,8 @@ class ConnectorTools(AgentMiddleware):
 
     async def _tools_for_app(self, row: Connector, sub: str) -> list[BaseTool]:
         listed = self._listed.get(row.id)
-        if (
-            listed
-            and listed.updated_at == row.updated_at
-            and (time.monotonic() - listed.at <= TOOLS_FRESH_S)
-        ):
+        # A View's call is the person's own click: a server that failed lately is tried again
+        if listed and not listed.why and not self._stale(row):
             return changes(row.tools, listed.tools)[0]
         mcp = await self._client(row, sub)
         async with asyncio.timeout(DISCOVER_TIMEOUT_S):

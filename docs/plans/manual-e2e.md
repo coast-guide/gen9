@@ -5025,6 +5025,16 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     (attempt 1); 8 s later still `running`; started again at 11:55:13. The run ended `success`
     at 11:55:27 on attempt 2: two `run.started`, one `message.completed`, one answer in the chat
     ("PostgreSQL 18.6 … 19 as a beta", Sources · postgresql.org), no duplicate.
+  - **Found on the way:** the worker re-lists each of the person's connectors on every model
+    call, one after another, and remembers only successes. Quinn's test servers were down, so
+    each call tried them; refused connections cost nothing, but a server that accepts and never
+    answers costs `DISCOVER_TIMEOUT_S` (15 s) per connector per call: a one-word turn took 19.1
+    s against 4.2 s, and every turn paid it again.
+  - **Fixed:** they are listed together (the cost is the slowest, not the sum), and a failure is
+    remembered as a success is (`TOOLS_FRESH_S`, a minute; a connector the person changes is
+    listed again at once); a View's own call still tries again. A test with two hanging servers
+    fails when either half is undone. Live on the rebuilt agent, a hanging server on 17804: the
+    first turn 19.3 s (the one wait), the next two 4.2 and 4.5 s.
 - [ ] N2 gen9-postgres restarted: the API answers 503 meanwhile, and recovers on its own.
 - [ ] N3 Keycloak down: signed-in people go on (until their token needs a refresh); a sign-in
   shows a clear page.

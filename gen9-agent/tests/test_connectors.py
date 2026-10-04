@@ -1,11 +1,15 @@
 """Connectors (connectors.py): which URLs they may reach, how tokens are sent, when a call waits
 for Allow, and a Deep Agent using a person's connector tools while another person sees none."""
 
+import asyncio
 import base64
 import json
 import os
+import time
 import uuid
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from deepagents import create_deep_agent
@@ -16,7 +20,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from gen9_agent import connector_auth
+from gen9_agent import connector_auth, connectors
 from gen9_agent.connectors import (
     SEP,
     ConnectorApprovals,
@@ -295,6 +299,63 @@ async def test_the_model_is_told_which_connectors_it_cant_use(sub, told) -> None
     assert (
         "don't use another connector's tool in its place" in model.systems[0]
     ) is told
+
+
+def a_row(name: str, updated_at: datetime) -> SimpleNamespace:
+    """A connector as `_rows` gives it, with no sign-in."""
+    return SimpleNamespace(
+        id=uuid.uuid5(uuid.NAMESPACE_URL, name),
+        name=name,
+        status="ready",
+        url=f"https://{name}.example/mcp",
+        header=None,
+        sealed_token=None,
+        sealed_tokens=None,
+        updated_at=updated_at,
+        tools=[],
+        changed=None,
+        policy="ask",
+    )
+
+
+class Rows(ConnectorTools):
+    """The person's connectors given, not read from a database."""
+
+    def __init__(self, rows: list[SimpleNamespace]) -> None:
+        super().__init__(engine=None, vault=None, allow_private=False)  # ty: ignore[invalid-argument-type]
+        self.rows = rows
+
+    async def _rows(self, sub: str) -> list[Any]:
+        return self.rows
+
+
+async def test_hanging_servers_cost_a_call_one_wait_and_then_none(monkeypatch) -> None:
+    calls: list[str] = []
+
+    async def hangs(url, header, token, reach):
+        calls.append(url)
+        await asyncio.sleep(0.3)
+        raise ConnectorError("It didn't answer in time.")
+
+    monkeypatch.setattr(connectors, "discover", hangs)
+    now = datetime.now(UTC)
+    held = Rows([a_row("slow", now), a_row("slower", now)])
+    started = time.monotonic()
+    assert await held.tools_of("sub-a") == {}
+    # Listed at once: one wait, not the sum of both (manual-e2e.md, P8-N1)
+    assert time.monotonic() - started < 0.5
+    assert held._unavailable["sub-a"] == [
+        "slow: couldn't be reached just now",
+        "slower: couldn't be reached just now",
+    ]
+    # The next model call doesn't wait for them again
+    started = time.monotonic()
+    await held.tools_of("sub-a")
+    assert time.monotonic() - started < 0.1 and len(calls) == 2
+    # A connector the person changed since (a new sign-in, say) is listed again at once
+    held.rows[0].updated_at = now + timedelta(seconds=1)
+    await held.tools_of("sub-a")
+    assert calls == [*calls[:2], "https://slow.example/mcp"]
 
 
 async def test_a_going_connectors_tokens_are_revoked_best_effort(monkeypatch) -> None:
