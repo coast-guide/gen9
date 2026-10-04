@@ -4118,18 +4118,50 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
       removed through `forget()`;
     - the other 8 deleted with `--only`: Gen9 knows its 2 seeded people, no chat is left, and the
       sweep says "Keycloak has each of the 2 people Gen9 knows".
-- [ ] B5 Networks: each stack joins only the `gen9-<stack>` networks it calls (`docker network
+- [x] B5 Networks: each stack joins only the `gen9-<stack>` networks it calls (`docker network
   inspect`); one container per stack tries to reach a stack it shouldn't (refused or no route).
-- [ ] B6 Settings files: every `.env` and `*.local.env` is mode 600, ignored by git, and holds
+  - Each container joins its stack's own network and the `gen9-<stack>` networks of the stacks it
+    calls. gen9-ui's `prod` joins the agent's and Keycloak's; the API joins Keycloak's, the
+    router's, gen9-postgres's and Temporal's; the worker joins those and Langfuse's and the
+    sandbox's; Keycloak joins gen9-ui's for back-channel logout.
+  - From a throwaway container on one network: gen9-postgres refused from Keycloak's, gen9-ui's,
+    Langfuse's, the sandbox's and the router's networks; the router refused from Keycloak's and
+    gen9-ui's; Temporal refused from gen9-ui's. The controls connected: gen9-postgres and the
+    router from their own networks.
+- [x] B6 Settings files: every `.env` and `*.local.env` is mode 600, ignored by git, and holds
   every key its stack reads (names only, never values).
-- [ ] B7 A change by hand (`docker run`-style env override via `docker compose up` with an extra
+  - All 20 settings files (`.env`, `*.local.env`, `images.env`) are mode 600 and ignored by git.
+    Each stack's required keys are there, or it wouldn't start.
+- [x] B7 A change by hand (`docker run`-style env override via `docker compose up` with an extra
   variable, or a container stopped): `make diff` names it, exit 2; `make reset` puts it back; diff
   0.
-- [ ] B8 `make logs` (TAIL, FOLLOW, STACKS) and `make admin-code` as documented.
+  - Valkey given half a CPU (`docker update --cpus 0.5`) and Mailpit stopped. `make diff`, exit 2:
+    "mailpit: exited, not running", "valkey: NanoCpus is 500000000, declared 0". `make reset` put
+    both back ("put back: mailpit", "put back: valkey"), then `diff` reported nothing, exit 0.
+  - Meanwhile gen9-ui lost its session store while Valkey was recreated ("connect ECONNREFUSED",
+    "ENOTFOUND valkey") and found it again without help: a sign-in started (307), health 200.
+- [x] B8 `make logs` (TAIL, FOLLOW, STACKS) and `make admin-code` as documented.
+  - `TAIL=2` gives each container its last two lines. `FOLLOW=1` follows one stack, and with two:
+    "FOLLOW=1 follows one stack: make logs STACKS=ui FOLLOW=1". `make admin-code`: "ada@gen9.test:
+    <code> (for 4 s more; a code works once)".
 - [ ] B9 `make stop-agents` during a running chat turn, then `make resume-agents`: what the person
   sees, the run's state in the API and in Temporal, paused Schedules, the audit log.
-- [ ] B10 `make updates`, `make audit`, `make design-check` read as an operator would.
+  - **Moved to after E1:** it needs a chat turn under way.
+- [x] B10 `make updates`, `make audit`, `make design-check` read as an operator would.
 
+  - **`make design-check`:** "design system copies are in sync".
+  - **`make audit` (2 min 23 s):** no advisory but the two accepted ones, each stated with its
+    reason; registry signatures and attestations verified; no Python advisory; 68 of 160 locked
+    Python packages with verified provenance.
+  - **`make updates`:** lists what moved since each pin, among them Keycloak 26.8.0, Temporal UI
+    v2.55.0, Langfuse 4.50.0 and LiteLLM v1.104.0, each waiting out its cooldown (P8-Y1). Each
+    image is listed twice, since every chart's `compose.yaml` is a link to its stack's (noise).
+  - **Found:** npm warned "Unknown project config \"min-release-age\"" and "… \"strict-allow-scripts\"".
+    This machine's Node 24.14.0 bundles npm 11.9.0, and npm added `min-release-age` in 11.10.0
+    (npm/cli's CHANGELOG, #8965) and `allowScripts` from 11.16 to 11.18. The `.npmrc` files say
+    an older npm "goes on without it". CI's Node 24.21.0 bundles npm 11.19.0 (nodejs.org's
+    release index), which applies both. Nothing told a developer which Node to use; now
+    development.md does (24.21 or later).
 ### P8-C. Nothing signed in: the public surface
 
 - [ ] C1 Every published URL (the app, API, Keycloak, Mailpit, Langfuse, Temporal UI, the API
