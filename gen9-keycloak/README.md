@@ -9,7 +9,7 @@
 ```bash
 ./init-env.sh --ui-env-file ../gen9-ui/keycloak.local.env --agent-env-file ../gen9-agent/keycloak.local.env
 for n in gen9-keycloak gen9-ui; do docker network inspect $n >/dev/null 2>&1 || docker network create $n; done   # once; make up does it
-docker compose up -d --build --wait     # healthy = realm "gen9" answers (≈40 s)
+docker compose build && docker compose up -d --wait   # healthy = realm "gen9" answers (≈40 s)
 ./verify.sh                             # independent checks, no app needed
 ```
 
@@ -114,7 +114,7 @@ Containers of other stacks therefore use `http://gen9-keycloak:8080` on the `gen
 Import runs only for realms that don't exist yet. Either:
 
 - change it live in the admin console (or with `kcadm.sh`), and mirror the change in `realm/gen9-realm.json`, or in `config/configure.sh` for settings the import can't express (steps of built-in flows); or
-- start over (**deletes all users**): `docker compose down -v && ./init-env.sh --force … && docker compose up -d --build --wait`.
+- start over (**deletes all users**): `docker compose down -v && ./init-env.sh --force … && docker compose build && docker compose up -d --wait`.
 
 ## Deploy on a VM
 

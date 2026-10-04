@@ -5479,8 +5479,16 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     provider refused Gen9's key. Ask an admin to check it, then try again."; `make up STACKS=models`
     printed "note: gen9-models/.env has no OPENROUTER_API_KEY, which gen9-models/config.yaml
     uses: …" with the committed config, nothing with this machine's (OpenAI's key alone).
-  - [ ] Z4b Compose's "pull access denied … may require 'docker login'" before Gen9's own images
-    are built (Z3).
+  - [x] Z4b Compose's "pull access denied … may require 'docker login'" before Gen9's own images
+    are built (Z3). A probe on Compose 5.5.1 (a service that builds `gen9-probe-z4b:1`, another
+    that reuses it): `up -d --build` printed "Pulling", then "Error pull access denied for
+    gen9-probe-z4b …", then built; `build`, then `up -d --no-build`, no pull at all (a missing
+    third-party image is still pulled). So `make up`, without a lock, runs `docker compose build`
+    and then `up -d --no-build --wait`; the stand-alone commands of gen9-keycloak (README and
+    `init-env.sh`'s "Next:"), gen9-ui and gen9-postgres, whose services reuse the image they
+    build, say the same. Live: with Gen9's local tags of gen9-postgres, gen9-keycloak and gen9-ui
+    removed, `make up IMAGES=local STACKS="postgres keycloak ui"` built the three and started
+    them in 70 s with no pull error; then back on the lock.
   - [ ] Z4c `make setup`'s eight per-stack "Next:" blocks before "Ready. Next: make up" (Z3).
   - [ ] Z4d `make doctor` and python3, which the README lists (Z3).
   - [ ] Z4e "Start over": `images.env` survives `make distclean` (Z3); `make wipe STACKS=ui`

@@ -111,7 +111,7 @@ docker compose exec -e PGPASSWORD=<app pw> postgres psql -h 127.0.0.1 -U gen9_ag
 
 ## Upgrade
 
-- **Minor update, or a rebuild with Debian's fixes** (`make updates` lists it): re-pin the base image digest in the `Dockerfile` (`docker buildx imagetools inspect postgres:<ver>-trixie`), then `docker compose up -d --build --wait`.
+- **Minor update, or a rebuild with Debian's fixes** (`make updates` lists it): re-pin the base image digest in the `Dockerfile` (`docker buildx imagetools inspect postgres:<ver>-trixie`), then `docker compose build && docker compose up -d --wait`.
 - **pgvector:** set `PGVECTOR_VERSION` in the `Dockerfile` to a version of `postgresql-18-pgvector` that apt.postgresql.org has (`apt-cache policy postgresql-18-pgvector` in the image), rebuild, then `ALTER EXTENSION vector UPDATE;` as the superuser.
 - **pg_textsearch:** bump its version and both SHA-256 values in the `Dockerfile` (`shasum -a 256` on the release's `pg18-amd64` and `pg18-arm64` zips), rebuild, then `ALTER EXTENSION pg_textsearch UPDATE;`.
 - **Major (18 → 19):** the volume is mounted at `/var/lib/postgresql`, the parent of the Postgres 18+ image's versioned `PGDATA`, so `pg_upgrade --link` can run across versions.

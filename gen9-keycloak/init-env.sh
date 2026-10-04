@@ -182,7 +182,7 @@ if [ "$OUTPUT" != "-" ]; then
   cat >&2 <<NEXT
 
 Next:
-  docker compose up -d --build --wait
+  docker compose build && docker compose up -d --wait
   Issuer:        $ISSUER
   Admin console: $URL/admin   (user: admin, password: grep ^KC_BOOTSTRAP_ADMIN_PASSWORD= .env)
   Local users:   $ADMIN_EMAIL / $USER_EMAIL   (grep ^GEN9_SEED_ .env)

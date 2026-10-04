@@ -12,7 +12,7 @@ Authentication is a **Backend-for-Frontend** ([RFC 10017](https://www.rfc-editor
 ./init-env.sh                               # .env: session secret + Valkey password
 # keycloak.local.env comes from ../gen9-keycloak/init-env.sh --ui-env-file ../gen9-ui/keycloak.local.env
 for n in gen9-ui gen9-keycloak gen9-agent; do docker network inspect $n >/dev/null 2>&1 || docker network create $n; done   # once; make up does it
-docker compose up -d --build --wait         # production → http://localhost:14000
+docker compose build && docker compose up -d --wait   # production → http://localhost:14000
 docker compose watch dev                    # development (Fast Refresh) → http://localhost:14001
 ```
 
@@ -100,7 +100,7 @@ Published on `127.0.0.1` only.
 | --- | --- |
 | Status | `docker compose --profile dev ps` |
 | Logs | `docker compose logs --tail=50 prod` |
-| Rebuild prod | `docker compose up -d --build --wait` |
+| Rebuild prod | `docker compose build && docker compose up -d --wait` |
 | Lint / types | `npm run lint && npx tsc --noEmit` |
 | Unit tests | `npm test` (Vitest: auth, sessions and cookies, origin checks, what an approval shows, links, app asks, audit words, limits, and more) |
 | Build | `npm run build`: the only check that refuses a server-only module (`lib/agent.ts`, `lib/env.ts`) imported into a client component; a failed image build leaves the old container running, so check `docker compose ps` shows it recreated |

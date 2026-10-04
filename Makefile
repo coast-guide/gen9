@@ -189,17 +189,20 @@ up:
 	@# A container failing its health check (its database wiped, Keycloak down) is restarted first,
 	@# so its checks start over: Compose's --wait fails at once on an unhealthy container it doesn't
 	@# replace. Failing, not only unhealthy yet: one a failure short of it turned unhealthy during the
-	@# wait and failed make up (gen9-learn's b7, manual-e2e.md P4-E5)
-	@if [ -f images.env ]; then set -a; . ./images.env; set +a; how=--no-build; \
+	@# wait and failed make up (gen9-learn's b7, manual-e2e.md P4-E5). Gen9's own images are built
+	@# before up, not by up --build: Compose would first try to pull, and fail loudly, an image a
+	@# service reuses from another that builds it ("pull access denied … may require 'docker
+	@# login'", manual-e2e.md P8-Z4b)
+	@if [ -f images.env ]; then set -a; . ./images.env; set +a; build=false; \
 	  echo "Gen9's images: by digest (images.env; make up IMAGES=local builds them here)"; \
-	else how=--build; fi; \
+	else build=true; fi; \
 	for s in $(RUNNING); do \
 	  echo "== gen9-$$s"; \
 	  sick=$$(for c in $$(docker ps -q $(OWN)); do \
 	    [ "$$(docker inspect -f '{{if .State.Health}}{{.State.Health.FailingStreak}}{{else}}0{{end}}' $$c)" = 0 ] || echo $$c; done); \
 	  [ -z "$$sick" ] || { echo "restarting $$(docker inspect -f '{{.Name}}' $$sick | tr -d / | tr '\n' ' ')(failing its health check), so its checks start over"; \
 	    docker restart $$sick >/dev/null; }; \
-	  (cd gen9-$$s && docker compose up -d $$how --wait) || \
+	  (cd gen9-$$s && { ! $$build || docker compose build; } && docker compose up -d --no-build --wait) || \
 	  { echo "gen9-$$s didn't start. Its logs: make logs STACKS=$$s" >&2; exit 1; }; \
 	done
 	@$(list_urls)
