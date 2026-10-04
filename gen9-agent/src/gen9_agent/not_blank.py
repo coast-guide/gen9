@@ -7,7 +7,7 @@ ValueError whose text is for people, which gen9-ui shows as it is (lib/agent.ts)
 
 from typing import Annotated
 
-from pydantic import AfterValidator
+from pydantic import AfterValidator, Field
 
 
 def not_blank(what: str):
@@ -22,6 +22,11 @@ def not_blank(what: str):
     return AfterValidator(check)
 
 
-MessageText = Annotated[str, not_blank("Write a message first.")]
+# A message to Gen9: 1 to 8,000 characters, not only whitespace. The length comes before the
+# check, as a string's, so a longer one is refused in Pydantic's words for text ("String should
+# have at most 8000 characters"); after it, Pydantic counted "items" (manual-e2e.md, P8-Z4f)
+MessageText = Annotated[
+    str, Field(min_length=1, max_length=8000), not_blank("Write a message first.")
+]
 TASK_NAME = not_blank("Name the task.")
 TASK_PROMPT = not_blank("Say what Gen9 should do.")

@@ -5516,8 +5516,17 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     `kcadm.sh create users/<Alan>/logout` reached the new container ("sid logged out, 1
     session(s) removed"). The suggestion stays, as for other stacks restarting the callers is the
     safe default.
-  - [ ] Z4f The API's two error shapes, `{"detail": "…"}` and FastAPI's validation list, and the
-    validation wording ("at most 8000 items") (K, M5).
+  - [x] Z4f The API's two error shapes, `{"detail": "…"}` and FastAPI's validation list, and the
+    validation wording ("at most 8000 items") (K, M5). gen9-agent's README now has "Errors": the
+    two shapes and what each field of the list holds. The wording came from `MessageText`'s
+    order: the message's length was declared after its not-blank check (an `AfterValidator`),
+    so Pydantic applied it as a generic length ("Value should have at most 8000 items after
+    validation, not 8001"); declared first, inside `MessageText` (chats' messages and the MCP
+    server's `ask`), it is a string's ("String should have at most 8000 characters"); the
+    published JSON schema is the same (`maxLength` 8000, `minLength` 1). Live, with gen9-agent
+    built from the change and Alan's token: 8,001 characters, 422 `string_too_long`, that
+    sentence, `loc` `["body", "message"]`, `ctx` `{"max_length": 8000}`; spaces only, "Value
+    error, Write a message first."; and 404, 401 and 403 as the README says.
   - [ ] Z4g `PRIVACY_CONTROLLER` among what to set before going live (O2).
   - [ ] Z4h gen9-edge's README: how a Caddyfile change is applied (P4).
   - [ ] Z4i The spend-per-user recipe: its column is the person's `sub`, and how to find whose

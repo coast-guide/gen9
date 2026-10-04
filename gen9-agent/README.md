@@ -100,6 +100,14 @@ More workers: `docker compose up -d --scale worker=3`, or start `gen9-agent-work
 `GEN9_API_PUBLIC_URL` is https, as behind a TLS proxy, it also carries `Strict-Transport-Security:
 max-age=63072000; includeSubDomains`, as the web app's pages do; over plain http, none (RFC 6797).
 
+**Errors** come in FastAPI's two shapes. A refusal Gen9 words itself is `{"detail": "…"}`, a
+sentence with its status: 401 "Authentication required", 403 "Requires role gen9-admin", 404
+"Thread not found", and the 409s, 413s, 429s and 503s below. A body or query that fails
+validation is 422 with FastAPI's list, one entry a problem: `{"detail": [{"type", "loc", "msg",
+"input", "ctx"}]}`. `loc` names the field (`["body", "message"]`), `msg` says what's wrong, in
+Pydantic's words ("String should have at most 8000 characters") or Gen9's own ("Value error,
+Write a message first."), and `input` holds what was sent.
+
 **Limits**, so one caller can't make Gen9 hold or do without end (OWASP API4:2023): a request
 body over 1 MiB is refused with 413 before anything reads it (26 MiB for a chat's files, 8 MiB for
 Temporal's codec; `body_limit.py`), as is a chunked one the moment it passes. Per person, each a

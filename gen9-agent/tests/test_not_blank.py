@@ -24,8 +24,11 @@ async def test_a_message_of_spaces_is_refused_and_one_with_words_kept_as_sent() 
             RunIn(message=blank)
         assert refusal(refused) == ["Value error, Write a message first."]
     assert RunIn(message="  indented code\n").message == "  indented code\n"
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as refused:
         RunIn(message="x" * 8001)
+    # In Pydantic's words for text, not "at most 8000 items after validation" (P8-Z4f)
+    assert refusal(refused) == ["String should have at most 8000 characters"]
+    assert len(RunIn(message="x" * 8000).message) == 8000
 
 
 async def test_a_task_needs_a_name_and_something_to_do() -> None:
