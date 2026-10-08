@@ -75,18 +75,28 @@ async def connect(
     )
 
 
+# What a renewed token has left at least: half the 5 minutes Keycloak's live. Rounds run on the
+# event loop, so a stall of it (a step that holds the CPU) skips them; with 30 s left, a model that
+# ran away inside a tool call stalled the worker past its token's end, and Temporal stopped it
+# (docs/plans/deploy.md, Z1). Now a stall of up to about 2.5 minutes passes
+TOKEN_MARGIN_S = 150
+
+
 async def keep_token_fresh(
     client: Client, keycloak: KeycloakAdmin, every_s: float = 15
 ) -> None:
     """Background task: replace the client's token before it expires (Keycloak's live 5 minutes).
-    Each round asks for a token still valid past the next round, so calls never carry an expired
-    one; a round only reads the cached token until then, so it can be frequent: a host waking
-    from sleep gets a new token within `every_s` (its expiry is wall time, keycloak_admin.py).
-    Running calls and pollers pick up the new one."""
+    Each round asks for a token valid for at least half its life more (`TOKEN_MARGIN_S`), so calls
+    carry a valid one even after the event loop stalled for up to 2.5 minutes; a round only reads
+    the cached token until then, so it can be frequent: a host waking from sleep gets a new token
+    within `every_s` (its expiry is wall time, keycloak_admin.py). Running calls and pollers pick
+    up the new one."""
     while True:
         await asyncio.sleep(every_s)
         try:
-            client.api_key = await keycloak.access_token(min_valid_s=2 * every_s)
+            client.api_key = await keycloak.access_token(
+                min_valid_s=max(2 * every_s, TOKEN_MARGIN_S)
+            )
         except Exception:
             log.warning("could not renew the Temporal token; retrying", exc_info=True)
 
