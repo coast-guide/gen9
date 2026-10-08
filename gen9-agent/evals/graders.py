@@ -259,6 +259,8 @@ def _judge_model(http: httpx.AsyncClient) -> "ChatOpenAI":
         base_url=f"{os.environ['GEN9_MODELS_URL'].rstrip('/')}/v1",
         api_key=os.environ["GEN9_MODELS_KEY"],
         http_async_client=http,
+        # The client's timeouts, which the OpenAI client would replace with none (model_router.py)
+        timeout=http.timeout,
     )
 
 
