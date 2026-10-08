@@ -425,7 +425,7 @@ gen9-agent's record of admin actions, people's security actions and refused acce
 | Refused | The throwaway person's try at the seeded user's chat (404) and at an admin route (403), both denied; a made-up id not recorded |
 | Append-only | `UPDATE`, `DELETE` and `TRUNCATE` on the record are refused, even to the superuser |
 | The services' own role, from inside the API's and the worker's containers with their own settings | `gen9_agent_app` can't change or delete the record, disable or drop its trigger, replace its function, drop the table, create a table or temp table, `SET ROLE gen9_agent` or set `session_replication_role`: 11 refusals each |
-| In the logs, what an operator sends to a separate system ([docs/logging.md](../docs/logging.md#sending-the-logs-elsewhere)) | Each record of the check is also a line of JSON in the API's log, with the same who, what, outcome, target and route; no secret's value in that log; Keycloak's log has the throwaway person's sign-in and the admin changes to them, at INFO |
+| In the logs, what an operator sends to a separate system ([docs/logging.md](../docs/logging.md#sending-the-logs-elsewhere)) | Each record of the check is also a line of JSON in the API's log, or the worker's for an account its sweep found deleted, with the same who, what, outcome, target and route; no secret's value in that log; Keycloak's log has the throwaway person's sign-in and the admin changes to them, at INFO |
 | Read by the admin | Audit log in Chrome shows both role changes in plain words, and no row an action code; under *Refused access* the person's two tries, each marked Refused; axe clean on both |
 
 It deletes what it made, and costs no model call.
