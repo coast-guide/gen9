@@ -5594,6 +5594,25 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 ## Surprises & Discoveries
 
+- Merging the stack as one (#145, 2026-10-08, on the owner's word) failed three required checks
+  that had passed on 2026-10-04.
+  - **npm advisories published since:** GHSA-6qxp-vccf-f47h (the MCP TypeScript SDK's OAuth
+    client), GHSA-cjq9-62q9-8jv4 (Next.js image optimization SSRF), GHSA-wq5f-xc86-pv6w (sharp's
+    librsvg) and GHSA-68fv-2mgg-jv7q (source-map-js, in the Keycloak theme too). Each fixed
+    release was 8 to 11 days old, past the 7-day cooldown: `@modelcontextprotocol/client` and
+    `core` 2.2.0, `next` and `eslint-config-next` 16.3.8 (exact pins), then `npm update` for
+    `@modelcontextprotocol/sdk` (1.31.0, through shadcn's CLI; 1.32.1 is in the cooldown),
+    `sharp` 0.35.5 and `source-map-js` 1.2.2. `scripts/npm-audit.mjs` passes in both projects
+    (braces stays accepted), registry signatures verify, and gen9-ui's checks and build pass.
+    Live, gen9-ui built from it: `stacks.mjs` and `apps.mjs` pass.
+  - **`make-workflow`:** Temporal's internal frontend didn't answer the CLI within its deadline
+    (DNS, TCP and TLS fine); it had passed on the same branch; run again.
+  - **After a host restart** every container starts at once: Temporal fetched Keycloak's keys
+    before Keycloak listened ("error during initial retrieval of token keys … connection
+    refused"), and gen9-agent's worker was refused ("PermissionDenied: Request unauthorized")
+    until Temporal's next fetch, a minute later (`refreshInterval` defaults to 1m in 1.32.0's
+    embedded template); it then started by itself.
+
 - A new k3d cluster here pulled images through a DNS that failed at random (P8-Q).
   - **What failed:** containerd's lookups of Docker Hub's CDN failed under parallel downloads
     ("dial tcp: lookup production.cloudfront.docker.com: Try again"), with k3d's fix-DNS address
