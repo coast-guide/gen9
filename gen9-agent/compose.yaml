@@ -8,8 +8,14 @@
 # (localhost:<published port>), and containers reach the stacks over their networks instead, at
 # container ports
 x-reach: &reach
-  DATABASE_HOST: gen9-postgres
-  DATABASE_PORT: "5432"
+  # gen9-postgres, or the server of one's own its .env names (GEN9_POSTGRES_SERVER, which make setup
+  # copies here: docs/operations.md, "External services")
+  DATABASE_HOST: ${GEN9_POSTGRES_SERVER:-gen9-postgres}
+  DATABASE_PORT: ${GEN9_POSTGRES_SERVER_PORT:-5432}
+  DATABASE_SSLMODE: ${GEN9_POSTGRES_SSLMODE:-prefer}
+  # The CA its certificate is checked against (verify-ca, verify-full): a file of certs/, at the
+  # repository's root, which the services mount at /etc/gen9/certs
+  DATABASE_SSLROOTCERT: ${GEN9_POSTGRES_SSLROOTCERT:-}
   KEYCLOAK_INTERNAL_URL: http://gen9-keycloak:8080
   LANGFUSE_BASE_URL: http://gen9-langfuse:3000
   # Langfuse's media store, where the worker uploads a trace's images (langfuse_tracer.py)
@@ -36,7 +42,7 @@ services:
   migrate:
     logging: *logging
     build: .
-    image: gen9-agent:dev
+    image: ${GEN9_AGENT_IMAGE:-gen9-agent:dev}
     command: ["gen9-agent-migrate"]
     restart: "no"
     # The database alone (settings.DatabaseSettings): this one-shot holds no other secret. It is
@@ -44,8 +50,12 @@ services:
     env_file:
       - path: postgres.local.env      # gen9-postgres/init-env.sh --agent-env-file (the owner)
     environment:
-      DATABASE_HOST: gen9-postgres
-      DATABASE_PORT: "5432"
+      DATABASE_HOST: ${GEN9_POSTGRES_SERVER:-gen9-postgres}
+      DATABASE_PORT: ${GEN9_POSTGRES_SERVER_PORT:-5432}
+      DATABASE_SSLMODE: ${GEN9_POSTGRES_SSLMODE:-prefer}
+      DATABASE_SSLROOTCERT: ${GEN9_POSTGRES_SSLROOTCERT:-}
+    volumes: &certs
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     networks: [default, gen9-postgres]
 
   api:
@@ -68,16 +78,17 @@ services:
       SMTP_URL: ""
       SMTP_FROM: ""
       EMAIL_NOTICES: ${SMTP_URL:+true}
-    image: gen9-agent:dev
+    image: ${GEN9_AGENT_IMAGE:-gen9-agent:dev}
     labels:  # where to open it; the root Makefile lists these after make up
       gen9.name: Agent API docs
-      gen9.url: http://localhost:${GEN9_AGENT_PORT:-17000}/docs
+      gen9.url: ${GEN9_API_PUBLIC_URL:-http://localhost:${GEN9_AGENT_PORT:-17000}}/docs
     depends_on:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
     ports:
       - "127.0.0.1:${GEN9_AGENT_PORT:-17000}:8000"
+    volumes: *certs
     networks:
       default: {}
       gen9-agent:
@@ -114,7 +125,7 @@ services:
       # 26 s, so a restart no longer loses the traces of turns ending meanwhile (manual-e2e.md,
       # P3-C10). A longer outage, such as make backup's, still does; chats never are affected
       LANGFUSE_TIMEOUT: ${LANGFUSE_TIMEOUT:-35}
-    image: gen9-agent:dev
+    image: ${GEN9_AGENT_IMAGE:-gen9-agent:dev}
     command: ["gen9-agent-worker"]
     depends_on:
       migrate:
@@ -125,6 +136,7 @@ services:
     # Keycloak: deleting accounts and sweeping users deleted there (Admin API). gen9-models: the
     # agent's calls and erasing a deleted user's usage, with the worker's key (models.local.env).
     # gen9-sandbox: chats' environments
+    volumes: *certs
     networks: [default, gen9-postgres, gen9-keycloak, gen9-langfuse, gen9-temporal, gen9-models, gen9-sandbox]
     healthcheck:
       # The worker touches this file every couple of seconds while both of its SDK workers run

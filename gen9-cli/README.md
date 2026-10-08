@@ -7,7 +7,8 @@ It is not a Docker stack: it runs on your machine against the running stacks (Ke
 ```bash
 cd gen9-cli && uv sync
 uv run gen9 login                 # prints a link and a code; confirm them in a browser
-uv run gen9 whoami
+uv run gen9 whoami                # who you are, and which Gen9 you reached: its version and commit
+uv run gen9 --version             # this terminal's own version
 uv run gen9 ask "What does RFC 8628 say about slow_down?"
 uv run gen9 ask --thread <id> "And about expired_token?"
 uv run gen9 ask --attach data.csv "Plot it"  # a file for the chat's environment; --attach again for more
@@ -21,7 +22,7 @@ uv run gen9 logout
 
 When Gen9 needs something from you mid-task, `gen9 ask` asks it in the terminal: the question, with its choices numbered and "Other" last. Type a number or your own answer, and the answer goes on; Ctrl-C stops the run as usual. The chat's page in the browser shows the same question, and the first answer wins.
 
-`gen9 ask --ask-first "…"` sets the chat to "Ask before acting": anything Gen9 would change (today, what it remembers about you) waits for your Allow. The terminal shows what it would change (a command as typed, a connector's arguments in full) and asks "Allow? [y/N]"; anything but y is Deny, and you can say what Gen9 should do instead. A character that is invisible, changes how text reads or would act on the terminal (an escape) is written as `<U+202E>` where it is, with a line saying so.
+`gen9 ask --ask-first "…"` sets the chat to "Ask before acting": anything Gen9 would change (a command in the chat's environment, a connector's tool, what it remembers about you) waits for your Allow. The terminal shows what it would change (a command as typed, a connector's arguments in full) and asks "Allow? [y/N]"; anything but y is Deny, and you can say what Gen9 should do instead. A character that is invisible, changes how text reads or would act on the terminal (an escape) is written as `<U+202E>` where it is, with a line saying so.
 
 When a connector's server asks you something mid-task, `gen9 ask` says which connector asks, then asks its form field by field (choices numbered, a default in brackets) and "Send it? [Y/n]"; an address to open is printed in full and opens in your browser only if you say y.
 
@@ -47,7 +48,7 @@ one only), to report if it happens again.
 | Confirm | You open the page, sign in as usual (password, passkey, two-factor), check that the code matches, and approve access for *Gen9 CLI*. The consent step shows which app you're letting in, which is RFC 8628's advice against someone phishing you with their own code |
 | Poll | The terminal polls the token endpoint every `interval` seconds; `slow_down` adds 5 seconds; `access_denied` and `expired_token` stop it |
 | Tokens | Saved to `credentials.json`, created with mode 0600 in a 0700 folder. The access token lasts 5 minutes and is refreshed 30 seconds before it expires; Keycloak rotates the refresh token each time, and the new one is saved. The sign-in is an ordinary Keycloak session, like the web app's: it ends after 30 minutes unused and 10 hours at most (the realm's SSO session limits), and then `gen9` says to run `gen9 login` again. Deliberately not an offline token: signing out everywhere, an admin's sign-out and disabling an account end it too |
-| Sign out | `gen9 logout` revokes the terminal's refresh token (RFC 7009) and deletes the file. Your browser stays signed in. Signing that browser session out in Settings (*Where you're signed in*) or deleting the account also ends the terminal's access at its next refresh |
+| Sign out | `gen9 logout` revokes the terminal's refresh token (RFC 7009) and deletes the file. Your browser stays signed in. The terminal's sign-in belongs to the browser session you confirmed its code in: signing that browser out (its menu's *Sign out*, or *Where you're signed in* in Settings) or deleting the account also ends the terminal's access at its next refresh, and `gen9` then says to run `gen9 login` again |
 
 The access token's audience is `gen9-agent`, like the web app's, so gen9-agent applies the same rules to both (see gen9-agent/README.md).
 

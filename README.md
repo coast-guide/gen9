@@ -23,12 +23,17 @@ Gen9 is an agent platform you host yourself: a general-purpose AI agent your tea
 
 ## Quick start
 
-You need Docker with Compose 2.24 or newer (at least 8 GiB of memory for Docker), GNU Make, bash and openssl ([requirements](docs/operations.md#requirements)). Then:
+On macOS or Linux, you need Docker with Compose 2.24 or newer (at least 8 GiB of memory for Docker), GNU Make, bash, openssl and python3 ([requirements](docs/operations.md#requirements)), and two model provider keys: [OpenRouter's](https://openrouter.ai/keys), which every chat uses, and [OpenAI's](https://platform.openai.com/api-keys), for speech and images. Then:
 
 ```bash
-make setup     # generates every secret and setting; asks for your model provider keys
+make doctor    # checks this machine: Docker, Compose, memory, free ports
+make setup     # generates every secret and setting; asks for the two keys and Langfuse's first user
 make up        # starts every stack and waits until each is healthy
 ```
+
+`make` alone lists every command; [docs/operations.md](docs/operations.md) says what each does, and what to do [when something goes wrong](docs/operations.md#when-something-goes-wrong).
+
+Other ways to run it, all in [docs/operations.md](docs/operations.md): [a published release](docs/operations.md#run-a-release), [on Kubernetes](docs/operations.md#kubernetes), [under a domain, over TLS](docs/operations.md#under-a-domain-over-tls), [with your own databases and stores](docs/operations.md#external-services).
 
 Open http://localhost:14000 and sign in as `ada@gen9.test` (admin) or `alan@gen9.test`, with the passwords from `grep ^GEN9_SEED_ gen9-keycloak/.env` (Ada's code: `make admin-code`), or create an account. What `make setup` asks for, and why: [docs/operations.md, "First-time setup"](docs/operations.md#first-time-setup).
 
@@ -46,6 +51,7 @@ A set of decoupled services, one folder each. Every Docker-based service is its 
 | [`gen9-temporal`](gen9-temporal/README.md) | Temporal: durable execution for runs, approvals, schedules, deletions (own Postgres, web UI) | `18000–18001`           |
 | [`gen9-models`](gen9-models/README.md)   | The model router: every model by alias, wherever hosted (LiteLLM Proxy, own Postgres, Gen9's admin API) | `19000–19001`           |
 | [`gen9-sandbox`](gen9-sandbox/README.md)  | Environments: OpenSandbox runs each chat's commands and files in containers of its own | `20000`                  |
+| [`gen9-edge`](gen9-edge/README.md)   | Optional: Gen9 under one domain, over TLS (Caddy), once `make setup DOMAIN=…` has set it up | `80`, `443` |
 
 Also in the repository, none of them a stack:
 
@@ -55,13 +61,15 @@ Also in the repository, none of them a stack:
 | [`gen9-design`](gen9-design/README.md) | The design system (tokens, font, logo) that the apps copy in |
 | [`gen9-cli`](gen9-cli/README.md) | The terminal client: `gen9 login` signs in with a one-time code confirmed in a browser, then `gen9 ask` |
 | [`e2e`](e2e/README.md) | End-to-end checks in real Chrome against the running stacks |
+| [`deploy`](deploy/) | Kubernetes: the library chart every stack's chart uses (`deploy/helm/gen9-lib`), the settings (`deploy/values.yaml`), and clusters to try it on (`kind.yaml`, `k3d.yaml` with its registry, Gateway and domain: [Try it on this machine](docs/operations.md#try-it-on-this-machine)) |
+| [`certs`](certs/.gitignore) | The CAs of your stores elsewhere, when Gen9 reaches them over TLS (your own files, never committed) |
 | [`docs`](docs/) | How Gen9 is operated, developed, secured and designed; the plans of work |
 
 ## Documentation
 
 | To | Read |
 | --- | --- |
-| Install, run, upgrade, back up, stop the agents, start over | [docs/operations.md](docs/operations.md) |
+| Install, run (Docker or Kubernetes, a release, a domain, your own stores), what to change before people use it, upgrade, back up, stop the agents, start over | [docs/operations.md](docs/operations.md) |
 | Understand Gen9 end to end, by watching it work | [gen9-learn](gen9-learn/README.md) (open `gen9-learn/index.html`) |
 | Change Gen9: how the work is done, checked and proposed | [CONTRIBUTING.md](CONTRIBUTING.md), [docs/development.md](docs/development.md), [AGENTS.md](AGENTS.md) |
 | Identity and tokens; secrets; durable execution; the EU AI Act | [docs/auth-architecture.md](docs/auth-architecture.md), [docs/secrets.md](docs/secrets.md), [docs/temporal.md](docs/temporal.md), [docs/ai-act.md](docs/ai-act.md) |

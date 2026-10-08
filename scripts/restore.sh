@@ -25,6 +25,8 @@ done
 [ -f "$DIR/manifest" ] || { echo "$DIR isn't a Gen9 backup (no manifest): make one with make backup DIR=..." >&2; exit 1; }
 DIR=$(cd "$DIR" && pwd)
 read -r -a STACKS <<< "$(sed -n 's/^stacks //p' "$DIR/manifest")"
+# Never into another copy of Gen9's stacks (scripts/elsewhere.sh)
+scripts/elsewhere.sh --refuse restore "${STACKS[@]}" || exit 1
 made=$(head -1 "$DIR/manifest" | sed 's/^# Gen9 backup: //')
 commit=$(sed -n 's/.*commit //p' "$DIR/manifest" | head -1)
 here=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -101,6 +103,7 @@ if [[ " ${STACKS[*]} " != *" postgres "* ]]; then
   { covers && deleted > "$evidence"; } 2>/dev/null || unread=true
 fi
 users=() threads=()
+count() { [ "$1" -eq 1 ] && echo "1 $2" || echo "$1 ${2}s"; }
 while read -r kind id; do
   case $kind in
     user) [[ " ${users[*]:-} " == *" $id "* ]] || users+=("$id") ;;
@@ -115,7 +118,7 @@ if $unread; then
   echo "Delete them again, by id: (cd gen9-agent && docker compose exec worker gen9-agent-erase --users SUB... --threads ID...)" >&2
 fi
 if [ ${#again[@]} -gt 1 ]; then
-  echo "Deleting again what was deleted after the backup was made: ${#users[@]} accounts, ${#threads[@]} chats…"
+  echo "Deleting again what was deleted after the backup was made: $(count ${#users[@]} account), $(count ${#threads[@]} chat)…"
   if ! (cd gen9-agent && docker compose exec -T worker "${again[@]}"); then
     echo "Not done: once gen9-agent runs, (cd gen9-agent && docker compose exec worker ${again[*]})" >&2
     exit 1

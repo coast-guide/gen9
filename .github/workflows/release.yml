@@ -1,0 +1,221 @@
+# A release of Gen9, on a `v*` tag (docs/development.md, "Releasing"; docs/plans/deploy.md, R1 and
+# U7). One version for all of Gen9: the tag must be the version its packages declare. Then, once:
+# the 7 images built for linux/amd64 and linux/arm64, pushed to GHCR tagged with the version and
+# attested (images.yml), their digests the release's images.lock; the 8 charts packaged with the
+# version and that lock, pushed to oci://ghcr.io/coast-guide/charts and attested; the Compose
+# bundle (the release's tree with its lock) attested; the images' SBOMs. A draft release with
+# GitHub's notes (.github/release.yml) gets them all and the attestations (*.sigstore.json), then
+# is published in the `release` environment, whose reviewer approves it. Published, it can't
+# change (immutable releases): `gh release verify <tag>` and `gh release verify-asset` check it.
+#
+# On a pull request that touches the release's parts, a dry run instead, publishing nothing: the
+# declared versions agree; every chart packaged with a stand-in lock and pushed to a registry on
+# the runner, then read back; the bundle made twice, the same bytes. The images are Images' (built,
+# not pushed, on the same pull requests); no attestation, no release (docs/plans/deploy.md, U7c).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - scripts/release-charts.sh
+      - scripts/release-bundle.sh
+      - scripts/check-version.py
+      - deploy/helm/**
+      - gen9-*/chart/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: the tag is the version gen9-agent, gen9-cli and gen9-ui declare (a dry run, they agree)
+        env:
+          TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
+        run: scripts/check-version.py ${TAG:+"$TAG"}
+
+  images:
+    if: github.event_name == 'push'
+    needs: version
+    uses: ./.github/workflows/images.yml
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+      attestations: write
+
+  charts:
+    needs: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # signs the attestation
+      attestations: write
+      packages: write # pushes the charts to GHCR
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: images.lock
+      - name: Helm, from its release, checked against its published checksum
+        run: |
+          curl -fsSLO https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz
+          echo "86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb  helm-v4.3.0-linux-amd64.tar.gz" | sha256sum -c
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar xzf helm-v4.3.0-linux-amd64.tar.gz -C "$RUNNER_TEMP" && mv "$RUNNER_TEMP/linux-amd64/helm" "$RUNNER_TEMP/bin/"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: the charts, packaged with the version and the lock, pushed
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$TOKEN" | helm registry login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          scripts/release-charts.sh "${GITHUB_REF_NAME#v}" images.lock ghcr.io/coast-guide/charts | tee charts.lock
+          # One attestation names all eight, by digest (gh attestation verify oci://… finds it)
+          sed -E 's|^(.*)@sha256:([0-9a-f]{64})$|\2  \1|' charts.lock > charts.sha256
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        id: attest
+        with:
+          subject-checksums: charts.sha256
+      - run: cp "${{ steps.attest.outputs.bundle-path }}" charts.sigstore.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: charts
+          path: |
+            charts.lock
+            charts.sigstore.json
+
+  bundle:
+    needs: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: images.lock
+      - name: the Compose bundle, the release's tree with its lock
+        id: bundle
+        run: echo "path=$(scripts/release-bundle.sh "${GITHUB_REF_NAME#v}" images.lock dist)" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        id: attest
+        with:
+          subject-path: ${{ steps.bundle.outputs.path }}
+      - run: cp "${{ steps.attest.outputs.bundle-path }}" dist/bundle.sigstore.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bundle
+          path: dist/
+
+  charts-dry-run:
+    if: github.event_name == 'pull_request'
+    needs: version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      registry:
+        image: registry:3.1.2@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8
+        ports: ["5000:5000"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Helm, as the release gets it
+        run: |
+          curl -fsSLO https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz
+          echo "86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb  helm-v4.3.0-linux-amd64.tar.gz" | sha256sum -c
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar xzf helm-v4.3.0-linux-amd64.tar.gz -C "$RUNNER_TEMP" && mv "$RUNNER_TEMP/linux-amd64/helm" "$RUNNER_TEMP/bin/"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: the charts packaged with a stand-in lock, pushed to the runner's registry, read back
+        env:
+          VERSION: 0.0.0-dryrun.${{ github.run_number }}
+        run: |
+          for image in agent ui keycloak postgres sandbox sandbox-egress sandbox-execd; do
+            echo "registry.invalid/dry-run/gen9-$image@sha256:$(printf '0%.0s' $(seq 64))"
+          done > stand-in.lock
+          scripts/release-charts.sh "$VERSION" stand-in.lock localhost:5000/charts --plain-http | tee charts.lock
+          charts=$(find . -maxdepth 2 -path './gen9-*/chart' -type d | wc -l)
+          [ "$(wc -l < charts.lock)" -eq "$charts" ]
+          helm show chart oci://localhost:5000/charts/gen9-ui --version "$VERSION" --plain-http | grep -x "version: $VERSION"
+          # A release's chart runs the lock's images with no values given
+          helm template dry-run oci://localhost:5000/charts/gen9-ui --version "$VERSION" --plain-http | grep -q "registry.invalid/dry-run/gen9-ui@sha256:"
+
+  bundle-dry-run:
+    if: github.event_name == 'pull_request'
+    needs: version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: the bundle, twice, the same bytes, with its lock
+        run: |
+          printf 'registry.invalid/dry-run/gen9-agent@sha256:%s\n' "$(printf '0%.0s' $(seq 64))" > stand-in.lock
+          a=$(scripts/release-bundle.sh 0.0.0-dryrun stand-in.lock "$RUNNER_TEMP/a")
+          b=$(scripts/release-bundle.sh 0.0.0-dryrun stand-in.lock "$RUNNER_TEMP/b")
+          cmp "$a" "$b"
+          tar tzf "$a" | grep -x gen9-0.0.0-dryrun/images.lock
+          sha256sum "$a"
+
+  release:
+    if: github.event_name == 'push'
+    needs: [images, charts, bundle]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Its reviewer approves the publishing (docs/development.md, "Releasing")
+    environment: release
+    permissions:
+      contents: write # creates the release
+      packages: read # reads the images' SBOMs from GHCR
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: the assets
+        run: |
+          mkdir dist
+          cp artifacts/images.lock/images.lock artifacts/charts/charts.lock artifacts/charts/charts.sigstore.json dist/
+          cp artifacts/bundle/* dist/
+          for f in artifacts/lock-*/*.sigstore.json; do cp "$f" dist/; done
+          # Each image's SBOM, as BuildKit attached it (one per platform), from the registry
+          while read -r ref; do
+            name=$(basename "${ref%@*}")
+            docker buildx imagetools inspect "$ref" --format '{{ json .SBOM }}' > "dist/$name.sbom.json"
+          done < dist/images.lock
+          ls -l dist
+      - name: a draft with GitHub's notes, the assets, then published
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prerelease=""
+          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --generate-notes --title "Gen9 ${GITHUB_REF_NAME#v}" $prerelease dist/*
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

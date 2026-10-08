@@ -47,7 +47,7 @@ and the budget on every start, then reads them back.
 | --- | --- | --- |
 | `chat` | the agent's model: reasoning, tools, images | OpenAI GPT-6 Luna through OpenRouter, falling back to `chat-backup` |
 | `chat-backup` | used when `chat` keeps failing | DeepSeek-V4.1-Flash (open weights, MIT) through OpenRouter |
-| `vision` | images as input | inclusionAI Ling 3.0 Flash VL through OpenRouter |
+| `vision` | images as input, for a program given its own key to the router (Gen9 sends a person's images to `chat`) | inclusionAI Ling 3.0 Flash VL through OpenRouter |
 | `embed` | text embeddings, 1024 dimensions | Qwen3-Embedding-8B (Apache-2.0) through OpenRouter, shortened to 1024 dimensions |
 | `speak` | text to speech | OpenAI `gpt-4o-mini-tts` |
 | `transcribe` | speech to text | OpenAI `gpt-4o-mini-transcribe-2025-12-15`, $0.003 a minute (ask for `response_format=json`) |
@@ -65,7 +65,9 @@ Why these:
   nano's cost per call. GPT-6 Luna read the text, the chart and the button right, but called the
   red square “White”, “Gray” or “Lavender” 6 times in 6 (an all-red picture
   “Blue”). A person's attached image goes to `chat`, not here: Luna reads what people attach
-  (screenshots, charts, text) right in these tests, and flat blocks of colour wrong.
+  (screenshots, charts, text) right in these tests, and flat blocks of colour wrong. Nothing in
+  Gen9 calls `vision` itself: it's the router's pick for reading images, for a skill, a tool or
+  another program given a key, and `e2e/models.mjs` checks that it answers.
 - **`chat-backup`:** another company's model, served by other providers, so a fallback also
   covers an OpenAI outage. It reads images too (a red square: "Red", in 2 s), so a turn with an
   attached image falls back as well.
@@ -101,8 +103,11 @@ To serve an alias with another model or provider:
    Ollama, and OpenRouter reaches most of them with one key.
 2. Put the provider's key in `.env`, then run `docker compose up -d litellm`. It recreates the
    container: `docker compose restart` keeps the old environment, so a new key doesn't arrive.
-3. For a change to `config.yaml` alone, run `docker compose restart litellm`. The router reads
-   the file only when it starts, and `up` doesn't restart it for that file.
+3. For a change to `config.yaml` alone, run `docker compose up -d --force-recreate litellm`. The
+   router reads the file only when it starts, and `up` alone doesn't restart it for that file.
+   The file is mounted on its own, so after a save that replaces it (git, `sed -i`, many
+   editors) a container keeps the old one through a restart: a new container reads the new
+   one.
 
 gen9-agent needs no change. Several deployments of one alias share its traffic, and a failing one
 is skipped.
@@ -123,11 +128,12 @@ was refused by `chat` at once and by `chat-backup` 59 s later; the agent then re
 
 ## Self-hosted models
 
-Models can run on this machine instead of a provider, behind the same aliases. To turn it on, add to
-`.env` and run `make up STACKS=models`:
+Models can run on this machine instead of a provider, behind the same aliases. To turn it on, add
+`local` to `COMPOSE_PROFILES` in `.env` (and the line below if you want other models), then run
+`make up STACKS=models`:
 
 ```bash
-COMPOSE_PROFILES=local                              # starts ollama and the reranker, pulls the models
+COMPOSE_PROFILES=postgres,local                     # local starts ollama and the reranker, pulls the models
 GEN9_LOCAL_MODELS=qwen3:0.6b embeddinggemma         # optional; these are the defaults
 ```
 
@@ -145,7 +151,7 @@ in their volumes, and `make wipe` keeps them too ([docs/operations.md, "Start ov
 
 To serve an existing alias locally, point it at Ollama in `config.yaml`, for example `embed` at
 `{model: ollama/embeddinggemma, api_base: "http://ollama:11434"}`. Then run
-`docker compose restart litellm`; gen9-agent needs no change.
+`docker compose up -d --force-recreate litellm`; gen9-agent needs no change.
 
 Things to know:
 - A different embedding model means different vectors (and dimensions). gen9-agent re-embeds its
@@ -255,7 +261,9 @@ Why a service of Gen9's own:
 | `19000` | The router's API (OpenAI-compatible) | `GEN9_MODELS_PORT` |
 | `19001` | The admin API | `GEN9_MODELS_ADMIN_PORT` |
 
-Postgres isn't published. Use `docker compose exec postgres psql -U litellm -d litellm`.
+Postgres isn't published. Use `docker compose exec postgres psql -U litellm -d litellm`. It is a
+profile `.env`'s `COMPOSE_PROFILES` lists; another server instead, by `LITELLM_DB_HOST`:
+[docs/operations.md, "External services"](../docs/operations.md#external-services).
 
 ## Security
 
@@ -367,7 +375,8 @@ curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $evals" -H 'C
 | Task | Command |
 | --- | --- |
 | Status | `docker compose ps -a` (`keys` shows `Exited (0)`: it ran) |
-| Spend per user | `docker compose exec postgres psql -U litellm -d litellm -c 'select end_user, round(sum(spend)::numeric, 4) from "LiteLLM_SpendLogs" group by 1 order by 2 desc'` |
+| Spend per user | `docker compose exec postgres psql -U litellm -d litellm -c 'select end_user, round(sum(spend)::numeric, 4) from "LiteLLM_SpendLogs" group by 1 order by 2 desc'`. `end_user` is the person's Keycloak id (`sub`); empty, Gen9's own calls (search's reindexing). Whose: `(cd ../gen9-postgres && docker compose exec postgres psql -U postgres -d gen9_agent -c 'select sub, email from users')` |
+| Spend per day, people since deleted included | `docker compose exec postgres psql -U litellm -d litellm -c 'select date, round(sum(spend)::numeric, 4), sum(api_requests) from "LiteLLM_DailyUserSpend" group by 1 order by 1 desc'`: deleting a person deletes their rows in the spend log, not these totals |
 | Stop (keeps data) | `docker compose down` |
 | Reset (**deletes keys and spend**) | `docker compose down -v`, then `./init-env.sh --force --agent-env-file ../gen9-agent/models.local.env --agent-api-env-file ../gen9-agent/models-api.local.env --evals-env-file ../gen9-agent/models-evals.local.env` |
 

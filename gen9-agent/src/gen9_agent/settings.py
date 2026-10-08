@@ -14,12 +14,19 @@ class DatabaseSettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    # gen9-postgres (written by gen9-postgres/init-env.sh --agent-env-file)
+    # gen9-postgres (written by gen9-postgres/init-env.sh --agent-env-file), or a server of one's
+    # own (docs/operations.md, "External services")
     database_host: str = "localhost"
     database_port: int = 16000
     database_name: str = "gen9_agent"
     database_user: str = "gen9_agent"
     database_password: SecretStr
+    # libpq's sslmode: prefer takes TLS when the server offers it; require insists on it;
+    # verify-full checks its certificate against sslrootcert, a CA file, and its name too
+    database_sslmode: Literal[
+        "disable", "allow", "prefer", "require", "verify-ca", "verify-full"
+    ] = "prefer"
+    database_sslrootcert: str = ""
 
     @computed_field
     @property
@@ -31,6 +38,12 @@ class DatabaseSettings(BaseSettings):
             host=self.database_host,
             port=self.database_port,
             database=self.database_name,
+            query={"sslmode": self.database_sslmode}
+            | (
+                {"sslrootcert": self.database_sslrootcert}
+                if self.database_sslrootcert
+                else {}
+            ),
         )
 
     @property
@@ -121,6 +134,9 @@ class Settings(DatabaseSettings):
     tasks_fires_per_person_hour: int = Field(default=100, ge=1)
     # The agent API's address as callers outside reach it: a task's trigger URL is shown with it
     gen9_api_public_url: str = "http://localhost:17000"
+    # The commit this build was made from: Gen9's image build sets GEN9_COMMIT; empty when built
+    # here. Shown with the version to whoever is signed in (/v1/version)
+    gen9_commit: str = ""
     # The context a chat's model gets, in tokens (explore/context/NOTES.md): its profile's
     # `max_input_tokens`, so Deep Agents summarizes earlier messages at 85% of it and keeps the
     # latest 10%. Deliberately under the models' windows: answers degrade as input grows
@@ -169,6 +185,9 @@ class Settings(DatabaseSettings):
 
     # How often to remove Gen9's data of users deleted in Keycloak directly; 0 turns it off
     deleted_users_sweep_interval_s: int = 900
+    # The most people one sweep deletes; more, or more than half of the people Gen9 knows, and it
+    # deletes nobody until an admin allows it (gen9-agent-sweep --allow N; accounts.sweep_holds)
+    sweep_max_deletions: int = 10
 
     # gen9-temporal: its frontend and Gen9's namespace. Containers use gen9-temporal:7233
     # (compose.yaml); on the host, the port gen9-temporal publishes

@@ -64,7 +64,9 @@ PostgreSQL: 18.6, released 2026-08-13 …          the answer (inline links stay
 - **A link in an answer** whose text names another site than it goes to ("bbc.co.uk" going to
   another host), or whose host is in punycode, is followed by "(goes to <its host>)" (P5-C9).
 - **The data:** each search step keeps the URLs it consulted (`action.sources`), and the answer
-  keeps its citations. Both are live while answering and after a reload.
+  keeps its citations. Both are live while answering and after a reload. Work delegated to a
+  subagent ("Asked the fact checker: …") counts too: its step keeps the pages the subagent's
+  searches found (P8-F2).
 - **Accessibility:** a button with a visible label and a count; the sheet is a dialog with
   focus trapped and returned; links are ordinary links with their site as text.
 

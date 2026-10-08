@@ -5,8 +5,10 @@ which runs each chat's environment: a container of its own where the agent runs 
 files (gen9-agent's `environments.py`). gen9-agent's worker is its only client; nothing else reaches it.
 
 It starts sandboxes through the Docker socket, which is the host's root. That's fine on one machine you
-own. A deployment runs OpenSandbox's Kubernetes runtime, or this stack on a host of its own, and gVisor
-or Kata where it can (`[secure_runtime]` in `config.toml`).
+own. A deployment runs this stack on a host of its own, or on Kubernetes, where the same server makes
+each sandbox a kubernetes-sigs/agent-sandbox `Sandbox` in the namespace `gen9-sandboxes`, with no Docker
+socket (`chart/`, `launch.py`; [docs/operations.md, "Kubernetes"](../docs/operations.md#kubernetes) says
+what the cluster needs); and gVisor or Kata where it can (`[secure_runtime]` in `config.toml`).
 
 ## Quick start
 
@@ -46,9 +48,9 @@ can still reach a sandbox's execd: the same trust as the Docker socket the serve
 | --- | --- |
 | `compose.yaml` | `opensandbox` (built here) |
 | `Dockerfile` | OpenSandbox's server image, pinned by digest, with `launch.py` |
-| `launch.py` | Starts the server with sandboxes' ports on `SANDBOX_PUBLISH_HOST`; bounds each sandbox (disk, logs, no swap) and removes one over its disk (`SANDBOX_DISK_GB`, checked every `SANDBOX_DISK_CHECK_S`); masks the query values in its access log, so a chat's file names stay out |
+| `launch.py` | Starts the server with sandboxes' ports on `SANDBOX_PUBLISH_HOST`; bounds each sandbox (disk, logs, no swap) and removes one over its disk (`SANDBOX_DISK_GB`, checked every `SANDBOX_DISK_CHECK_S`); masks the query values in its access log, so a chat's file names stay out; gives the server the execd and egress images Compose runs (`GEN9_SANDBOX_EXECD_IMAGE`, `GEN9_SANDBOX_EGRESS_IMAGE`: the local tags, or a release's digests, [docs/operations.md](../docs/operations.md#gen9s-images-built-here-or-by-digest-from-a-lock)), since its config takes them from nowhere else |
 | `ruff.toml` | Lint rules for this stack's Python (as gen9-agent's: async-first); checked from gen9-agent, as CI does |
-| `config.toml` | The server's settings (runtime, the execd and egress images Compose builds, limits, store); no secrets. Read at start: after changing it, `docker compose restart opensandbox` |
+| `config.toml` | The server's settings (runtime, the execd and egress images, which `launch.py` sets to Compose's, limits, store); no secrets. Read at start: after changing it, `docker compose restart opensandbox` |
 | `egress/` | The egress sidecar every sandbox gets: OpenSandbox's, rebuilt by Gen9 from the same release with `deny.always`. OpenSandbox builds it on Debian 12 with Go 1.25.9 and mitmproxy 11.0.2, which caps `h11` (Critical), `cryptography`, `tornado` and `pyOpenSSL` below their fixes, and mitmproxy 12 needs Python 3.12. So `egress/Dockerfile` builds its two Go binaries from the release's commit with a supported Go (govulncheck: 14 reached to none), and puts them on Debian 13 with upstream's packages, mitmproxy 12.2.3 from `requirements.txt` (a lock with hashes, from `requirements.in`, with `overrides.txt` lifting mitmproxy's caps on `h2`, `tornado`, `cryptography`, `msgpack` and `pyOpenSSL` to their fixed versions), Debian's updates, and upstream's addon, mitmproxy settings and cleanup script copied from OpenSandbox's image of that release, pinned by digest (docs/plans/manual-e2e.md, P6-D1c5). Compose builds it (`egress-image`, which runs `true` and exits) before the server starts. The sidecars inherit the image's Compose labels (`com.docker.compose.project=gen9-sandbox`), not `com.docker.compose.oneoff`: `make ps`, `down` and `wipe` leave them out of the stack's own containers, and `wipe` removes them with the environments |
 | `execd/` | The execd the server copies into every sandbox to run its commands: OpenSandbox's image pinned by digest, with `/execd` rebuilt from that release's commit with a current Go and the modules OpenSandbox's main has moved to (OpenSandbox builds it with Go 1.25.9 and grpc 1.82.1, in which govulncheck finds 21 reached vulnerabilities; none rebuilt), the binaries the server never takes from it removed (the eBPF and Windows builds, the supervisor), and Alpine's updates. Compose builds it (`execd-image`, which runs `true` and exits), and `config.toml`'s `execd_image` names it (docs/plans/manual-e2e.md, P6-D1c5c) |
 | `init-env.sh` | Generates `.env` (the API key) and gen9-agent's `sandbox.local.env`. See `--help` |

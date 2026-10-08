@@ -1,2 +1,4 @@
 .env
 .init-env.*
+# What make setup writes beside .env (edge.local.env, under a domain)
+*.local.env

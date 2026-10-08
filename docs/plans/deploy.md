@@ -1,0 +1,1515 @@
+# Deploy: the same Gen9 anywhere, with Docker or Kubernetes, and proper releases
+
+## Standing instructions (critical: read first, every session)
+
+Given by the owner, for this plan and for every session that resumes it:
+
+1. **The objective, in the owner's words** (via /rigor): "setup a drift free deployment commands
+   both for k8s and docker … i don't care about any cloud, if i have k8s setup you should be able
+   to run that exact thing in my local and on any cloud. same with docker. also containerized
+   docker images is what k8s pod isn't it … so i can run the dockers in any machine, in local or
+   vm, or i can run the k8s container in any machine or vm or k8s infra i don't care shouldn't be
+   any difference (some things maybe which is configurable)". Then: "i need proper release
+   management versioning on github and other stuff i might be missing i don't know for a proper
+   release - a research task for that list". Then: "everything should be leveraged as of oct 1
+   2026, stale knowledge is crime", and "start the loop".
+2. **Today's sources only.** Before each unit: establish the date, query each tool's version from
+   its release page, read the vendor's docs for that version, filter out AI-written summaries
+   (AGENTS.md, "Before any new piece of work"). A version or behaviour written here is "as of" the
+   date in its Decision Log entry; re-check it before relying on it later.
+3. **A loop of units, autonomous.** Research, reason, plan here, build, verify live (Docker on
+   this machine, and a local Kubernetes cluster: kind and k3d), then one pull request per unit.
+   The owner isn't there to ask; decide from the evidence and write the decision down. A session
+   keep-alive cron (`2-59/5 * * * *`, re-created by any session that finds none: session jobs die
+   with the session and expire after 7 days) re-reads this file and continues the first unchecked
+   item.
+4. **Outward-facing steps wait for the owner**: publishing a release (pushing the first `v*`
+   tag), making a GHCR package public, changing repository settings. Prepare them, verify them on
+   a fork-safe path (a pre-release tag on a branch, or a dry run), and list them in Progress as
+   the owner's.
+5. **Model spend.** This work needs few model calls: `make e2e` against each deployment is the
+   costly part. Run it once per deployment shape, measure the router's spend before and after
+   (manual-e2e.md, Validation).
+6. **Nothing here touches the running stacks** until a unit needs them: probes run in a scratch
+   directory with their own Compose project names, ports, volumes and clusters.
+
+## Purpose
+
+Someone with Docker on any machine, or with any conformant Kubernetes cluster (kind or k3s on a
+laptop or a VM, or a managed cluster on any cloud), runs Gen9 from a release with one command, and
+gets exactly what was tested: the same images, by digest, configured only at a small, documented
+set of settings. A second command says whether what runs still matches what the release (or the
+git checkout) declares. Each release is a version on GitHub with notes, signed provenance and
+SBOMs, that nobody can change afterwards.
+
+How to see it working: deploy a release with Docker on this machine and on a fresh VM, and with
+Helm on kind and on k3s; `make e2e` passes against each; the image digests running are the same
+in all four; the drift command passes, then names the change after someone edits a container or
+a Deployment by hand; `gh release verify` and `gh attestation verify` pass on the release.
+
+What the owner asked, restated before starting (they went on to "start the loop"):
+
+1. Same artifacts everywhere: every Gen9 image built once, published to a registry, referenced by
+   digest. A Kubernetes pod runs the same OCI image Docker does (containerd and Docker share the
+   image format).
+2. Two deployment shapes from one definition: Docker Compose (any machine or VM) and Kubernetes
+   (any conformant cluster), on standard APIs only, nothing cloud-specific.
+3. Drift-free: git declares what runs; rendering is deterministic; a command shows any difference.
+4. A small explicit configuration surface: domain and TLS, storage, replicas and resources, where
+   secrets come from, bundled or external databases, the sandbox runtime.
+5. Proper release management, and the list of everything a proper release needs (R1).
+
+## Progress
+
+- [x] R0 This plan, its acceptance list, and AGENTS.md pointing at it.
+- [x] R1 Release management, the research list the owner asked for: each item decided from
+  today's sources in the Decision Log ("Release management (R1)"), then built in U7.
+  - Versioning scheme and what one version covers (images, chart, Compose bundle, CLI).
+  - Tags and their protection; immutable releases; release attestations; `gh release verify`.
+  - Release notes and changelog with prose commit subjects (AGENTS.md's rule), PR labels.
+  - The release workflow: draft, assets, publish; a `release` environment with the owner as
+    required reviewer.
+  - Signing and provenance of every artifact (images, chart, Compose bundle); SBOMs as assets.
+  - Upgrade notes and migrations per release (Postgres schemas, Keycloak realm, Temporal).
+  - Support and security policy (`SECURITY.md`: which versions get fixes), deprecations.
+  - The running version visible (API, web app, CLI), so drift is checkable by version too.
+  - OpenSSF Scorecard and what it finds; the Best Practices badge.
+  - Anything else today's sources list that Gen9 lacks.
+- [x] R2 Probes, outside the repository (scratch directory, throwaway projects and clusters),
+  written into `gen9-agent/explore/deploy/NOTES.md`:
+  - [x] R2a `docker compose publish` on one Gen9 stack: what it refuses (bind mounts: Gen9
+    mounts 16 files and folders, and the Docker socket; `configs:`), `--resolve-image-digests`,
+    running it back with `docker compose -f oci://…`, what a multi-project deployment (8 Compose
+    projects joined by networks) needs.
+  - [x] R2b `docker compose bridge convert` on one Gen9 stack: what it makes (Deployments or
+    StatefulSets, Secrets, networks to NetworkPolicies, volumes), with Docker's default
+    transformation and with templates of our own; whether Compose can stay the one definition.
+  - [x] R2c kind and k3d on this machine: create, load or pull images, a Gateway API controller,
+    delete; time, memory and disk.
+  - [x] R2d OpenSandbox's Kubernetes runtime on kind: its CRDs and controller chart, the server
+    with `[kubernetes]`, a sandbox pod with Gen9's egress image, gVisor or not.
+  - [x] R2e Drift on Kubernetes: `helm diff upgrade` (and its three-way mode) and
+    `kubectl diff --server-side`, each against an edit made by hand.
+- [x] R3 Each third-party part's own official deployment guides, of the version Gen9 pins, read
+  that day (the owner: "for third party stacks we are using refer to their own official docs to
+  see if they provide guides - latest research"), findings and links in the Decision Log
+  ("Third-party guides"), before U3 chooses adopt, adapt or build for each:
+  - [x] Keycloak 26.7.5 (container guide, Operator, production configuration).
+  - [x] Temporal server 1.32.0 and UI 2.54.1 (self-hosted guide, the Helm chart, production
+    checklist).
+  - [x] Langfuse 4.48.0 (self-hosting: Docker Compose, Kubernetes Helm; ClickHouse, S3, Redis,
+    Postgres requirements).
+  - [x] LiteLLM proxy v1.103.1 (Docker, Helm chart, production settings).
+  - [x] OpenSandbox 1.1.0 (Kubernetes deployment, controller, secure runtime).
+  - [x] PostgreSQL 18 and 16/17 with pgvector (the image's docs; CloudNativePG as the operator).
+  - [x] Valkey 9.1, Redis 7.4 (the official images, valkey-helm).
+  - [x] ClickHouse 26.8 (its Docker image, its Kubernetes operator).
+  - [x] MinIO (Chainguard image) and the S3 alternatives Langfuse documents.
+  - [x] SearXNG, Mailpit, Ollama and llama.cpp server (their container docs).
+- [ ] U1 Images built once: a bake file for the 7 Gen9 images from the Dockerfiles Compose builds;
+  a workflow that builds them for linux/amd64 and linux/arm64, pushes them to
+  `ghcr.io/coast-guide/gen9-*`, and attests provenance and SBOM; the digests written down as a
+  lock. `make up` keeps building locally for development.
+  - [x] `docker-bake.hcl`; `scripts/check-images.py` in `make config` (bake and Compose agree).
+  - [x] `.github/workflows/images.yml`: Docker's bake workflow per image; on `main`, push and
+    attest; the lock as the run's artifact.
+  - [x] Verified here: `docker buildx bake --print`; all 7 built for linux/amd64 (24 s, 57 steps
+    from the Compose builds' cache), and gen9-postgres, the egress and execd images for
+    linux/arm64 under emulation (318 s; gen9-postgres took `pg-textsearch-…-arm64.zip` by
+    `TARGETARCH`); `make config` passes, and fails on a context changed on purpose.
+  - [x] Verified in CI: the pull request built all 7 for both platforms on native runners, 14
+    jobs, 36 to 115 s each, the run 3 min (run 36871230604 failed first: Surprises, "a Dockerfile
+    frontend that knows `source.git.checksum`"; then run 36871669043).
+  - [ ] After the owner merges: the run on `main` pushes, signs and attests;
+    `gh attestation verify` on each.
+- [x] U1b Langfuse's S3 store: MinIO's repository is archived ("THIS REPOSITORY IS NO LONGER
+  MAINTAINED"); choose a maintained store for both shapes (SeaweedFS, which Langfuse's chart
+  bundles, or another), or keep Chainguard's build knowingly; any S3 stays a setting. Decided
+  2026-10-03: Chainguard's build, knowingly (Decision Log, U1b).
+- [ ] U2 Docker from published images: one command deploys a version (or the lock) on any host
+  with Docker, pulling by digest, building nothing; the settings in one place.
+  - [x] Probe: a service with `image: ${VAR:-local tag}` and `build:`, given a digest reference,
+    pulled by `up --no-build`, never built; `up --build` refuses it ("build tag cannot contain a
+    digest") (explore/deploy/NOTES.md, U2).
+  - [x] Each service on a Gen9 image takes it from `GEN9_<IMAGE>_IMAGE` (default: today's local
+    tag, so `make up` builds as before); `launch.py` gives OpenSandbox the execd and egress images
+    from the same variables, since its config takes no environment override for them.
+  - [x] `make up IMAGES=<lock file or URL>`: the variables from the lock into `images.env`, read
+    by every stack; pull by digest, build nothing. A lock of one's own images, in one's own
+    registry: docs/operations.md (the bake file's `REGISTRY` and `TAG`, then one line per image),
+    rather than a make target.
+  - [x] Verified here: the 7 images built from this branch and pushed to a throwaway registry
+    (`registry:3` on 127.0.0.1:25000), a lock of their digests; every stack down, Gen9's local
+    tags removed; `make up IMAGES=<lock>`: every Gen9 service pulled by digest, 0 builds, every
+    stack healthy; the sandbox server loaded the copy with the lock's execd and egress images
+    (after the fix in Surprises). `make e2e` against it, in three runs because the first stopped
+    at the failure the fix closed: 18 scripts, 208 checks; then `environments` to `background`,
+    112; then `background` to `a11y`, 404, none failed. The router's spend over all three:
+    $0.209642, 477 calls.
+  - [ ] From GHCR once `main` has pushed (after the owner merges U1).
+- [ ] U3 Kubernetes: a Helm 4 chart per stack, standard APIs only, the same images by digest,
+  published to GHCR as OCI charts; verified on kind and on k3d (k3s).
+  - [x] `deploy/helm/gen9-lib`, a library chart: `gen9.stack` renders a stack from its
+    `compose.yaml` (images, commands, environment, health checks, files, volumes, aliases) and the
+    chart's `services` values (kind, ports, storage, resources); the names of the stacks it calls
+    (its pods' DNS search domains) and the NetworkPolicy of who may call it, from its networks.
+  - [x] A chart per stack but gen9-sandbox (U6), each `compose.yaml` linked in: postgres (8
+    resources), keycloak (13), langfuse (17, from Langfuse's file and Gen9's override merged as
+    Compose merges them), temporal (13, its schema an init container), models (16), agent (12,
+    its migrations a pre-install hook), ui (10). `helm lint`; `kubeconform -strict` against
+    Kubernetes 1.37.1: all valid.
+  - [x] `scripts/k8s.sh up|diff|down`: namespaces, a Secret per settings file (server-side
+    apply), `helm upgrade --install --server-side=true --force-conflicts --wait` with the lock's
+    images; `diff` by helm-diff's three-way merge and the Secrets by hash.
+  - [x] `deploy/helm/values.schema.json`, linked into every chart: `helm template` refused a
+    misspelt key (`additional properties 'storge' not allowed`), an unknown stack
+    (`'keycloack'`) and a size Kubernetes can't read (`'50GB' does not match pattern`).
+    `deploy/values.yaml`: shared `settings.X`, a stack's own `<stack>.settings` and
+    `<stack>.services`, checked to reach only that stack.
+  - [x] `scripts/check-charts.sh` (every chart: `helm lint`, `kubeconform -strict`), and a CI job
+    for it with Helm and kubeconform from their releases, checked against their checksums.
+    What the eight charts render (2026-10-03): Deployment 12, StatefulSet 11, Job 7, Service 33,
+    ConfigMap 13, NetworkPolicy 9, Namespace, ServiceAccount, Role, RoleBinding, ClusterRole,
+    ClusterRoleBinding, MutatingAdmissionPolicy and its binding: Kubernetes' own APIs only;
+    agent-sandbox's `Sandbox`es are made at run time by OpenSandbox's server, from the pinned
+    prerequisite.
+  - [x] `e2e/k8s/docker`, a `docker` for the checks against a cluster (Decision Log); one-off
+    containers (`compose run`) as pods rendered from the stack's chart (Surprises).
+  - [x] `make k8s-up|k8s-diff|k8s-reset|k8s-down|k8s-e2e`, docs (operations.md "Kubernetes",
+    development.md, AGENTS.md's checks, gen9-learn's Reference).
+  - [x] Installed on kind (v0.33.0, Kubernetes 1.37.0) from the same lock as Docker
+    (`deploy/kind.yaml`, the registry joined to the `kind` network, a `hosts.toml` for
+    `127.0.0.1:25000`; the node pulled the lock's digests): the seven stacks, 22 pods ready, in
+    725 s from nothing (third-party images pulled from their registries); the Docker stacks down
+    meanwhile, data kept. The ports Docker publishes forwarded to the same localhost ports: the web
+    app, the agent's `/readyz`, Keycloak's realm, Temporal's UI and Langfuse all 200. e2e's
+    `stacks.mjs` through `e2e/k8s/docker`, all passed: password sign-in and the admin's second
+    step through Keycloak, the agent's answer through the router, the chat in Postgres, its trace
+    in Langfuse, Keycloak's back-channel logout reaching gen9-ui.
+  - [x] Verified on kind: the Docker stacks down, a cluster with the lock's registry
+    (`containerdConfigPatches` and `hosts.toml`, kind's documented local registry), every chart
+    from the lock, port-forwards to the same localhost ports, `make e2e` (with U6). On
+    2026-10-03, `make k8s-e2e` in parts, each part resumed where a failure had stopped it once
+    its cause was fixed (Surprises: the names a stack calls, one-off containers, the router's
+    timeout, the operator's stop, the sweep's audit lines): every one of the 49 scripts passed,
+    `stacks`, `temporal` and `runs` again after the names became search domains (`runs` once
+    more, Surprises). gen9-agent ran the lock's image with #65 and #67 merged in; every Gen9
+    image on the cluster, the sandboxes' egress and execd included, was the lock's digest. The
+    cluster's router: $0.224666 over 497 calls for all of it, a floor (deleting the throwaway
+    people erases their records).
+  - [x] Verified on k3d with the same values: k3d v5.9.0, k3s v1.37.1 (`deploy/k3d.yaml`, its
+    kubelet settings from a file k3s takes as `--kubelet-arg=config=…`: `podPidsLimit 4096`,
+    `singleProcessOOMKill true` on the node), the kind lock's registry by k3s's `registries.yaml`.
+    `make k8s-up` installed the eight stacks in 502 s once the one-shot Jobs restarted in place
+    (Surprises); `make k8s-diff` 0; every Gen9 image, the sandboxes' included, the lock's digest.
+    `make k8s-e2e`'s scripts that exercise what differs between clusters, once each, to spare
+    model spend after all 49 had passed on kind: `stacks`, `temporal`, `models` (after the
+    Langfuse fix, Surprises), `search` (a one-off container), `environments` (sandboxes under
+    kube-router's policies), `retry` (the router down), `stop`, `context` (a second worker): all
+    passed. The router: $0.025507 over 71 calls.
+  - [x] The same digests in both shapes (acceptance `same-digests`), one lock
+    (`gen9-int.lock`: U2's, with gen9-agent rebuilt with #65 and #67): on k3d, every Gen9
+    container's `imageID` the lock's digest, the sandboxes' egress and execd included; on Docker
+    after `make up`, every Gen9 container's reference and its image's `RepoDigests` the lock's
+    for the five that always run (egress and execd run only in a sandbox: U2 saw the server take
+    the lock's, the same two digests).
+  - [x] A check that every Compose service has a chart entry and every bind source a link: the
+    template's own, run by CI's `charts` job on every pull request and by `make k8s-up`, rather
+    than in `make config`, which would need Helm of everyone on Docker alone. Tried on a copy of
+    gen9-ui's chart: a service added to its `compose.yaml` failed the render ("compose.yaml's
+    extra has no entry in services: give it a kind (none to leave it out)"), and given a kind,
+    its unlinked file did ("extra mounts ./not-linked.conf: link it into the chart").
+- [x] U4 Drift: one command per shape (`make diff`, `make k8s-diff`) that passes on a fresh
+  deployment and names the service after a change by hand; and one that puts it back (`make
+  reset`, `make k8s-reset`).
+  - [x] Kubernetes, `make k8s-diff`: helm-diff's three-way merge without hooks (the one-shot Jobs
+    are gone once done, as they should be), the names a stack calls (hooks, until they became
+    search domains in the pods' spec, which helm-diff compares) by `kubectl diff
+    --server-side`, each Secret against its settings file by hash, and any field of the stack's
+    objects owned by a manager other than Helm and the cluster's controllers (`managedFields`).
+    `make k8s-reset` puts everything back: Secrets replaced whole, objects by
+    `helm upgrade --server-side=false --force-replace` (a PUT of each, as rendered).
+    Verified on kind: 0 on the fresh install (5.6 s for seven stacks); after `kubectl scale`,
+    `kubectl set env`, deleting a name Service and a key added to a Secret, exit 2 naming each
+    (`gen9-ui, prod, Deployment (apps) has changed: replicas`, `Deployment/api: changed by
+    kubectl-set (Update)`, the missing `gen9-keycloak`, `secret env differs from gen9-ui/.env`);
+    `make k8s-up` put back two (a server-side apply keeps what other managers added), `make
+    k8s-reset` the rest, the Service's cluster IP kept through the replace; then 0, and 0 again
+    after a normal `k8s-up`.
+  - [x] Kubernetes again, the names now search domains: `kubectl patch` removing gen9-agent's
+    API's `dnsConfig`, `make k8s-diff` exit 2 naming its four search domains; `make k8s-reset`,
+    then 0.
+  - [x] Docker, `make diff` and `make reset` (`scripts/drift.py`): each container against Compose's
+    hash of its service, its image, what `docker update` changes (memory, CPUs, processes, restart
+    policy), services with no container and containers not declared; `reset` recreates only the
+    services that differ (`up --force-recreate --no-deps`, built or by digest as `make up`) and
+    removes the undeclared. Verify: 0 on a fresh `make up`; after `docker update`, a setting
+    changed in a `.env`, a stopped service and a stray container, exit 2 naming each; `make
+    reset`, then 0.
+    Verified 2026-10-03, every stack up from the lock by `make up`: 0 ("as declared", eight
+    stacks in 0.25 s). Then `docker update --memory 512m` on gen9-ui's `prod`, gen9-temporal's
+    `ui` stopped, a container labelled as gen9-ui's, and `VALKEY_MAXMEMORY=300mb` in the
+    environment: exit 2, "prod: Memory is 536870912, declared 0", "ui: exited, not running",
+    "gen9-ui-stray: not a service of gen9-ui's Compose file", "valkey: its configuration changed
+    since it was created". `make reset` (6.5 s): those three recreated, the stray removed; Valkey's
+    `maxmemory` 314572800, then 0. Without the setting: exit 2 naming valkey; `make reset`, back to
+    268435456; 0.
+- [x] U5 The configuration surface: every setting listed once (domain and TLS, storage class and
+  sizes, replicas and resources, secrets source, bundled or external Postgres, Valkey,
+  ClickHouse and S3, sandbox runtime), with a schema that rejects unknown keys.
+  Checked 2026-10-03, with every part done: an unknown top-level key fails on the schema ("values
+  don't meet the specifications of the schema(s)"), a misspelt setting is refused naming it
+  ("gen9-ui's Compose files don't read VALKEY_MAXMEMRY"), and gen9-learn's Reference names every
+  setting (`reference.mjs`): acceptance `config.surface`.
+  - Research, started 2026-10-03: the settings are Compose's variables (`${X:-default}`, the same
+    names as `settings.X` on Kubernetes) and the settings files' keys. Compose v5.5.1 lists a
+    file's variables itself, `docker compose config --variables --format json` (name, default,
+    the `:+` value, required): 187 across the stacks today, 108 of them gen9-langfuse's (Langfuse's
+    own file). The values tools Helm charts use document `values.yaml` keys (helm-docs v1.14.2,
+    last release 2024-07; Bitnami's readme-generator-for-helm 3.0.1; helm-values-schema-json
+    v2.6.0; helm-schema 0.23.5), which here are mostly one free map, `settings`. gen9-learn's
+    Reference already checks gen9-agent's settings and every settings file's keys
+    (`reference.mjs`). To decide: one reference from Compose's own list, checked like the
+    Reference, rather than a second copy.
+  - Found 2026-10-03: gen9-learn's Reference, "Settings", already has every settings file's key
+    (checked by `reference.mjs`) and "What each `compose.yaml` reads, with its default", which
+    nothing checks against what Compose reads. On Kubernetes `settings` is a free map: a misspelt
+    key installs and is ignored. Split in three units:
+  - [x] U5a One list, checked, and unknown settings refused: `reference.mjs` checks every variable
+    each stack's Compose files read (`docker compose config --variables`) is on the page, but
+    those of Langfuse's own file, which Langfuse documents; the chart refuses a
+    `<stack>.settings` key its stack's Compose files don't read, and `make k8s-up` a shared
+    `settings` key no stack reads. Verify: a misspelt key refused by each, naming it.
+    Built: `reference.mjs` already checked each `compose.yaml`'s `${X}`; it now reads Gen9's
+    `compose.override.yaml` too (gen9-langfuse has no `compose.yaml`), which found one name
+    missing, `MINIO_ROOT_USER`, now on the page (87 settings, "the page names everything", with
+    the Docker stacks up). The library refuses a stack's own key its Compose files don't read
+    (`$$` aside); `scripts/k8s.sh` refuses a shared one no stack's Compose files read, Langfuse's
+    own file included (its `LANGFUSE_S3_*` point it at another S3), before touching the cluster:
+    Helm reads the values file through a throwaway chart printing the keys. Verified: `make
+    k8s-up` with `ui.settings.VALKEY_MAXMEMRY` on k3d, "UPGRADE FAILED … gen9-ui's Compose files
+    don't read VALKEY_MAXMEMRY", the release still at revision 1; `settings.GEN9_UI_ULR` beside
+    three real keys, exit 2 naming it alone; `make k8s-diff` 0 on k3d with the new template.
+  - [x] U5b Reaching Gen9 from outside, a domain and TLS: on Docker the stacks publish on
+    127.0.0.1; on Kubernetes, Gateway API routes (Decision Log), the addresses the stacks give
+    browsers (`GEN9_UI_URL`, `KC_HOSTNAME`, …) from one domain.
+    Research, 2026-10-03: Gateway API v1.6.2 (2026-09-03); k3s v1.37.1 installs its CRDs
+    (v1.6.1, standard) and Traefik v3, whose Gateway provider is one setting away
+    (`providers.kubernetesGateway.enabled`, a HelmChartConfig; k3s's docs: "compatible with
+    Gateway API v1.4"); kind's `cloud-provider-kind` v0.12.0 (2026-10-02) implements Gateway and
+    HTTPRoute and passes the conformance tests, standard channel on by default. What the outside
+    reaches today, each on its own 127.0.0.1 port: the web app, Keycloak (the issuer), the
+    agent's API (the terminal, MCP clients, the Temporal UI's codec), Langfuse and its media
+    store, Temporal's UI, and the connector apps' sandbox, one host per app (`{id}.apps.…`).
+    Containers already call Keycloak inside (`KEYCLOAK_INTERNAL_URL`, back-channel dynamic), so
+    only browsers and terminals need the public names. Langfuse can't move under a path without
+    its own build (`NEXT_PUBLIC_BASE_PATH`), so each gets a host of its own under one domain.
+    Design to probe: one domain setting from which `make setup` writes every public address
+    (`GEN9_UI_URL`, `KC_HOSTNAME` and the issuers in the `*.local.env`, `NEXTAUTH_URL`,
+    `LANGFUSE_MEDIA_PUBLIC_URL`, `GEN9_TEMPORAL_CODEC_URL`, `MCP_APPS_SANDBOX_URL`, the API's);
+    on Kubernetes each chart's HTTPRoutes for its public services, the host from the same
+    domain, on the Gateway the settings name (or an Ingress of a class, or none), TLS on the
+    Gateway's listener; on Docker an edge stack, a reverse proxy joining the networks of the
+    stacks it serves, with TLS (ACME, or its own CA on a machine with no public name).
+    Versions that day: Caddy v2.11.7 (2026-10-03), Traefik v3.7.13 (2026-09-04), cert-manager
+    v1.21.2 (2026-09-11; v1.20.4 of 2026-09-16 is a patch of the older line). The Docker edge:
+    Caddy, whose HTTPS is automatic (ACME, or its own CA for names like `*.localhost`) from one
+    short file; Traefik is what k3s routes with, which no other cluster promises.
+    - [x] Probe: Caddy in front of the running Docker stacks, one host each under
+      `gen9.localhost`, TLS from its own CA: 200 from the web app, Keycloak, the API and Langfuse
+      (explore/deploy/NOTES.md, U5b); event streams pass unbuffered (Caddy's docs).
+    - [x] U5b-1 `gen9-edge`, a stack of its own (docs/development.md, "Adding a stack"): Caddy
+      pinned by digest, a site per public service from the domain setting, joining only the
+      networks of the stacks it serves; names on those networks for what has none yet (Temporal's
+      UI, the connector apps' sandbox, Langfuse's media store has one); ACME with a public name,
+      its own CA otherwise, its root exported for the machine's browsers.
+      Design notes: `make up` runs it only once `make setup DOMAIN=…` has written its `.env`
+      (else a note, so a localhost install takes no ports 80 and 443); its `tls` directive one
+      setting, `internal` or an ACME email; the apps' sandbox is one host per app (`{id}.apps.…`),
+      a wildcard, which ACME issues only by DNS challenge: Caddy's on-demand TLS, asked of
+      gen9-ui which ids exist, or a DNS provider's module, to choose. On Kubernetes no chart: the
+      Gateway does its job (U5b-3), whose pods each stack's NetworkPolicy must then let in.
+      The apps' hosts, found 2026-10-03: gen9-ui's sandbox server answers any host name, the id
+      opaque to it (`sandbox/server.ts`); Caddy's on-demand TLS needs an `ask` endpoint
+      ("restrictions are global"; caddyserver/website, automatic-https.md), and one that allowed
+      any label under `apps.` would let anyone spend the domain's ACME rate limit. Choices: ask
+      gen9-ui whether the id is one of its servers'; or a wildcard certificate by DNS challenge
+      (Caddy built with the DNS provider's module); or one the operator supplies. The other hosts
+      don't wait on it: their names are fixed.
+      Built 2026-10-03: `gen9-edge` (Caddy 2.11.6 by digest; `make scan`: no vulnerabilities in
+      its 180 packages), a site per host under `GEN9_DOMAIN` (`gen9.localhost` by default), its
+      `tls` from `GEN9_EDGE_TLS`, the apps' wildcard from `GEN9_EDGE_APPS_TLS` (Caddy's own CA,
+      or files under `certs/`: the automatic way waits on the choice above); Temporal's UI and
+      the apps sandbox named on their stacks' networks (`gen9-temporal-ui`, `gen9-ui-apps`). The
+      `Makefile`'s `OPTIONAL`: `make up`, `config` and `diff` leave it out with a note until
+      `make setup DOMAIN=…` writes its `.env`; setup, wipe, backup, doctor, sbom, the network
+      check and the drift check know it. Verified on the Docker stacks: the seven hosts over TLS,
+      200 each (Temporal's UI and the apps once their stacks were recreated with the new names),
+      and with the root `docker compose cp` hands out, curl verified the certificates;
+      not set up, `make up` noted it and `make config` passed; setup with and without `DOMAIN`;
+      `make diff` "as declared"; the wipe listing; gen9-learn's checks.
+    - [x] U5b-2 `make setup DOMAIN=…`: every public address written from it (the web app, the
+      issuer and the `*.local.env` that carry it, Keycloak's redirect addresses, Langfuse and its
+      media, Temporal's UI and the codec, the API, the apps' sandbox); localhost ports stay the
+      default.
+      Built 2026-10-03: `scripts/setup.sh`'s `public_addresses`, into each settings file that
+      exists (eighteen keys over eight files); Temporal's UI takes its sign-in callback from
+      `GEN9_TEMPORAL_UI_URL`; `gen9-keycloak/edge.local.env` (`KC_PROXY_HEADERS=xforwarded`, an
+      optional `env_file`). Found: Keycloak refused an empty `KC_PROXY_HEADERS` ("Invalid value
+      for option 'KC_PROXY_HEADERS': . Expected values are: forwarded, xforwarded"), so it is
+      absent unless behind the edge; and the web app's client kept its first redirect address,
+      the realm file's placeholders being read only on the first import ("Invalid parameter:
+      redirect_uri"): `configure.sh` now puts its addresses on it every start, as it already did
+      for Temporal's UI. Verified on the Docker stacks: `make setup DOMAIN=gen9.localhost`, `make
+      up` (91 s); `stacks.mjs` through `https://gen9.localhost` and `https://id.gen9.localhost`
+      (`E2E_INSECURE_CERTS=1`), every check passed, back-channel logout included; then `make setup
+      DOMAIN=localhost`: every key as it was, by hash, those added holding the ports' addresses;
+      `make up`, gen9-edge left out with its note, and `stacks.mjs` on the ports passed.
+    - [x] U5b-3 The charts: an HTTPRoute per public service with the same hosts, on the Gateway
+      the settings name, or an Ingress of a class, or none (the default); TLS the Gateway's.
+      Read 2026-10-03: cloud-provider-kind's Gateway is an Envoy container outside the cluster,
+      which, where Docker runs in a VM (Docker Desktop, here), it publishes on a random host port
+      (`--enable-lb-port-mapping`, "automatically enabled on platforms where this is required");
+      its GatewayClass is `cloud-provider-kind`. k3s's Traefik is a pod in `kube-system`, behind
+      k3d's load balancer, whose ports the cluster's config publishes. Design: `global.domain`
+      (empty: no routes, the default) and `global.gateway` (`name`, `namespace`) in the values;
+      each chart's public services name their host's prefix, as gen9-edge's sites do; an
+      HTTPRoute each, on that Gateway; and their ports open to any source in each stack's
+      NetworkPolicy, as anyone already reaches them through the Gateway, whose proxy may not be a
+      pod at all (kind's). An Ingress instead: after, if a cluster needs it.
+      Built: `services.<name>.public` (host prefix, port) on the seven, `global.domain` and
+      `global.gateway` in the values and the schema; the library's HTTPRoute, and in each stack's
+      NetworkPolicy the public ports open to any source, only under a domain. `check-charts.sh`
+      renders each chart under a domain too, its routes against Gateway API 1.6.1's schema
+      (datreeio/CRDs-catalog, pinned by commit), and fails if gen9-edge's sites and the charts'
+      hosts differ (tried: `workflows` for `temporal`, "hosts differ"). Verified on kind with
+      cloud-provider-kind's Gateway (explore/deploy/NOTES.md, U5b-3): seven routes Accepted, every
+      host 200 over TLS, certificate verified; Keycloak's public rule removed and the Gateway made
+      again, Keycloak 503 and the API 200, the rule put back by `make k8s-reset`, 200 again;
+      `make k8s-diff` 0.
+    - [x] U5b-5 (follow-up) The apps' hosts certified automatically on Docker with ACME: Caddy's
+      on-demand TLS, its `ask` answered by gen9-agent for connectors that exist (Decision Log).
+      Planned 2026-10-03 (Decision Log, U5b-5): gen9-agent's `GET /internal/apps-host?domain=`
+      answers 200 when the host's first label is a connector's id (gen9-ui's `<id without
+      hyphens>.apps.…`, lib/apps.ts), else 404, unauthenticated as Caddy asks and outside the
+      OpenAPI document; gen9-edge asks it (`on_demand_tls`), its apps' site `tls … { on_demand }`
+      with the same issuer as the other sites unless `GEN9_EDGE_APPS=own` takes the operator's
+      wildcard (`GEN9_EDGE_APPS_TLS`), and its `api.` site doesn't serve `/internal/`. Verify on
+      Docker under `gen9.localhost` with Caddy's own CA (an ACME CA needs a public name): a
+      connector's app shown (`apps.mjs`), its host's certificate made on its first handshake; a
+      made-up id's handshake refused and gen9-agent asked; `/internal/` 404 from outside.
+      Done 2026-10-03. Built: `api/apps_host.py` (tests), gen9-edge's `on_demand_tls` and apps'
+      snippets (`GEN9_EDGE_APPS`: `on-demand` by default, `own`; `make setup` keeps an `.env`
+      that names its own wildcard on it), `api.`'s `respond /internal/* 404`; `apps.mjs` takes
+      `MCP_APPS_SANDBOX_URL` and the terminal sign-in's Chrome `E2E_INSECURE_CERTS`, which it
+      lacked (e2e/README.md). Verified on Docker under `gen9.localhost`, gen9-agent built from
+      this branch: `caddy adapt` gave per-host on-demand policies for Caddy's CA and for ACME
+      (Let's Encrypt and ZeroSSL), and the operator's files with `own`; `/internal/apps-host` 404
+      from outside; with the old wildcard removed from the edge's storage and Caddy restarted, no
+      certificate for the apps' hosts at start; a made-up id's handshake refused (curl exit 35)
+      after gen9-agent's 404; `apps.mjs` all passed under the domain, its View from
+      `https://<id>.apps.gen9.localhost`, whose own certificate Caddy made at 15:08:29 right after
+      gen9-agent's 200. Not run: an ACME CA, which needs a public name. Back on the ports, `make
+      diff` 0. The model calls cost $0.0037 (a first run stopped at the terminal's sign-in, a
+      second at the check's localhost origin).
+    - [x] U5b-4 Verified through the domain: `stacks.mjs` and a sign-in in Chrome on Docker behind
+      `gen9-edge`, on kind (`cloud-provider-kind`'s Gateway) and on k3d (Traefik's).
+      Done 2026-10-03, `stacks.mjs` with `APP_URL`, `KEYCLOAK_URL` and `LANGFUSE_URL` under
+      `gen9.localhost` and `E2E_INSECURE_CERTS=1`: on Docker behind gen9-edge (U5b-2), every check
+      passed; on k3d, every check passed, through Traefik's Gateway (`deploy/k3d.yaml` now turns
+      its Gateway provider on, k3s's HelmChartConfig, and publishes 127.0.0.1:80 and :443 from k3d's
+      load balancer; a Gateway in `gen9-gateway`, an HTTPS listener on Traefik's 8443, Accepted and
+      Programmed; the seven routes Accepted, every host 200 with the certificate verified); on kind
+      through cloud-provider-kind's Gateway (published on 443 by a test-only socat container), every
+      check but the streamed answer, cut at that Gateway's 15 s (Surprises). Traefik v3.7.13 doesn't
+      list request timeouts among its features either, but sets no such limit. Afterwards: `make
+      setup DOMAIN=localhost`, `make up`, `stacks.mjs` on the ports passed. Found on the way:
+      `make setup` checked gen9-edge's ports in its preflight, so with k3d holding 80 and 443,
+      `DOMAIN=localhost` stopped before unsetting it; setup's preflight now leaves the optional
+      stacks out (`make up` checks their ports once they run).
+  - [x] U5c External services: which settings point a stack at its own Postgres, Valkey,
+    ClickHouse or S3 elsewhere, and how the bundled one is left out, in both shapes. How, decided
+    2026-10-03 (Decision Log, U5c): on Docker each bundled store is a Compose profile named after
+    it, which the stack's `.env` lists in `COMPOSE_PROFILES`, and what uses it depends on it with
+    `required: false`; on Kubernetes `<stack>.services.<store>.kind: none`; in both, the one
+    setting that points the stack elsewhere has the same name, in `.env` (a secret) or `settings`,
+    and the store's label `gen9.external` names it, so `make up` and the chart refuse a store left
+    out with nothing in its place. In four units:
+    - [x] U5c-1 The way, on gen9-ui's Valkey (`SESSION_STORE_URL`): its profile, `init-env.sh`
+      writing `COMPOSE_PROFILES`, `make setup` adding it to an older `.env`, the check in `make
+      up`'s preflight and in the library, the docs (operations.md "External services", gen9-ui's
+      README, gen9-learn). Verified: gen9-ui on a Valkey outside its stack, on Docker and on k3d, a
+      sign-in kept there (its keys in that Valkey), no bundled Valkey running; a store left out with
+      no setting refused by each; then back to the bundled one, `make diff` 0.
+      Done 2026-10-03. Built: gen9-ui's `valkey` in the profile `valkey` with the label
+      `gen9.external: SESSION_STORE_URL`, `prod` and `dev` depending on it with `required: false`,
+      `SESSION_STORE_URL` a setting whose default is the bundled one's; `init-env.sh` writes
+      `COMPOSE_PROFILES=valkey`; `make setup` adds the store to an `.env` that has neither it nor
+      its setting (`bundled` in `scripts/setup.sh`); `scripts/doctor.sh` refuses a store left out
+      with its setting empty, from Compose's own services and environment (not in `make setup`'s
+      preflight, `--before-setup`, since setup writes it); the library refuses `kind: none` without
+      the setting, and `scripts/check-charts.sh` checks that for every labelled store; `make diff`
+      now also names a missing container of a service in an active profile (it skipped every
+      profiled service). Verified on Docker, this install's own `.env` (no `COMPOSE_PROFILES`):
+      `make diff` exit 2, "gen9-ui-valkey-1: not a service of gen9-ui's Compose file"; `make up`
+      refused, "gen9-ui leaves out its valkey … SESSION_STORE_URL names no other"; `make setup`
+      added the line (twice: one line), `make up`, `make diff` 0. Then a Valkey container outside
+      the stack (`host.docker.internal:26379`), `COMPOSE_PROFILES=` and `SESSION_STORE_URL` in
+      `.env`: `make up`, `make diff` named the old Valkey, `make reset` removed it, 0;
+      `stacks.mjs` all passed (sign-in, chat, back-channel logout), the outside Valkey holding
+      `gen9:auth-txn`, `gen9:logout-jti` and `gen9:session-by-sub` keys. On k3d (Traefik's
+      Gateway, `gen9.localhost`): `ui.services.valkey.kind: none` alone, "UPGRADE FAILED …
+      ui.services.valkey.kind is none, and nothing names another: set SESSION_STORE_URL", still
+      revision 2; with `SESSION_STORE_URL` in `.env` (the Secret `env`; the Valkey on the k3d
+      network, by container name), revision 3, no StatefulSet, the PVC kept, `stacks.mjs` all
+      passed, the same three keys in the outside Valkey; `make k8s-diff` 0. Both back on the
+      bundled Valkey (k3d's on its old PVC), `make diff` 0 on every Docker stack, `make k8s-diff`
+      0 for gen9-ui. Four model calls in all, $0.001454.
+    - [x] U5c-2 The Postgres of gen9-keycloak, gen9-models and gen9-temporal: each one's own
+      settings (Keycloak's `KC_DB_URL`, LiteLLM's database URL, Temporal's `POSTGRES_SEEDS`), TLS
+      to the server, and what its owner creates there first (the database and role; Temporal's two
+      databases).
+      Done 2026-10-03. Built: each stack's `postgres` a profile with its label; the settings,
+      upstream's own names where there are some: Keycloak's `KC_DB_URL_HOST`, `_PORT`,
+      `_DATABASE`, `_PROPERTIES` and `KC_DB_USERNAME` (in place of `KC_DB_URL`); Temporal's
+      `POSTGRES_SEEDS`, `DB_PORT`, `SQL_TLS_ENABLED` (the schema job's `SQL_TLS` from it); the
+      router's `LITELLM_DB_HOST`, `_PORT`, `_SSLMODE`, in its three URLs (LiteLLM's, the keys job's,
+      the admin API's); `init-env.sh` and `make setup` as for gen9-ui; the SQL that makes the roles
+      and databases, in docs/operations.md. TLS here encrypts without checking the server's
+      certificate (pgjdbc's and Prisma's `require`, Temporal's host verification off): U5c-5.
+      Verified (explore/deploy/NOTES.md, U5c-2): this install's three `.env` without
+      `COMPOSE_PROFILES`, `make up`'s preflight refused each, naming its setting; `make setup`
+      added the lines, `make up` on the bundled ones, `make diff` 0. Then a TLS-only Postgres outside
+      the stacks, the roles made with the docs' SQL: `make up`, every connection TLS, the schemas
+      made; `make diff` named the three bundled Postgres, `make reset` removed them; `stacks.mjs`
+      all passed (after restarting gen9-agent, whose Temporal token the new realm's keys refused:
+      Surprises), the call's spend logged in the outside database, the admin API's routes 200 as
+      `gen9_admin`. On k3d, the three with `kind: none` and the setting in `.env`: no Postgres
+      StatefulSet, every connection from the node TLS, `stacks.mjs` through the Gateway all passed,
+      `make k8s-diff` 0. All back on the bundled ones, their data as before (the bundled spend log
+      went on from 4435 rows), `stacks.mjs` passed again, `make diff` 0, `make k8s-diff` 0 for the
+      three. The model calls cost $0.0022 in all.
+    - [x] U5c-3 gen9-postgres, gen9-agent's database: the host gen9-agent and gen9-postgres's
+      `extensions` and `roles` reach, so those run against the outside server too; what that
+      server needs (pgvector, pg_textsearch).
+      Done 2026-10-03. Built: gen9-postgres's `postgres` a profile with its label;
+      `GEN9_POSTGRES_SERVER`, `_SERVER_PORT`, `_SSLMODE` and `_ADMIN_USER`, which its `extensions`
+      and `roles` jobs reach the server by (libpq's `PG*`), and gen9-agent's `compose.yaml` its
+      database by; gen9-agent's new setting `DATABASE_SSLMODE` (libpq's `sslmode`, in every
+      connection's URL; tests); `make setup` copies the three address settings from gen9-postgres's
+      `.env` into gen9-agent's, and `make up`'s preflight refuses while they differ. Verified
+      (explore/deploy/NOTES.md, U5c-3), gen9-agent built from this branch (bake, pushed to the test
+      registry, `~/.cache/gen9-probes/u5c.lock`): this install's `.env` refused, then migrated, `make
+      diff` 0; a TLS-only server on Gen9's image with another administrator, the role and database
+      made with the docs' SQL: the jobs and migrations ran there, every connection TLS, `make
+      diff`/`reset` removed the bundled Postgres, `stacks.mjs` all passed; `_SSLMODE=disable`
+      refused by the server in both stacks; on k3d with `kind: none`, `stacks.mjs` through the
+      Gateway all passed, `make k8s-diff` 0. Both back on the bundled server with its data (its two
+      threads), `make diff` 0, `make k8s-diff` 0 for the six stacks. The model calls cost $0.0015.
+    - [x] U5c-4 Langfuse's Postgres, Redis, ClickHouse and S3, by Langfuse's own variables.
+      Done 2026-10-03. Built: the four a profile each in Gen9's `compose.override.yaml`, labelled
+      with Langfuse's `DATABASE_URL`, `REDIS_HOST`, `CLICKHOUSE_URL` and
+      `LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT`; the web's and worker's dependencies on them optional;
+      `minio-lifecycle` in `minio`'s profile, and the library now leaves out what shares a left-out
+      store's profile, as Compose does; the media store's internal address a setting. Since
+      gen9-langfuse's `.env` always holds `DATABASE_URL`, a store counts as elsewhere only when its
+      setting names another host than the store's own service, in `make up`'s preflight, `make
+      setup` and the chart (`check-charts.sh` checks a setting naming the store is refused too);
+      `make setup` gives an `.env` without `COMPOSE_PROFILES` every store, as all ran before; `make
+      setup DOMAIN=…` leaves the media addresses of an S3 elsewhere alone. Verified
+      (explore/deploy/NOTES.md, U5c-4): this install's `.env` refused for all four, then migrated,
+      `make diff` 0; the four outside the stack, Postgres TLS only: Langfuse migrated there,
+      `make diff`/`reset` removed five bundled containers, `stacks.mjs` all passed, its trace
+      through all four; on k3d, the four `kind: none` (no StatefulSet, no media route), `stacks.mjs`
+      through the Gateway all passed, `make k8s-diff` 0 (after a fix: `make setup DOMAIN=` had
+      rewritten the outside S3's address, Surprises). Both back on the bundled stores, `make diff`
+      0, `make k8s-diff` 0 for seven stacks. The model calls cost $0.0015.
+    - [x] U5c-6 gen9-agent's sweep refuses to delete what looks like a different Keycloak rather
+      than deleted people: a realm that knows none (or few) of the people Gen9 knows (Surprises,
+      2026-10-03), as identity provisioning services stop on mass deletions (to research: their
+      thresholds, e.g. Microsoft Entra's accidental-deletions prevention), an admin's way to go on.
+      Research, 2026-10-03, Microsoft Learn: Entra Connect Sync's "prevent accidental deletes" is
+      "enabled by default and configured to not allow an export with more than 500 deletes"; over
+      it, "the export stops before deleting any object", and an admin disables it for one run and
+      enables it again. Entra provisioning's threshold puts the job "into quarantine", from which
+      an admin chooses "Allow deletes" or rejects them, "evaluated each cycle". A count alone
+      wouldn't have stopped the case here, two people of two. Planned: the sweep holds every
+      deletion when it would delete more than `SWEEP_MAX_DELETIONS` people (default 10) or more
+      than half of those Gen9 knows (its only one too), deleting nobody, as Entra's export does; an
+      error in the worker's log and the audit event `account.sweep.held` say how many and how to
+      go on; `gen9-agent-sweep` shows what the sweep would delete, and `--allow N` runs it once,
+      deleting them only if they number N or fewer (Entra's "Allow deletes", with the count
+      confirmed). Verify: unit tests; live, after `make backup`, gen9-keycloak on an empty database
+      with gen9-agent running: the sweep held, the audit event, nothing deleted; Keycloak back, every
+      chat still there.
+      Done 2026-10-03. Built: `accounts.sweep_holds` (more than `SWEEP_MAX_DELETIONS`, or more than
+      half of the people Gen9 knows, the only one too: a first version spared fewer than two, which
+      would have let a one-person install lose its only person, and this install had one); the
+      sweep's Activity holds every deletion then, logs an error and records `account.sweep.held`;
+      `SweepDeletedUsersWorkflow.run(allow)` passes an admin's allowance (`workflow.patched`);
+      `gen9-agent-sweep [--allow N]` (`sweep.py`), recorded as `account.sweep.allowed`; tests (the
+      rule, the hold, the allowance in the Activity and through the workflow); 621 pass. Verified
+      on Docker, gen9-agent built from this branch, after `make backup` of gen9-postgres,
+      gen9-keycloak and gen9-models (`~/gen9-backup-u5c6`): gen9-keycloak on an empty database
+      with gen9-agent running, `gen9-agent-sweep` "the sweep holds: 1 of the 1 people Gen9 knows
+      missing from Keycloak, more than half"; the Schedule triggered: "deleted-users sweep held,
+      nobody deleted …", `account.sweep.held` {"known": 1, "limit": 10, "missing": 1}, the person
+      still there, no DeleteAccountWorkflow started; `gen9-agent-sweep --allow 1`: "1 deletions
+      started", the person gone, `account.sweep.allowed` recorded. Keycloak back on its own
+      database: `stacks.mjs` all passed, `make diff` 0. The model calls cost $0.0007.
+    - [x] U5c-7 (follow-up of U5c-5c's Surprise) gen9-ui answers at once when its session store
+      can't be reached, instead of waiting. node-redis 6.2.1's own docs (docs/client-configuration.md
+      and FAQ.md at `redis@6.2.1`): the client reconnects by `reconnectStrategy`, whose Error
+      "close[s] the client"; commands "remain queued in memory until a new socket is established"
+      unless `disableOfflineQueue`, which rejects them instead. `store()` awaits `connect()`, which
+      kept retrying a server that refused its certificate. Planned: before the client was ever
+      ready, give up at once, so `connect()` rejects and the next request tries anew; once ready,
+      node-redis's own backoff, with the offline queue off. Verify: unit test of the strategy; on
+      Docker and k3d, the session store stopped or refused: `/auth/login` answers within a second
+      or two; back, sign-in works again with no restart.
+      Done 2026-10-03. Built: `reconnectDelay` in `lib/auth/store.ts` (tested), the client with
+      `disableOfflineQueue`. Verified with gen9-ui built from this branch: on Docker, the bundled
+      Valkey stopped, `/auth/login` 303 in 0.06 s (to `/auth/error?reason=temporarily_unavailable`),
+      then 0.01 s; started again, 307 with no restart of gen9-ui; a TLS Valkey whose certificate it
+      can't check (U5c-5c's case, no answer in 10 s before), 303 in 0.04 s, `/api/health` 503
+      "session store unavailable" at once, so `make up` stops on it; on k3d, Valkey scaled to 0,
+      303 in 0.03 s, back at 1, 307. `stacks.mjs` all passed; gen9-ui's 170 tests; `make diff` 0,
+      `make k8s-diff` 0. The model calls cost $0.0007.
+    - [x] U5c-5 TLS to a store elsewhere, the server's certificate checked against a CA its owner
+      gives (Keycloak's `KC_DB_TLS_MODE=verify-server` and trust store, Temporal's `SQL_CA` and host
+      verification, libpq's `sslrootcert`, Prisma's `sslcert`), which needs that CA file in the
+      containers in both shapes, a published chart included.
+      Research, 2026-10-03, each client's own source or docs: Prisma's engine (prisma-engines,
+      `quaint/src/connector/postgres/url.rs`) takes `sslmode` prefer, disable or require, accepts
+      any certificate unless `sslaccept=strict` (`SslAcceptMode::AcceptInvalidCerts` by default),
+      then checks against `sslcert`, a CA file, and drops parameters it doesn't know; libpq's
+      `sslcert` is instead the client's certificate, its CA `sslrootcert`, and an unknown
+      parameter fails the connection, so one URL can't serve gen9-models' LiteLLM (Prisma) and its
+      keys job and admin API (psycopg); libpq's `sslrootcert=system` makes `verify-full` the least
+      mode; Keycloak 26.7.5's `--db-tls-mode=verify-server` with `--db-tls-trust-store-file` (a
+      PEM); Temporal 1.32.0's server `SQL_CA` and `SQL_HOST_VERIFICATION`, its schema tool's own
+      `SQL_TLS_CA_FILE` and `SQL_TLS_DISABLE_HOST_VERIFICATION`. Node (Langfuse's ClickHouse, S3
+      and Redis clients; gen9-ui's node-redis) takes extra CAs from `NODE_EXTRA_CA_CERTS`. In
+      three units:
+      - [x] U5c-5a The CA in the containers, in both shapes: each stack's `certs/` folder (its CA
+        files, not in git) mounted read-only at `/etc/gen9/certs` where a store is reached; on
+        Kubernetes, `make k8s-up` makes the ConfigMap `certs` from the same folder and the library
+        mounts that, optional, instead of files packed in the chart, so a published chart takes
+        the cluster's own. First users, libpq's: gen9-agent (`DATABASE_SSLROOTCERT`, with
+        `verify-full`) and gen9-postgres's jobs. Verify against a server whose certificate a test
+        CA signed: `verify-full` with the CA connects; without it, or under a name the
+        certificate doesn't hold, refused.
+        Done 2026-10-03. Built: `certs/` (its `.gitignore` keeps out every file but itself),
+        mounted `../certs:/etc/gen9/certs:ro` by gen9-agent's services and gen9-postgres's jobs;
+        `GEN9_POSTGRES_SSLROOTCERT` (libpq's `PGSSLROOTCERT` for the jobs; gen9-agent's new
+        `DATABASE_SSLROOTCERT`, in every connection's URL, tests), copied by `make setup` and
+        compared by `make up` as the other three; the library mounts a folder of the
+        repository's root (`../certs`) as the ConfigMap of its name, optional, its content's hash in
+        the pods' `gen9/settings`; `make k8s-up` makes the ConfigMap `certs` in each namespace
+        from the folder's files and `make k8s-diff` compares it. Verified, gen9-agent built from
+        this branch: on Docker with a TLS-only server on Gen9's image, its certificate signed by a
+        test CA for `gen9-u5c-pg3` and `host.docker.internal`: `verify-full` with the CA, the jobs
+        and migrations ran, every connection TLS, `stacks.mjs` all passed; refused in both stacks
+        without the CA ("root certificate file … does not exist"), with a CA that didn't sign it
+        ("certificate verify failed"), and by an address the certificate doesn't name ("server
+        certificate for "gen9-u5c-pg3" (and 2 other names) does not match host name
+        "192.168.65.2""); the bundled server with the settings empty, as before. On k3d by the
+        server's container name: the ConfigMap made, the pods with `/etc/gen9/certs/db-ca.pem`,
+        every connection TLS, `stacks.mjs` through the Gateway all passed, `make k8s-diff` 0; a
+        file added to `certs/`: exit 2 and the pods' checksum changed, removed: 0. Both back on
+        the bundled server, every k3d stack updated, `make k8s-diff` 0 for seven, `make diff` 0.
+        The model calls cost $0.0015.
+      - [x] U5c-5b Keycloak, Temporal (its schema tool's settings from the server's, in
+        `setup-schema.sh`) and the router (Prisma's `sslaccept=strict&sslcert=`, psycopg's
+        `sslrootcert`, each in its own URL).
+        Done 2026-10-03. Built: `certs/` mounted by Keycloak, Temporal's server and schema job, and
+        LiteLLM, the keys job and the admin API; Keycloak by its `KC_DB_URL_PROPERTIES`
+        (`?sslmode=verify-full&sslrootcert=…`, pgjdbc's); Temporal's `SQL_CA` and
+        `SQL_HOST_VERIFICATION` (its session sets `verify-full` and `sslrootcert` from them, read in
+        `sqlplugin/postgresql/session/session.go` at v1.32.0), `setup-schema.sh` giving its tool
+        the same; the router's `LITELLM_DB_SSLROOTCERT`, in Prisma's terms in LiteLLM's URL and
+        libpq's in the others' (a later `sslmode` wins in libpq, probed); the library resolves a
+        `${X}` inside `${Y:+…}`, as Compose does (probed). Verified on Docker with a TLS-only
+        Postgres whose certificate the test CA signed, the three databases made by the docs' SQL:
+        each stack connected with its check, every connection TLS, `stacks.mjs` all passed; by an
+        address the certificate doesn't name, each refused (Keycloak: "hostname 192.168.65.2 could
+        not be verified by hostnameverifier PgjdbcHostnameVerifier"; LiteLLM: "certificate verify
+        failed"; the keys job's libpq: "does not match host name"; Temporal: "x509: cannot validate
+        certificate for 192.168.65.2 because it doesn't contain any IP SANs"). On k3d by the
+        server's name, the CA from the ConfigMap: every connection TLS, `stacks.mjs` through the
+        Gateway all passed, `make k8s-diff` 0. Both back on the bundled servers, `make diff` 0,
+        `make k8s-diff` 0 for seven. While Keycloak pointed at the empty database, gen9-agent's
+        sweep erased the seeded users' data (Surprises; U5c-6). The model calls cost $0.0022.
+      - [x] U5c-5c Langfuse (Prisma's in `DATABASE_URL`; `NODE_EXTRA_CA_CERTS`; ClickHouse's
+        migrations, Go's) and gen9-ui (`NODE_EXTRA_CA_CERTS` for `rediss://`).
+        Read 2026-10-03, Langfuse's source at v4.48.0: it reads `REDIS_TLS_ENABLED`,
+        `REDIS_TLS_CA_PATH` and siblings (`packages/shared/src/env.ts`), not the `REDIS_TLS_CA` its
+        Compose file passes; its ClickHouse migrations (`clickhouse/scripts/up.sh`, golang-migrate)
+        with `CLICKHOUSE_MIGRATION_SSL=true` add `secure=true&skip_verify=true`: encrypted, never
+        checked, whatever the CA. Planned: Gen9's override passes `NODE_EXTRA_CA_CERTS` (Node's own:
+        the ClickHouse and S3 clients), `REDIS_TLS_CA_PATH` and `CLICKHOUSE_MIGRATION_SSL` to the
+        web and the worker, with `certs/` mounted; Prisma's check in `DATABASE_URL`; gen9-ui passes
+        `NODE_EXTRA_CA_CERTS` for its `rediss://`. Verify each store over TLS with the test CA:
+        connected and checked; refused under a name its certificate doesn't hold.
+        Done 2026-10-03. Built: Gen9's override passes `NODE_EXTRA_CA_CERTS`, `REDIS_TLS_CA_PATH`
+        and `CLICKHOUSE_MIGRATION_SSL` to Langfuse's web and worker and mounts `certs/`; gen9-ui's
+        `prod` and `dev` the same for `NODE_EXTRA_CA_CERTS`. Verified on Docker with the four
+        Langfuse stores and gen9-ui's Valkey TLS-only, one certificate from the test CA: Langfuse
+        migrated both databases (Prisma `sslaccept=strict&sslcert=`, every connection TLS;
+        ClickHouse's HTTPS and secure native port), `stacks.mjs` all passed, its trace through
+        Redis, S3 and ClickHouse, gen9-ui's session keys in the TLS Valkey. Without the CA, each
+        refused: gen9-ui "[session-store] self-signed certificate in certificate chain";
+        ClickHouse's client "unable to verify the first certificate"; Redis, with both
+        `REDIS_TLS_CA_PATH` and `NODE_EXTRA_CA_CERTS` gone, "Redis error [tls]: self-signed
+        certificate in certificate chain" (either alone suffices: its client falls back on Node's
+        CAs); Prisma without `sslcert`, "P1001: Can't reach database server" (its words for the
+        failed check: the same server answered with it). On k3d by the servers' names, the CA from
+        the ConfigMap: `stacks.mjs` through the Gateway all passed, `make k8s-diff` 0. Both back on
+        the bundled stores, `make diff` 0, `make k8s-diff` 0 for seven. The model calls cost
+        $0.0015.
+- [x] U6 Sandboxes on Kubernetes: OpenSandbox's Kubernetes runtime, Gen9's egress and execd
+  images, its limits and closed network as on Docker; a chat's command runs in a pod. Every part
+  below verified on kind (acceptance `sandbox.k8s`); checked here 2026-10-03, when it was found
+  left open after its last item.
+  - [x] Choose the workload provider from evidence: OpenSandbox's own `BatchSandbox` (its CRDs
+    and controller) or `kubernetes-sigs/agent-sandbox` (SIG Apps, v1.0.4, `Sandbox` CRD), which
+    OpenSandbox's server also drives (`workload_provider = "agent-sandbox"`); each tried on kind
+    with Gen9's egress sidecar, network policy and limits. Read so far (release-1.1.0's
+    `server/opensandbox_server/services/k8s`): both providers add the egress sidecar the same
+    way (`egress_helper.apply_egress_to_spec`, the credential proxy too), and both follow an
+    expiry (agent-sandbox's `shutdownTime`). R2d's privileged init container comes only from
+    `[egress] disable_ipv6`, which writes `/proc/sys/.../disable_ipv6` before installing execd
+    (`prep_execd_init_for_egress`). Tried on kind (explore/deploy/NOTES.md, U6): agent-sandbox
+    v1.0.4 (its `sandbox.yaml`, checked against the digest GitHub records for the asset; the
+    controller from `registry.k8s.io`) with OpenSandbox's server (`workload_provider =
+    "agent-sandbox"`) and Gen9's execd and egress images from the lock: `id -u` 0, the allowed
+    host 200, an undeclared host and the metadata address blocked, as BatchSandbox in R2d. The
+    init container was privileged all the same: `disable_ipv6` defaults to true ("egress IPv6
+    support is incomplete, especially on Kubernetes runtime", `config.py`). Upstream's server
+    chart grants nothing on `agents.x-k8s.io`: the create was refused (403) until a Role in the
+    sandboxes' namespace allowed it. Decision: agent-sandbox (Decision Log, U6).
+  - [x] agent-sandbox's CRD and controller from its release file, pinned by its digest
+    (`gen9-sandbox/chart/prerequisites.txt`) and checked before `make k8s-up` applies it
+    (server-side) and `make k8s-diff` compares it.
+  - [x] gen9-sandbox's chart: the server from Gen9's own image with `launch.py`'s Docker parts
+    off on the Kubernetes runtime; its config with `[runtime] type = "kubernetes"`, Gen9's execd
+    and egress images, Gen9's pod template (no privileged init container, capabilities dropped,
+    1 CPU and 1 GiB as `SANDBOX_CPU` and `SANDBOX_MEMORY`); rights only in the sandboxes'
+    namespace (upstream's chart gives the server a ClusterRole that creates pods and Secrets
+    anywhere); a NetworkPolicy letting only the server reach a sandbox's pod (gen9-agent reaches
+    sandboxes only through it, `use_server_proxy`); gVisor or Kata as a setting
+    (`[secure_runtime] k8s_runtime_class`). Built: `launch.py` (GEN9_SANDBOX_RUNTIME=kubernetes:
+    the config's `[runtime] type`, `[kubernetes]` and `[agent_sandbox]`; no Docker patches or disk
+    watcher); the stack template's `dropMounts`, `env` and `serviceAccount`; and
+    `templates/sandboxes.yaml`: the namespace (Pod Security `privileged`, kept on uninstall), the
+    server's Role there and a read-only ClusterRole (runtime classes, namespaces), the
+    NetworkPolicy, and a MutatingAdmissionPolicy giving each sandbox container Docker's limits from
+    `config.toml` (seccomp `RuntimeDefault`, `no_new_privileges`, `drop_capabilities`) and
+    `SANDBOX_DISK_GB` as its `ephemeral-storage` limit; without that API (before Kubernetes 1.36)
+    the chart refuses unless `sandboxes.hardening: optional`. Seen on kind: a sandbox with
+    `NoNewPrivs: 1`, `Seccomp: 2`, `CapEff 0x800405fb` (no NET_RAW, NET_ADMIN, MKNOD, AUDIT_WRITE,
+    SYS_ADMIN), limits cpu 1, memory 1Gi, ephemeral-storage 10Gi; labels `gen9-thread`,
+    `gen9-user`, `opensandbox.io/id`. Processes: the kubelet's `podPidsLimit: 4096`
+    (`deploy/kind.yaml`), a cluster's to set, as no pod field can.
+  - [x] Verified on kind: `environments.mjs` and the rest of `make k8s-e2e` (U3's item); the
+    sandboxes' egress and execd images the lock's digests.
+- [ ] U7 Releases, as R1 decided: labels and `.github/release.yml`; the release workflow (images,
+  chart, Compose bundle, SBOMs, attestations, a draft then published); the `release` environment;
+  the version in the API, the web app, the CLI and the images' labels; `SECURITY.md`'s supported
+  versions; "Releasing" in docs/development.md; Scorecard's workflow. Verified with a pre-release
+  from a branch.
+  - Read 2026-10-03, Helm's "Use OCI-based registries" (helm-www `docs/topics/registries.mdx`):
+    `helm push <chart>.tgz oci://<registry>/<path>`; a provenance file (`.prov`) beside the
+    `.tgz` is pushed with it as a layer of its own; Sigstore signing through the `helm-sigstore`
+    plugin. Since Gen9 has eight charts plus the library, the charts go up as eight OCI artifacts,
+    each attested by digest as the images are (U1) rather than with GPG provenance: to confirm
+    against `actions/attest` for a non-image subject when U7 starts.
+  - [x] U7a What runs says what it is (R1, 5): one version, declared by gen9-agent, gen9-cli and
+    gen9-ui, which `scripts/check-version.py` (in `make config`, so CI) holds equal, and against
+    which a release's tag is checked; the commit, which bake takes from CI's `GITHUB_SHA` into
+    gen9-agent's and gen9-ui's images as `GEN9_COMMIT` (empty when built here); their OCI labels
+    `version` and `revision` from CI's metadata (`set-meta-labels`). Shown: gen9-agent's
+    `GET /v1/version`, to someone signed in only (to anyone else a version names the
+    vulnerabilities to try); Settings, "About Gen9"; `gen9 --version` (the terminal's own) and
+    `gen9 whoami` (the Gen9 it reached). Verified on Docker, both images built by bake with the
+    commit and run from a lock: unsigned 401; signed in `{"version":"0.1.0","commit":"6c258db…"}`;
+    `gen9 --version` "gen9 0.1.0"; `gen9 whoami` "Gen9 0.1.0, commit 6c258db."; Settings "About
+    Gen9 Version 0.1.0, commit 6c258db". Tests in gen9-agent, gen9-cli and gen9-ui.
+  - [x] U7b Release notes: `.github/release.yml` grouping merged pull requests by labels (Added,
+    Changed, Deprecated, Removed, Fixed, Security; Keep a Changelog's groups); the labels made by
+    the owner (U8), with the commands in "Releasing". Built: those groups in that order, then
+    Dependencies (Dependabot's label) and "Other changes" (`*`); `skip-release-notes` leaves one
+    out; GitHub's own `enhancement` and `bug`, which the repository has, count as Added and Fixed.
+    Checked with GitHub's API, which writes notes without making a release
+    (`POST /repos/…/releases/generate-notes`, `configuration_file_path` on this branch): the
+    configuration read (its "Other changes" heading; without it, one plain list), every merged
+    pull request in it, none being labelled yet.
+  - [ ] U7c The release workflow on a `v*` tag: the tag checked against the version; the 7 images
+    built and pushed (images.yml, called), attested; the lock; the charts packaged with the version
+    and the lock's digests, pushed to `oci://ghcr.io/coast-guide/charts`, attested by digest; the
+    Compose bundle; a draft release with generated notes and the assets, published in the
+    `release` environment. Verified without publishing anything: the workflow's jobs run on a
+    branch up to the draft, and the parts here (charts packaged, bundle made, `make up IMAGES=` from
+    it).
+    Built 2026-10-03: `.github/workflows/release.yml` (the version checked; `images.yml` called,
+    now `workflow_call` with the version's tag too and its attestations kept; the charts and the
+    bundle attested, one attestation for the eight charts by `subject-checksums`, the bundle by
+    `subject-path`, per actions/attest v4.2.2's README; each image's SBOM read from GHCR; a draft
+    with `--generate-notes`, the assets, published in the `release` environment). What a release's
+    chart runs: the library reads `images.lock` packed inside when no values give the images
+    (`gen9.lockImages`), values first. Verified here: `scripts/release-charts.sh` packaged and
+    pushed the eight charts to the local registry; `helm show chart` gave the version and
+    appVersion, `helm template` the lock's digests, and k3d's gen9-ui upgraded from
+    `oci://127.0.0.1:25000/charts/gen9-ui` with no images in its values ran the lock's digest;
+    `scripts/release-bundle.sh` made the same bytes twice, its lock taken by `scripts/images.sh`;
+    the SBOM read (`imagetools inspect --format '{{ json .SBOM }}'`) on an image built with one;
+    `check-charts.sh` now renders a chart from a packed stand-in lock; actionlint. Not yet run:
+    the workflow itself, which needs a tag (the owner's first pre-release, U8).
+    The dry run, 2026-10-04: `workflow_dispatch` runs only a workflow on the default branch
+    (GitHub's docs), which `release.yml` isn't on yet, and a run on a tag publishes; so a pull
+    request touching the release's parts (the workflow, its scripts, the charts, the library)
+    runs a dry run instead: the declared versions agree; every chart packaged with a stand-in lock
+    and pushed to a registry on the runner (`registry:3.1.2` by digest), read back, and a
+    release's chart rendering the lock's image with no values; the bundle made twice, the same
+    bytes, its lock inside. No image pushed (Images builds them on the same pull requests), no
+    attestation, no release. Run here first: 8 of 8 charts pushed and read back, the bundle the
+    same twice; actionlint clean. Then on GitHub's runners, its pull request's run 37148848479:
+    `version`, `charts-dry-run` and `bundle-dry-run` passed (the tag's jobs skipped): the 8
+    charts pushed to the runner's registry and read back by digest, `version: 0.0.0-dryrun.1`,
+    the release's chart rendering the stand-in image; the bundle the same twice
+    (sha256 3fd81806…), its `images.lock` inside.
+  - [x] U7d `SECURITY.md`'s supported versions; "Releasing" in docs/development.md; Scorecard's
+    workflow. Done 2026-10-03: SECURITY.md (while 0.y, only the latest release gets fixes, as a
+    patch release); "Releasing" (with U7c); `.github/workflows/scorecard.yml` as ossf/scorecard's
+    own (scorecard-action v2.4.4, its annotated tag resolved to commit 2d114668; codeql-action
+    v4.38.2, 2892aa5e; publishing's restrictions kept). Scorecard v5.5.0 (its image now on
+    `ghcr.io/ossf/scorecard`: `gcr.io` answered "requires billing to be enabled") on `main` that
+    day: 6.6. -1 Packaging and Signed-Releases (no release workflow on `main`, no release yet:
+    this stack brings both); 0 Code-Review, Maintained, Fuzzing, CII-Best-Practices, 3
+    Branch-Protection and Contributors (a one-person repository, months old: the owner's); 8
+    Vulnerabilities, the two advisories #66 accepts; 9 Pinned-Dependencies, two `curl … |
+    python3 -c` in `gen9-keycloak/verify.sh` read as running a download (they parse Keycloak's
+    JSON): now read into a variable first, and Scorecard `--local` on the working copy finds them
+    gone (the one warning left is in an installed `node_modules`, not in git); `verify.sh` all
+    passed against the stacks.
+- [ ] U8 The owner's: the first release tag; GHCR packages public; the `release` environment's
+  reviewer; `v*` tags creatable only by them (the ruleset's creation rule); registering at
+  bestpractices.dev if they want the badge.
+- [ ] Z1 Docs in step (operations.md, development.md, README, each stack's README, e2e/README,
+  gen9-learn); `make e2e` against Docker and kind from published images.
+  - [x] Docs in step, 2026-10-03: the README's quick start points to every other way to run Gen9
+    (a release, Kubernetes, a domain, stores elsewhere) and its table names `deploy/` and
+    `certs/`; operations.md's opening says all it covers, and how to run and check a release moved
+    there from development.md's "Releasing" (now a link: one place for each fact); AGENTS.md's map
+    names Kubernetes, releases and the operations they need. Every relative link and heading anchor
+    in the four files checked (a script: none broken). The stacks' READMEs, e2e/README and
+    gen9-learn were kept in step by each unit as it landed.
+  - [x] Meanwhile, `make e2e` on Docker against the stack's top, its 7 images built from that commit
+    by bake as CI builds them (`~/.cache/gen9-probes/top.lock`), `make diff` 0 first, 2026-10-04:
+    every script ran, in two passes (the suite stops at a failing script): 248 checks, then 464,
+    and two failures, neither in Gen9. `scheduled.mjs` wanted "Next: in 1 or 2 minutes" for a task
+    set to the minute two ahead; saving it took over a minute under the suite's load and the row
+    rightly said "under a minute" (the check fixed, #91; all 20 passed after). `agui.mjs`: the model
+    saved "Favourite bird: heron." without the tag the check looks for; run again, all passed. The
+    model calls cost $0.1791 (420 calls).
+  - [x] Meanwhile, `make k8s-e2e` on k3d against the same 7 images, the agent's with #92's fix,
+    2026-10-04: every check passed, 694 across every script (1 skipped: no reranker), the model
+    calls $0.1751 (410 calls). The first run stopped in agents.mjs, where the model ran away inside
+    a tool call and the worker stopped (Surprises; fixed in #92). And `make k8s-e2e` exited 1 after
+    its checks had passed: `scripts/k8s.sh e2e`'s forwards inherited `set -e`, so each ended the
+    first time kubectl dropped it, and its cleanup stopped at the first forward already gone. Now
+    each forward dials again and the cleanup goes through. With the UI's pod replaced mid-run, the
+    UI answered again within 4 s, the script exited 0 and no forward was left; as committed, it
+    didn't answer for 60 s, exit 1, one forward left. Then k3d back on the domain
+    (`make k8s-diff` 0) and Docker up (`make diff` 0).
+  - [ ] `make e2e` against Docker and kind from published images (after the owner's U8).
+
+
+## Surprises & Discoveries
+
+- `make k8s-e2e`'s forwards never dialled again, though the script says they do: each ran in a
+  subshell with `set -e` from `scripts/k8s.sh`, and kubectl v1.37.1 ends a forward whose pod goes
+  ("error: lost connection to pod", exit 1, tried on k3d), which ended the loop. gen9-edge's
+  forwards, for a stack with no chart, ended at once. Then the cleanup, also under `set -e`, stopped
+  at the first `pkill -P` that found nothing (dash's EXIT trap ends on a failing command), so the
+  run exited 1 after every check passed and left the later forwards running (Z1).
+- A model that ran away inside a tool call stopped gen9-agent's worker (Z1's `make k8s-e2e` on k3d,
+  2026-10-03). In agents.mjs, gpt-6-luna's `task` call ran to its 32,000-token limit, four minutes,
+  its arguments ending in 190,000 characters inside a JSON key it never closed. langchain-core's
+  `parse_partial_json` then held the worker's event loop for over two minutes (the readiness probe
+  failed from 20:59:21 to 21:00:51), so the Temporal token's renewal didn't run; Temporal refused
+  the expired token ("Token is expired", from 20:59:42) and the worker stopped ("Worker failed,
+  shutting down"). Idle, the same worker ran 15 minutes without a refusal. The function repairs text
+  that doesn't parse by retrying `json.loads` once for each character it drops: 85 s for that text
+  on this machine (gen9-agent/explore/harness/NOTES.md, "A runaway tool call stalls the worker").
+  Fixed in #92.
+- gen9-ui's sign-in waits while its session store refuses it: with the Valkey's CA withheld,
+  `/auth/login` gave no answer within 10 s, node-redis retrying ("[session-store] self-signed
+  certificate in certificate chain", 285 times), where a 503 would say so at once (U5c-5c).
+  Follow-up: fail fast when the store can't be reached.
+- Pointing gen9-keycloak at an empty database (U5c-5b's test, 2026-10-03, on this machine's
+  install) made gen9-agent's `sweep-deleted-users` see every person as deleted in Keycloak: within
+  minutes it started a DeleteAccountWorkflow for both seeded users, which erased their chats (2
+  threads), memory and the router's records of them (3,917 and 333 spend rows). No backup existed.
+  Each missing user is confirmed by its own lookup (`accounts.find_deleted_users`), so a different
+  realm passes that check. Docs now say to move Keycloak's database with its data, or stop
+  gen9-agent first; the sweep's own guard is U5c-6.
+- `value_of` in `scripts/setup.sh` gives its default for an empty value as for a missing one, so
+  `COMPOSE_PROFILES=` (every store elsewhere) read as the default `minio`, and `make setup DOMAIN=`
+  rewrote an outside S3's media address (U5c-4, found on k3d). A setting whose empty value means
+  something is read from its line, not through `value_of`.
+- Moving gen9-keycloak to an empty database makes a new realm with new signing keys, and
+  gen9-agent's cached token for Temporal is then refused ("Request unauthorized") until gen9-agent
+  restarts (U5c-2). Copying the data first (operations.md, "External services") keeps the keys.
+- Gen9's sandboxes on Kubernetes, three things Docker gave for free: a MutatingAdmissionPolicy's
+  apply configuration "may not mutate atomic arrays, maps or structs:
+  .spec.containers[0].securityContext.capabilities.drop" (so it is a JSON patch, the container
+  found by `indexOf`), and the API server takes a changed policy a few seconds late; Kubernetes
+  runs a container without seccomp unless asked (`Seccomp: 0` until `RuntimeDefault`), where
+  Docker applies its own filter; and no pod field limits processes, which is the kubelet's
+  `podPidsLimit`. OpenSandbox's server also watches its snapshot CRDs, which Gen9 doesn't install
+  ("Informer watch error: (403) … sandboxsnapshots", "sandboxesnapshots.sandbox.fast.io"), with a
+  back-off: 33 warnings in 10 minutes, noise in its log, for upstream to quiet.
+- The first `environments.mjs` on kind hung on its first command: OpenSandbox lists a chat's
+  sandboxes with its own fast-sandbox kinds alongside, and a refused read of those (403) fails the
+  whole listing ("List sandboxes failed: HTTP 503 … Fsb Sandbox CRs are unavailable"); allowed to
+  read them, the server gets 404, which it takes for an empty list (`cr_reader.py`). Then the
+  memory check: a command past a sandbox's memory took the whole sandbox down, where Docker kills
+  that process alone. On cgroup v2 the kubelet sets `memory.oom.group` unless
+  `singleProcessOOMKill: true` ("processes in the container to be OOM killed individually",
+  [KubeletConfiguration](https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/)).
+  An AI summary of that page gave `podPidsLimit` a default of 4096 and swap `LimitedSwap`; the
+  page itself says -1 and `NoSwap`: read from the source, not a summary.
+
+- The first install on kind showed two ways the template read Compose wrong. A `command` written
+  as a string is split into words by Compose, not run by a shell: as `sh -c` it gave Redis
+  `/bin/sh: 0: Illegal option --` and MinIO a command that exited. And `${X:-default}` takes X
+  from the stack's `.env` before the default: Langfuse's own file gives its secrets that way
+  (`${REDIS_AUTH:-myredissecret}`, `${POSTGRES_PASSWORD:-postgres}`, nested in `DATABASE_URL`),
+  and `make setup` writes all of them, so on the cluster they took the defaults (32 of Langfuse's
+  `.env` keys, 7 of the models', 9 of Keycloak's are such variables). Now the template splits a
+  string command as Compose does, and `make k8s-up` gives each chart the names of its `.env`'s keys
+  (`fromEnv`, never the values), so such a variable comes from the Secret, as Compose takes it.
+  Langfuse's Postgres had already initialized with the default password, which it keeps:
+  its namespace was deleted and installed again.
+- Then the router: `DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm`
+  uses the plain `${X}` form, which the template didn't read, so LiteLLM got the text as written
+  ("Database migration failed", "Prisma Client … Could not connect to the query engine", "Application
+  startup failed"). Compose reads `${X}` and `$X` from `.env` or as empty, and keeps `$$` as a
+  literal `$`, as Kubernetes does: the template does the same now. And a failing startup probe
+  killed it into a crash loop: Docker marks a container unhealthy and never kills it for that, so
+  a Compose health check is now a readiness probe at its interval, and while starting a startup
+  probe at its `start_interval` that gives up only after a day. LiteLLM's `platform: linux/amd64`
+  became a node selector (`kubernetes.io/arch: amd64`), as Docker would run that image only
+  emulated elsewhere.
+- gen9-agent's migrations, a pre-install hook, failed: "failed to resolve host 'gen9-postgres'".
+  Helm creates a release's resources only after its pre hooks, and the name `gen9-postgres` in
+  gen9-agent's namespace is one of them. The names a stack calls are now pre-install and
+  pre-upgrade hooks themselves, weight -10, created before any other hook and kept
+  (`before-hook-creation`). Running the migrations as the API's init container instead was
+  rejected: `migrate.py` is "the only process that holds the owner's password", and the API and
+  the worker would race on Alembic, which takes no lock. (Since replaced: no Service per name,
+  DNS search domains instead, which a hook's pod has as well; the next entries and the Decision
+  Log.)
+- `models.mjs` failed on kind, once: over budget, the card said why but not when the limit resets.
+  gen9-agent reads the reset time from gen9-models' admin API at `gen9-models-admin`, a second
+  name gen9-models gives on its network; the chart made a name in the caller's namespace only for
+  each stack's own (`gen9-models`), so `gen9-models-admin` didn't resolve ("Name or service not
+  known" from the API's pod) and the agent left the time out, as it does when the API can't be
+  read. Three stacks give a second name: gen9-keycloak `gen9-mailpit`, gen9-langfuse
+  `gen9-langfuse-media` (the worker's trace media), gen9-models `gen9-models-admin` (the
+  budget, a person's usage in their export). The caller's chart can't know another stack's names
+  without reading that stack's files. A pod with that stack's namespace among its DNS search
+  domains (`dnsConfig.searches`) resolved all of them, its own namespace still first, and an
+  unknown name still failed (explore/deploy/NOTES.md, U3, "Another stack's names").
+- Three checks start a one-off container with `docker compose run`: `search.mjs` (Temporal's CLI,
+  a profiled service, to trigger the reindex Schedule), `context.mjs` and `fairness.mjs` (a second
+  gen9-agent worker with one setting changed, `-d --name`, then `inspect`, `exec -i`, `rm -f`).
+  `e2e/k8s/docker` refused them, and `search.mjs` failed its reindex step on kind. It now renders
+  the service from its stack's chart with the release's own values (`helm get values`) as a Job,
+  and runs that pod once, labelled `gen9.run` and not the service's name, so the worker's
+  ReplicaSet doesn't adopt it: Temporal's `cli` answered `SERVING` and passed an exit status 3
+  through; the second worker was healthy in about 6 s with `CONTEXT_BUDGET_TOKENS=12000` and the
+  worker's search domains; `rm -f` of a missing one failed as Docker's does.
+- `stop.mjs` failed on kind: it runs `make stop-agents` and `make resume-agents`, whose recipes
+  are Docker's (`docker compose exec`, `stop`), and an operator on a cluster had no such stop at
+  all. `make k8s-stop-agents` and `make k8s-resume-agents` (`scripts/k8s.sh`) now do the same in
+  the cluster: `gen9-agent-stop` in the worker, then its Deployment scaled to 0; back to 1, then
+  `--resume`. Tried on kind: "stopped: 0 runs, 0 scheduled tasks paused", the worker gone, both
+  audit events; meanwhile `make k8s-diff` exited 2 naming the worker's replicas, and `make
+  k8s-up` started it again, as `make up` does on Docker. `stop.mjs` runs the `k8s-` targets when
+  `make k8s-e2e` sets `E2E_SHAPE=kubernetes`.
+- `audit.mjs` failed on kind: "14 records, 11 lines", the three missing all `account.sweep`. The
+  worker's sweep of accounts deleted in Keycloak added its audit rows without the `audit {…}` log
+  line every other record has (docs/logging.md: the stream an operator sends elsewhere), and the
+  check read only the API's log; a sweep inside the check fails it on Docker too, which the
+  timing had hidden. Fixed in PR #67 (from `main`): the worker logs each line; on kind the sweep
+  triggered by hand wrote three rows and three lines.
+- On k3d (k3s v1.37.1), gen9-postgres's `extensions` Job failed all four tries: "connection to
+  server at "postgres" (10.43.42.7), port 5432 failed: Connection refused", Postgres up and
+  listening throughout. A new pod in that namespace reached Postgres on its second try, half a
+  second after starting: k3s's network policy controller (kube-router) refuses a brand-new pod
+  until its rules know the pod's address (kube-router#873, its rules lagging a pod's first traffic,
+  reported in 2020 and still discussed by its maintainers in 2026),
+  and each retry of a Job with `restartPolicy: Never` is a new pod. Kubernetes' "Network Policies",
+  "Pod lifecycle": "a newly created pod may have no network connectivity at all when it is first
+  started … pods must be resilient". kind's kindnet never showed it, nor Docker. The library's
+  Jobs now restart in the same pod (`OnFailure`); then every stack installed on k3d.
+- `models.mjs` failed on k3d: Langfuse had the call under `openai/gpt-6-luna` but no cost. The
+  fresh Langfuse held only the 87 prices its migrations bring (none for gpt-5 or later): its
+  worker loads the newest ones once, at start (Langfuse 4.48.0, `worker/src/initialize.ts`, no
+  retry), and had started before the web's migrations made the tables: "Error upserting default
+  model prices … relation "models" does not exist". Langfuse's own Compose file and Helm chart
+  (langfuse-2.1.3) start the worker after Postgres alone, so a fresh install on Docker can meet it
+  too. gen9-langfuse's `compose.override.yaml` now has `migrated`, a one-shot from the worker's
+  image that waits for the web's health (served only once migrated), which the worker waits for:
+  `depends_on` on Docker, its init container on Kubernetes. A fresh Langfuse on k3d: the one-shot
+  waited, then "Finished upserting default model prices in 2113ms", 185 prices, gpt-6 among them;
+  on Docker, a fresh throwaway project of gen9-langfuse (its own volumes): `migrated` waited, exited
+  0, and the worker, started 20 s after the web, "Finished upserting default model prices in 2102ms".
+- A settings file changed reached its Secret (`make k8s-up`), but no pod restarted: Kubernetes
+  rolls pods only when their template changes. Under a domain on kind, Keycloak kept its old
+  issuer and no `KC_PROXY_HEADERS` while `make k8s-diff` said 0, as the Secret and the chart
+  matched what was declared. On Docker, Compose recreates a container whose settings changed.
+  Helm's "Automatically Roll Deployments" (a checksum in the pod template): `scripts/k8s.sh` hands
+  the chart each settings file's hash (`secretHashes`), and every workload's pod template carries
+  `gen9/settings`, a checksum of the Secrets and ConfigMaps its containers read. Verified on kind:
+  every pod rolled once and Keycloak had the domain's settings; a key added to `gen9-ui/.env`,
+  `make k8s-diff` named `prod`'s and `sandbox`'s checksum, `make k8s-up` rolled them; removed, 0.
+- On kind, under a domain, `stacks.mjs` passed but for the streamed answer ("Lost the connection to
+  this answer"; saved, the reload showed it): cloud-provider-kind's Envoy has a 15 s route timeout
+  (`upstream_rq_timeout: 8` on the web app's cluster). The routes now ask for none
+  (`timeouts.request: "0s"`, which "SHOULD disable the timeout completely", Gateway API's
+  HTTPRouteTimeouts, Extended), as gen9-edge sets none on Docker; cloud-provider-kind v0.12.0
+  ignores it (its route action reads no timeouts, and its GatewayClass doesn't list
+  `HTTPRouteRequestTimeout`), so on kind a stream longer than 15 s is cut. A Gateway that honours
+  it is the operator's choice; k3s's Traefik is tried next (U5b-4).
+- Not a difference between the shapes, kept for a follow-up: `runs.mjs`'s "a task with steps"
+  failed once on kind and passed when run again. The failing run took the long way (13 tools
+  live, "Used the research brief skill"; "Used 6 tools and a plan" when done; "Made a plan" after
+  a reload, no tool counted), the passing one a short way (1 tool live, "Used 2 tools and a plan",
+  the same after the reload). Not a race on saving: gen9-agent's writer stores the events in
+  order and flushes them before marking the run a success (`runs/executor.py`, `_Writer`). Which
+  steps the reloaded chat counts after a skill or subagent is to be looked into, on Docker too.
+- `retry.mjs` failed on kind: with the router stopped, the card "Gen9 couldn't finish" didn't come
+  within its 120 s. A stopped router on Docker is refused at once (its name gone); on kind the
+  shim scales its Deployment to 0, the Service stays, and kube-proxy (iptables mode) answers a
+  connection to it with an ICMP refusal, which kindnet's network policy (kube-network-policies
+  v1.1.2) drops when the caller's namespace has an ingress policy: from gen9-agent the connect
+  timed out after 15 s, from a namespace without a policy it was refused in 0.00 s. Its chain
+  accepts established and related packets only of connections its queue accepted, and queues
+  only new ones (`pkg/dataplane/controller.go`); NetworkPolicy can't allow ICMP. That exposed a
+  bug in gen9-agent, not the deployment: a chat call had no timeout at all (langchain-openai
+  gives the OpenAI client `timeout=None`, which replaces the HTTP client's `connect=10`), and
+  waited 134 s for the kernel to give up. Fixed in PR #65 (from `main`): 10.1 s on kind.
+- CI's gen9-ui job failed on every pull request from 2026-10-03: npm audit took in braces'
+  GHSA-vfj7-8cjw-p6xm (published 2026-09-18, no fixed release), which only build tools reach.
+  PR #66 (from `main`) accepts an npm advisory with no fix only with its reason, for one version
+  of its package (`scripts/npm-audit.json`), as Grype's list does for images.
+
+- `make e2e` didn't read `images.env`: `context.mjs` and `fairness.mjs` start a second worker with
+  `docker compose run`, which, without the lock's variables, would build `gen9-agent:dev` here
+  instead of running the lock's image. `make e2e` now reads it as `make up` does.
+- `background.mjs` failed once against the lock's deployment ("checked it: false; said:
+  kumquat-1e…": the chat model answered the code word itself instead of saying it had started the
+  task) and passed on the next run: the model's, not the deployment's (the check was loosened for
+  the same reason before, a6fb412).
+
+- The first `make e2e` from a lock failed `environments.mjs` ("printed 42: false; 0 container(s)"):
+  OpenSandbox's server read `/etc/opensandbox/config.toml` ("Loaded configuration from
+  /etc/opensandbox/config.toml"), not the copy with the lock's execd and egress images, because
+  the image starts it with `--config` (gen9-sandbox/Dockerfile's CMD), which wins over
+  `SANDBOX_CONFIG_PATH`; it then asked Docker for the local tag `gen9-sandbox-egress:release-1.1.0`,
+  removed for the test ("No such image"). `launch.py` now points `--config` at the copy.
+
+- Docker's bake workflow builds from a git context pinned by checksum
+  (`https://github.com/coast-guide/gen9.git?ref=…&checksum=…&fetch-by-commit=true`), which needs a
+  Dockerfile frontend that knows BuildKit's `source.git.checksum`: the three Dockerfiles pinned to
+  `# syntax=docker/dockerfile:1.7` (gen9-postgres, the egress and execd images) failed on both
+  platforms with "failed to resolve dockerfile: unknown API capability source.git.checksum", while
+  those on `docker/dockerfile:1` (1.27.1) built. 1.7 was there as the floor for `ADD --checksum`;
+  all five now say `docker/dockerfile:1`. Local builds never showed it: they send the folder, not
+  a git URL.
+
+- OpenSandbox's Kubernetes runtime works with Gen9's egress and execd images unchanged (a command
+  ran, the allowed host answered, an undeclared host and the metadata address were blocked), but
+  its pod is looser than Gen9's Docker sandboxes: a privileged init container, only `NET_ADMIN`
+  dropped, root, 2 GiB, no NetworkPolicy; and the chart doesn't create the sandboxes' namespace
+  (NOTES.md, R2d).
+
+- This machine has Docker 29.8.1 (Docker Desktop: a VM of 20 CPUs and 17.6 GiB) and Compose
+  v5.5.1, and had no Kubernetes tooling: `which kind k3d helm kubectl` printed nothing. R2c
+  installed them from their release pages, checksums verified, into `~/.local/bin`. Docker Desktop
+  shares only the home folder with its VM: a probe under `/tmp` fails with "mounts denied", so
+  probes run in `~/.cache/gen9-probes`.
+- `docker compose publish` refuses a project "with service(s) containing bind mounts", "containing
+  only a `build` section", or including local files with `include`
+  ([Docker docs](https://docs.docker.com/compose/how-tos/oci-artifact/)). Gen9's Compose files
+  bind-mount configuration 16 times in six stacks (`grep -nE '^\s+- \.{1,2}/' gen9-*/compose.yaml
+  gen9-langfuse/*.y*ml`): Keycloak's realm and config, Postgres's initdb and scripts, ClickHouse's
+  disk settings, OpenSandbox's `config.toml`, Temporal's initdb, scripts and dynamic config, the
+  router's config, SearXNG's settings, the models' scripts and admin page; and OpenSandbox's
+  server mounts the Docker socket. In Compose v5.5.1 they are not refused after all: Compose asks
+  to publish "only the bind mount declarations … (not content)", and pulled back they point at an
+  empty folder; inline `configs:` travel (explore/deploy/NOTES.md, R2a).
+- Compose Bridge's default transformation makes manifests kind's API server refuses
+  (`restartPolicy: "unless-stopped"`; `"yes"` turned into a boolean), crashes on Gen9's
+  healthchecks, and writes secrets into the Deployments as plain values (NOTES.md, R2b).
+- Neither local cluster routes HTTP to a Gateway out of the box: kind has no Gateway API; k3s
+  installs its CRDs (v1.6.1) and Traefik 3.7.13 with only the Ingress provider on (NOTES.md, R2c).
+- Drift by hand escapes the obvious checks: `helm diff upgrade` without `--three-way-merge` says
+  nothing changed, because it compares with the release Helm stored; Compose's config hash misses
+  `docker update` and files changed inside a container (NOTES.md, R2e and R2a).
+- Helm 4 refuses a plugin it can't verify: helm-diff installs from its release tarball with the
+  `.prov` and the maintainer's key, not from the git URL (NOTES.md, R2e).
+- Langfuse's own chart (langfuse-k8s 2.1.3) brings different parts than its Compose file: Postgres
+  from groundhog2k's chart, Valkey, and SeaweedFS for S3 where Compose runs MinIO (its
+  `Chart.yaml`). Upstream charts would make the Kubernetes shape differ from the Docker one.
+- On Kubernetes, nodes run containerd with no Docker socket, so OpenSandbox's Docker runtime has
+  nothing to talk to there: its Kubernetes runtime (a controller with CRDs `BatchSandbox`, `Pool`,
+  `SandboxSnapshot`, and the server's `[kubernetes]` settings) is the only way
+  ([OpenSandbox, deployment](https://github.com/opensandbox-group/OpenSandbox/blob/release-1.1.0/docs/deployment/index.md),
+  [Helm deployment](https://github.com/opensandbox-group/OpenSandbox/blob/release-1.1.0/manifests/HELM-DEPLOYMENT.md)).
+
+## Decision Log
+
+Research as of 2026-10-01. Versions from each project's latest GitHub release that day
+(`gh api repos/<repo>/releases/latest`): Helm v4.3.0, kind v0.33.0, k3d v5.9.0, k3s
+v1.37.0+k3s1, Kubernetes v1.37.1, Kustomize v5.8.2, helm-diff v3.15.15, Argo CD v3.5.3, Flux
+v2.9.6, cosign v3.1.3, docker/build-push-action v7.4.0, docker/bake-action v7.4.0,
+docker/metadata-action v6.2.0, docker/setup-buildx-action v4.4.1, docker/login-action v4.6.0,
+actions/attest v4.2.2, release-please v17.11.2 (action v5.0.0), git-cliff v2.14.2,
+anchore/sbom-action v0.24.2, ossf/scorecard-action v2.4.4, helmfile v1.8.1, kubeconform v0.8.0,
+Gateway API v1.6.2, cert-manager v1.21.2, Traefik v3.7.13, Envoy Gateway v1.9.2, CloudNativePG
+v1.30.1, Compose v5.5.1, Kompose v1.38.0; OpenSandbox release-1.1.0 (release-1.1.1-rc.1 is a
+candidate); Temporal's chart temporal-1.7.0, Langfuse's langfuse-2.1.3.
+
+- Decision: Kubernetes packaging is a Helm chart, published to GHCR as an OCI artifact and
+  installed by digest; whether it is written by hand or generated from the Compose files is
+  R2b's to settle. Rationale: Helm's docs: "It is recommended to use container registries with OCI
+  support to store and share chart packages"
+  ([Helm, registries](https://helm.sh/docs/topics/registries/)); Helm 4 installs "charts by digest
+  for better supply chain security", defaults to server-side apply for new releases, and "v2 charts
+  continue to work unchanged" ([Helm overview](https://helm.sh/docs/overview/)); the parts Gen9
+  runs ship Helm charts upstream (Temporal, Langfuse, LiteLLM, OpenSandbox's controller); a values
+  file with a JSON schema is the configuration surface item 4 asks for, which Kustomize has no
+  equivalent of.
+- Decision: the Kubernetes shape runs the same images as the Docker shape, by digest, and the same
+  configuration files, rather than upstream charts that swap parts (refined by R3, "Third-party
+  guides": an upstream chart is used where it runs the same images). Rationale: the owner's core
+  concern ("shouldn't be any difference"); Langfuse's chart swaps MinIO for SeaweedFS (Surprises).
+  An upstream chart can still be used where it runs the same images (to check per part in U3).
+- Decision: HTTP enters through the Gateway API (HTTPRoute), with a plain Ingress as a setting.
+  Rationale: Kubernetes retired Ingress NGINX (best-effort maintenance until March 2026, then "no
+  further releases, no bugfixes") and recommends the Gateway API
+  ([Kubernetes blog](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/)); the Gateway
+  API is v1.6.2; any conformant controller works (k3s ships Traefik, which implements it).
+- Decision: sandboxes on Kubernetes use OpenSandbox's Kubernetes runtime (Surprises). The sandbox
+  runtime is one of the settings: Docker for the Docker shape, Kubernetes for the cluster shape.
+- Decision: portability is proven on two distributions, kind (Kubernetes' own, used for its
+  conformance tests) and k3d (k3s, the small distribution people run on VMs), with the same chart
+  and the same values; then on any cluster the owner has.
+- Decision: images go to GHCR, built with bake for linux/amd64 and linux/arm64, attested with
+  `actions/attest@v4` (provenance and SBOM, `push-to-registry`), verified with
+  `gh attestation verify oci://…`. Rationale: GitHub's docs name `actions/attest@v4` with
+  `id-token`, `attestations` and `packages` write
+  ([artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)).
+  The repository already has immutable releases on (`gh api repos/coast-guide/gen9/immutable-releases`:
+  `"enabled":true`) and a ruleset blocking deletion and updates of `refs/tags/v*`
+  ("Protect release tags"). Immutability "will only apply to future releases"; tag and assets
+  "cannot be changed" once published
+  ([GitHub, immutable releases](https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/immutable-releases)).
+- Decision (superseded by "Release management (R1)" below): release notes. Gen9's commit subjects are prose (AGENTS.md, "Rules"), and
+  release-please "assumes you are using Conventional Commit messages"
+  ([release-please](https://github.com/googleapis/release-please)); GitHub's generated notes are
+  built from merged pull requests and grouped by labels in `.github/release.yml`
+  ([GitHub, generated release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes)),
+  which fits prose subjects. SemVer 2.0.0 is current; "Major version zero (0.y.z) is for initial
+  development. Anything MAY change at any time" ([semver.org](https://semver.org/)).
+
+- Decision: the chart is written by hand, not generated from the Compose files. Rationale: R2b,
+  Compose Bridge's default transformation makes manifests the API server refuses and puts secrets in
+  them; templates of our own would be a second chart in Go templates over Compose's model, with
+  less to check them by than Helm has (`helm lint`, `values.schema.json`, `helm template` into
+  kubeconform). A check compares the two shapes instead (U3): the same images by digest, the same
+  settings keys, the same ports and the same configuration files.
+- Decision: the drift check on Kubernetes is `helm diff upgrade --three-way-merge
+  --detailed-exitcode` (exit 2 names each object), and putting things back is
+  `helm upgrade --server-side=true --force-conflicts`. Rationale: R2e; the default two-way diff
+  missed a change by hand, a plain upgrade failed on the field managers the change left. A GitOps
+  controller (Flux v2.9.6, Argo CD v3.5.3) reconciles continuously and stays an option a cluster's
+  owner can point at the same chart; Gen9 doesn't require one.
+- Decision: the drift check on Docker compares, per service, Compose's config hash
+  (`docker compose config --hash '*'` against the `com.docker.compose.config-hash` label), the image
+  digest running against the lock, the settings `docker update` changes, and containers Compose
+  doesn't declare; containers whose files must not change run `read_only` (U2, U4). Rationale: R2a,
+  the hash alone missed `docker update` and an edited file.
+- Decision: how HTTP gets in is a setting with three answers: an HTTPRoute on a Gateway the cluster
+  has (named in the settings), an Ingress of a class it has, or neither. Rationale: R2c, no cluster
+  routes to a Gateway out of the box, and only k3s routes Ingress.
+
+- Decision: images are built by Docker's reusable bake workflow
+  (`docker/github-builder/.github/workflows/bake.yml`, v1.17.0, pinned by commit), one call per
+  image in a matrix, from `docker-bake.hcl` at the root. Rationale: Docker's docs now point to it
+  instead of "maintaining a custom matrix and merge job": it splits the platforms across native
+  runners (`ubuntu-24.04-arm` for arm64, free on public repositories), pushes by digest, merges the
+  manifest, and signs BuildKit's SLSA provenance (mode `max` on a public repository) with the
+  workflow's identity; its own actions are pinned by commit, as this repository requires
+  ([Docker, multi-platform](https://docs.docker.com/build/ci/github-actions/multi-platform/),
+  [docker/github-builder](https://github.com/docker/github-builder),
+  [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)).
+  One call builds one target (`target`, its `meta-images`), so 7 calls; Docker's maintainer of
+  these actions builds his images to GHCR the same way (`crazy-max/docker-fail2ban`,
+  `.github/workflows/build.yml`). GitHub's own attestation (`actions/attest@v4`) is added after it,
+  for `gh attestation verify`. Every base image Gen9 pins is a multi-platform index with amd64 and
+  arm64 (`docker buildx imagetools inspect --raw`), and gen9-postgres already picks its extension
+  by `TARGETARCH`.
+- Decision: the lock of digests is made by the build, not committed. The digests exist only after
+  CI builds, and builds aren't bit-for-bit reproducible, so git can't hold them before the build
+  without a bot committing after it (Flux's image automation pattern). Instead the workflow writes
+  the lock as an artifact of its run, and a release attaches it and bakes it into the chart and the
+  Compose bundle (U7): the release, immutable, declares what runs, and git declares how it was
+  built. This changes acceptance item `images.lock` into `images.lock-released`.
+- Decision: `docker-bake.hcl` names each image's context, which the Compose files name too
+  (`build:`); bake can't read Gen9's Compose files in CI, where no `.env` exists ("env file .env
+  not found"). `scripts/check-images.py`, run by `make config` and so by CI, fails when they
+  differ.
+
+- Decision (for U3, refining "the chart is written by hand"): each chart's Kubernetes structure
+  (workloads, storage, probes, Services) is written by hand, but what drifts most is read from the
+  stack's `compose.yaml`, linked into the chart: third-party images and each container's
+  environment, through one helper in the library chart. `${X:?…}` (a secret from `.env`) becomes a
+  reference to the Secret `env`; `${X:-default}` the setting `X` from the settings file, else its
+  default; a secret inside a longer value Kubernetes' `$(X)`. So the settings have one vocabulary
+  in both shapes: `X` in a stack's `.env` on Docker, `settings.X` on Kubernetes. Rationale: Helm
+  parses Gen9's Compose files whole, anchors and merges included (explore/deploy/NOTES.md, U3, "A
+  chart that reads its stack's compose.yaml"); unlike Compose Bridge, the structure stays ours and
+  checked by `helm lint` and kubeconform.
+- Decision (for U3): each stack is a Helm chart of its own, installed as its own release in its own
+  namespace `gen9-<stack>`, in `make`'s stack order, as each is its own Compose project today. A
+  stack reaches another under the same name as on Docker (`gen9-keycloak`, `gen9-agent`,
+  `gen9-models`…) through an ExternalName Service in its own namespace, only for the stacks it
+  uses (the Makefile's `USES_*`); each stack's NetworkPolicy lets in only the namespaces that use
+  it, as the `gen9-<stack>` networks do; names inside a stack (`postgres`, `valkey`) stay its own.
+  Rationale: AGENTS.md, "Decoupled stacks"; the apps keep their settings unchanged; probed on kind
+  (explore/deploy/NOTES.md, U3: an ExternalName to another namespace's Service answered, and
+  kindnet enforced the policy). One file of settings is given to every release, each chart reading
+  its own part and the shared one (U5). Each chart sits in its stack's folder (`gen9-<stack>/chart/`)
+  and links to the configuration files Compose mounts, which Helm reads through the link and
+  packages as files (explore/deploy/NOTES.md, U3, "A chart in the stack's folder").
+- Decision: the lock's images go in `images.env` at the top of the repository, which `make up`
+  reads into every stack's environment, rather than into each stack's `.env`. Rationale: one file
+  says which images the whole install runs, a drift check (U4) reads one file, and `make setup`,
+  which writes the `.env` files, stays out of it; `IMAGES=local` removes it.
+- Decision: the Docker shape is the release's source (its git tag, or the source archive GitHub
+  attaches to every release) and its lock: `make up IMAGES=<lock>`. Compose's OCI artifacts
+  (`docker compose -f oci://…`) are not used. Rationale: R2a, a published Compose app carries a
+  bind mount's declaration without its files, and Gen9 mounts 16; it would be 8 artifacts, one per
+  stack, joined by networks only `make up` creates; and setup, backup, restore, doctor and wipe
+  live in the repository's scripts. So the host needs Docker, `make` and the source; the images
+  come by digest; what runs is the tag plus the lock. Compose pulls rather than builds when a
+  service has both `image` and `build` ("pulling the image is the default behavior",
+  [Compose, services](https://docs.docker.com/reference/compose-file/services/)); `--no-build`
+  makes sure. An override file with `build: !reset null`
+  ([Compose, merge](https://docs.docker.com/reference/compose-file/merge/)) would do the same with
+  a second file per stack to keep in step; a variable in the one file is simpler. OpenSandbox
+  reads `execd_image` and the egress image only from its TOML (its `config.py` overrides only the
+  API key, the database DSN and the secure-access keys from the environment), so `launch.py`
+  writes the server a copy of `config.toml` with them.
+
+- Decision (U3): one template for every stack, `gen9.stack` in the library chart, which renders a
+  stack from its `compose.yaml` and a few values per service: the workload `kind` (Deployment,
+  StatefulSet, Job, Init, none), `ports`, `storage`, `resources`. Compose's one-shot services map
+  to Kubernetes by what waits for them: a `service_completed_successfully` inside the same stack
+  becomes an init container of the waiting service (`kind: Init`), since a post-install hook would
+  wait for that service and a pre-install hook would run before the stack's own database exists
+  (Temporal's schema); a one-shot that waits for a healthy service becomes a post-install and
+  post-upgrade hook Job (Postgres's extensions and roles, Keycloak's configure, the router's keys);
+  migrations other services wait for, against another stack's database, a pre-install and
+  pre-upgrade hook (gen9-agent's migrate). Helm runs post hooks only once everything else is ready
+  under `--wait`, and waits for a hook Job to finish ([Helm, chart hooks](https://helm.sh/docs/topics/charts_hooks/)).
+  A Compose service with no entry fails the render, unless it is in a Compose profile (left out,
+  as `make up` leaves it out).
+- Decision (U3, U5): every chart validates its values against one JSON schema
+  (`deploy/helm/values.schema.json`, linked into each chart): unknown keys, a misspelt setting or a
+  size Kubernetes can't read fail `helm install` with the path. One settings file serves every
+  release: `settings.X` for all stacks, `<stack>.settings.X` and `<stack>.services.…` for one, so
+  a change for Keycloak's Postgres doesn't reach Temporal's.
+- Decision (U3): `make e2e` runs against Kubernetes unchanged, through `e2e/k8s/docker`, a `docker`
+  first on PATH that does to `gen9-<stack>-<service>-1`'s pod what the checks ask of the container
+  (exec, logs, restart, stop and start, health). Rationale: 25 of the 55 checks reach into a
+  container by `docker`; rewriting them for two shapes would let them drift apart.
+- Decision (U8): GHCR packages are private when first published ("When you first publish a package,
+  the default visibility is private", [GitHub, Container registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry));
+  making them public, so any machine pulls without a login, is the owner's.
+
+- Decision (U6): sandboxes on Kubernetes are `kubernetes-sigs/agent-sandbox`'s `Sandbox`, driven
+  by OpenSandbox's server (`workload_provider = "agent-sandbox"`), not OpenSandbox's own
+  `BatchSandbox`. Rationale: both ran Gen9's images the same on kind (R2d, U6), with the same
+  egress sidecar code; agent-sandbox is a SIG Apps API at v1, its controller published to
+  `registry.k8s.io` and its install one release file with a digest GitHub records, where
+  OpenSandbox's 1.1.0 CRDs and controller are published nowhere (only in the source at the tag)
+  and its controller holds a ClusterRole over pods everywhere. The server gets rights only in the
+  sandboxes' namespace (upstream's server chart has a ClusterRole that creates pods and Secrets in
+  any namespace, and none on `agents.x-k8s.io`).
+- Decision (U6): keep OpenSandbox's `disable_ipv6 = true`, so each sandbox's execd init container
+  runs privileged for the moment it takes to turn IPv6 off in the pod's network and copy execd;
+  the sandbox's own container stays unprivileged with `NET_ADMIN` dropped. Rationale: OpenSandbox
+  says its IPv6 egress is incomplete on Kubernetes; the sysctl that would do it without privilege
+  (`net.ipv6.conf.all.disable_ipv6`) is not one Kubernetes deems safe, so a kubelet would have to
+  allow it, which no portable chart can count on. The sandboxes' namespace is labelled for Pod
+  Security Admission's `privileged` level, and only there.
+
+### Release management (R1)
+
+The list of what a proper release needs, from today's sources, and what Gen9 does for each. What
+the repository already has: immutable releases on, `v*` tags protected from deletion and updates,
+`SECURITY.md` with private reporting, Dependabot for the Actions, CodeQL, secret scanning with
+push protection, Actions pinned by SHA, `contents: read` by default in `checks.yml`.
+
+1. **One version for all of Gen9.** SemVer 2.0.0, `vX.Y.Z`, pre-releases `vX.Y.Z-rc.N`; one
+   version covers the images, the chart, the Compose bundle, the CLI and the API, because they are
+   tested together. Start at 0.1.0, which `gen9-agent`, `gen9-cli` and `gen9-ui` already declare:
+   "Major version zero (0.y.z) is for initial development" ([semver.org](https://semver.org/)).
+   The public API SemVer speaks of: the agent's HTTP API, the CLI, the settings (chart values,
+   Compose settings) and the stored data's migrations.
+2. **Immutable releases, drafted first.** Once published, a release's "assets can't be added,
+   modified, or deleted" and its tag can't move; GitHub recommends creating it as a draft,
+   attaching every asset, then publishing
+   ([managing releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository),
+   [immutable releases, generally available](https://github.blog/changelog/2025-10-28-immutable-releases-are-now-generally-available/)).
+   Publishing makes a release attestation; anyone checks with `gh release verify <tag>` and
+   `gh release verify-asset <tag> <file>`
+   ([verifying a release](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/verifying-the-integrity-of-a-release)).
+   Those commands came in gh 2.75 to 2.81 (gh v2.102.0 is current); this machine's apt build is
+   2.45.0 and lacks them, so the docs name the version needed.
+3. **Release notes on the GitHub Release, no CHANGELOG.md.** GitHub generates them from the pull
+   requests merged since the last release, grouped by labels in `.github/release.yml`. Gen9's
+   pull request titles are already sentences for people, which is what a changelog needs
+   ("Changelogs are for humans … Using commit log diffs as changelogs is a bad idea",
+   [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)); its groups (Added, Changed,
+   Deprecated, Removed, Fixed, Security) become the labels. Each release adds, by hand, an
+   "Upgrading" section when a setting or a migration needs the reader. One place for it: the
+   release. release-please (v17.11.2) is not used: it "assumes you are using Conventional Commit
+   messages", which AGENTS.md's commit rules don't produce.
+4. **The release workflow** (`.github/workflows/release.yml`, on a `v*` tag): build the 7 images
+   once with bake for linux/amd64 and linux/arm64 and push them by digest to GHCR; attest
+   provenance and SBOM for each (`actions/attest@v4`, `push-to-registry`); package the chart with
+   the version and the digests, push it to `oci://ghcr.io/coast-guide/charts/gen9`, attest it by
+   digest ("invoke the action with the `subject-name` and `subject-digest` inputs",
+   [actions/attest](https://github.com/actions/attest)); write the Compose bundle and the SBOMs as
+   assets, with the attestation bundles as `*.sigstore.json` (what Scorecard's Signed-Releases
+   looks for); create the draft with generated notes, upload, publish. The publishing job runs in
+   a `release` environment with the owner as required reviewer.
+5. **What runs says what it is.** The version and the commit in the images' OCI labels
+   (`org.opencontainers.image.version`, `revision`, `source`), in the API (a version endpoint),
+   the web app and `gen9 --version`, so a person and the drift check can see which release runs.
+6. **Upgrades.** The migrations run themselves (gen9-agent's migrate job, Temporal's schema jobs,
+   Keycloak's realm), as they do with `make up`; `docs/operations.md`, "Upgrade", covers going from
+   one release to the next in both shapes; a check upgrades the previous release to the new one on
+   kind before a release (U7).
+7. **Support.** While 0.y: only the latest release gets fixes, as a patch release; `SECURITY.md`
+   says so and how long a reporter waits (it already says 7 days, 90 days to disclosure).
+8. **Scorecard.** `ossf/scorecard-action` v2.4.4 on `main` weekly and on push, results to code
+   scanning; then fix what it finds. Its checks
+   ([docs/checks.md](https://github.com/ossf/scorecard/blob/main/docs/checks.md)) Gen9 would meet
+   after U7: Branch-Protection, CI-Tests, Code-Review, Dangerous-Workflow,
+   Dependency-Update-Tool, License, Pinned-Dependencies, SAST, SBOM, Security-Policy,
+   Signed-Releases, Token-Permissions, Packaging (the GHCR packages). The OpenSSF Best Practices
+   badge (CII-Best-Practices) needs the owner to register the project.
+9. **Cadence.** A release when `main` is green and `make e2e` passed against both shapes from the
+   release candidate's images; no backport branches while 0.y.
+
+### Third-party guides (R3)
+
+Each part's own docs, read on 2026-10-01 for the version Gen9 pins (latest releases that day in
+brackets). The rule for the chart that follows from them: Gen9 requires of a cluster only what
+can't be avoided (OpenSandbox's CRDs and controller); every other part runs the same image as in
+Docker, from an upstream chart where that chart runs the same images and adds no cluster-wide
+prerequisite, else from Gen9's own templates; each data store can instead be an external service
+(a setting), which is how a cluster owner brings an operator or a managed service.
+
+| Part | What its own docs give for Kubernetes | Gen9's chart |
+| --- | --- | --- |
+| Keycloak 26.7.5 [26.8.0, out today] | The Keycloak Operator: OLM "the recommended way to install" it, or `kubectl apply -k …keycloak-k8s-resources/kubernetes?ref=<version>`; its Helm chart is "Experimental … a preview". It needs a database provided by the user, a TLS Secret and a hostname; a custom image "requires a high degree of trust"; realms through `KeycloakRealmImport`. Images: build optimized (`kc.sh build`), health on port 9000 | Own templates: the gen9-keycloak image with `start --optimized` and the realm import, as in Docker. The Operator needs cluster-wide CRDs and a second way to configure the same server; documented as the alternative |
+| Temporal 1.32.0, UI 2.54.1 | Its Helm chart (temporal-1.7.0): "installs only the Temporal server components. You must provide persistence"; runs schema jobs (`manageSchema`); images `temporalio/server:1.32.0`, `admin-tools:1.32.0`, `ui:2.54.1`, Gen9's exact pins. Services "should run on hosts that are not accessible from the public internet" | Adopt the chart as a dependency, pointed at Gen9's Postgres |
+| Langfuse 4.48.0 [4.49.0] | Docker Compose is for "Local use and testing", a "Single VM without high availability, scaling, or backups"; Kubernetes (Helm, langfuse-2.1.3) for production. From chart 2.0.0 its bundled ClickHouse needs "the ClickHouse Kubernetes Operator" (and cert-manager); it bundles SeaweedFS for S3 and recommends a managed blob store in production; each store can be external (`*.deploy: false`). Kubernetes 1.28 or newer | Adopt the chart for Langfuse's web and worker (the same images), every store external, pointed at Gen9's |
+| LiteLLM v1.103.1 [v1.103.2] | Images `ghcr.io/berriai/litellm` ("pin a version tag"); charts `oci://ghcr.io/berriai/litellm-helm` (monolithic) and a componentized one; a migrations job, `DISABLE_SCHEMA_UPDATE=true` on the proxies; a production checklist. The monolithic chart (1.1.3) defaults to v1.85.1 and depends on Bitnami's PostgreSQL and Redis charts with `bitnamilegacy/*` images | Own templates: one Deployment, the migrations Job, Gen9's `config.yaml`; the chart's dependencies would vendor Bitnami's legacy charts |
+| OpenSandbox 1.1.0 | Its charts (all-in-one `opensandbox` 1.1.0: CRDs, controller, server); `[secure_runtime]` with `k8s_runtime_class` (gVisor, Kata, Firecracker), and the server "will refuse to start if the runtime is unavailable" | Adopt its charts; Gen9's execd and egress images, Gen9's BatchSandbox template, the sandboxes' namespace and a NetworkPolicy (U6) |
+| PostgreSQL 18 (Gen9's image with pgvector), 16 and 17 | The official image (init scripts in `docker-entrypoint-initdb.d`); for Kubernetes, CloudNativePG 1.30 (images `ghcr.io/cloudnative-pg/postgresql`, extensions through image volumes or its standard images) | StatefulSets of the same images; CloudNativePG or a managed Postgres as external |
+| Valkey 9.1.2, Redis 7.4 | valkey-helm (official): `valkey` "Standalone / replication without operator", image `valkey/valkey` | Own small StatefulSets, or the `valkey` chart if its values take Gen9's settings (U3) |
+| ClickHouse 26.8 | ClickHouse's own operator is `v1alpha1` and needs cert-manager; Altinity's operator (0.27.4) is the long-standing one | One StatefulSet of the official image, as in Docker; a ClickHouse cluster as external |
+| MinIO (Chainguard's build) | `minio/minio` is archived: "THIS REPOSITORY IS NO LONGER MAINTAINED", pointing at AIStor; Langfuse's own Compose file still uses `cgr.dev/chainguard/minio`, built from `chainguard-forks/minio`, which Chainguard keeps up with security fixes | U1b: kept (Decision Log) |
+| SearXNG, Mailpit, Ollama, llama.cpp | Container images and Compose only; no Kubernetes guidance. Mailpit is an email testing tool; Ollama and llama.cpp have GPU image variants | Own Deployments; SMTP is a setting (Mailpit only when none is set); local models optional, GPUs a setting |
+
+Sources: [Keycloak Operator installation](https://www.keycloak.org/operator/installation),
+[basic deployment](https://www.keycloak.org/operator/basic-deployment),
+[containers](https://www.keycloak.org/server/containers);
+[Temporal, deployment](https://docs.temporal.io/self-hosted-guide/deployment),
+[temporalio/helm-charts](https://github.com/temporalio/helm-charts);
+[Langfuse, self-hosting](https://langfuse.com/self-hosting),
+[Kubernetes (Helm)](https://langfuse.com/self-hosting/deployment/kubernetes-helm),
+langfuse-k8s `charts/langfuse/Chart.yaml` and `values.yaml`;
+[LiteLLM, deploy](https://docs.litellm.ai/docs/proxy/deploy), `helm/litellm-helm/Chart.yaml`;
+OpenSandbox `docs/guides/secure-container.md` and `manifests/charts` at `release-1.1.0`;
+[CloudNativePG](https://cloudnative-pg.io/docs/devel); [valkey-helm](https://github.com/valkey-io/valkey-helm);
+[ClickHouse operator](https://github.com/ClickHouse/clickhouse-operator); the
+[minio/minio README](https://github.com/minio/minio);
+[SearXNG, Docker](https://docs.searxng.org/admin/installation-docker.html),
+[Mailpit, Docker](https://mailpit.axllent.org/docs/install/docker/),
+[Ollama, Docker](https://docs.ollama.com/docker),
+[llama.cpp, Docker](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md).
+
+- Decision (for U3, replacing the ExternalName Services above): a stack reaches another's names
+  through its pods' DNS search domains. A service that joins another stack's network `gen9-<x>`
+  in its `compose.yaml` gets `gen9-<x>.svc.<cluster domain>` in `dnsConfig.searches`, after its
+  own namespace. Rationale: it is what joining a network does on Docker, every name given there
+  resolves, read from the same file, with nothing for a caller's chart to list of another stack's
+  (an ExternalName per name missed `gen9-models-admin`, Surprises); per service, as on Docker
+  (gen9-agent's `api` joins four stacks, its `worker` six, its `migrate` only gen9-postgres); a
+  pre-install hook's pod has its search domains like any other, so the names no longer need to
+  be hooks created first. Cost: a name with fewer than five dots (`ndots:5`, the cluster default)
+  is tried against each search domain before as given, so the worker's lookups of outside hosts
+  take up to six more misses each, answered from CoreDNS's cache once seen. Sources: Kubernetes'
+  "DNS for Services and Pods" (`searches` "merged into the base search domain names", "up to 32
+  search domains", stable since 1.28); probed on kind (explore/deploy/NOTES.md, U3).
+
+- Decision (U1b, 2026-10-03): gen9-langfuse keeps Chainguard's MinIO, in both shapes, from the
+  same Compose file. Evidence, read that day: `minio/minio` archived (last release
+  RELEASE.2025-10-15T17-29-55Z, last push 2026-04-24). Gen9's pinned image reports
+  `RELEASE.2026-09-22T19-25-18Z`, commit df34868a, built from `chainguard-forks/minio` (Wolfi's
+  `minio.yaml`), "a supported replacement of the original minio repository" whose README
+  promises "a best-effort attempt to address publicly known security vulnerabilities"; its log
+  has CVE-2026-41145, -33814, -33322 and -40344 fixed (May to June 2026) and dependencies moved
+  to fixed versions in September; Chainguard rebuilds the image daily (latest 2026-10-02).
+  Langfuse's own `docker-compose.yml` on `main` still runs `cgr.dev/chainguard/minio`; only its
+  Helm chart (langfuse-2.1.3) bundles SeaweedFS, and says to use an external store in
+  production. The alternative, SeaweedFS 4.48 (2026-09-28, Apache-2.0), supports the lifecycle
+  rule `minio-lifecycle` sets (`PutBucketLifecycleConfiguration`, no transitions): to switch is a
+  probe of Langfuse's uploads, media and expiry against it, and moving existing data. Revisit when
+  Langfuse's Compose file moves off MinIO, when a published MinIO vulnerability goes unfixed in
+  the fork for weeks, or when Chainguard stops publishing the image. Production: any S3, by the
+  settings Langfuse reads (`LANGFUSE_S3_*`, U5).
+
+- Decision (U5b, the connector apps' hosts, 2026-10-03): one host per connector stays (each View
+  its own origin, MCP Apps' sandbox proxy), so `*.apps.<domain>` needs a wildcard certificate,
+  which Let's Encrypt issues only by DNS challenge. On Kubernetes that is the cluster's: its
+  Gateway's listener, with cert-manager's DNS-01 for instance. On Docker, gen9-edge takes a
+  wildcard the operator gives it (`GEN9_EDGE_APPS_TLS`, files under `certs/`), or its own CA. The
+  automatic way, Caddy's on-demand TLS, needs an `ask` endpoint that answers only for connectors
+  that exist (else anyone spends the domain's ACME rate limit), which gen9-ui's sandbox server
+  can't know without a new gen9-agent endpoint: kept as a follow-up (Progress, U5b-5), as the
+  other hosts don't wait on it.
+
+- Decision (U5b-5, certificates for the apps' hosts, 2026-10-03): Caddy's on-demand TLS, as its
+  docs give it (caddyserver/website, `automatic-https.md` and `caddyfile/options.md`, read that
+  day): "On-demand TLS must be both enabled and restricted"; the restriction is an `ask` URL, to
+  which Caddy sends `?domain=` and takes a 2xx as permission, and it should answer "in a few
+  milliseconds … a constant-time lookup in a database with an index". gen9-agent answers it from
+  `connectors` by primary key. Connector ids are random (`gen_random_uuid()`), so the answer, a
+  yes or no for one guessed 128-bit id and never whose, needs no sign-in, which Caddy can't give;
+  gen9-edge still keeps `/internal/` from the outside. Each host's certificate counts against an
+  ACME CA's limits (Let's Encrypt's per registered domain), which a person with many connectors
+  could use up: a wildcard by DNS challenge, or the operator's own, avoids it (`GEN9_EDGE_APPS=own`).
+  Caddy substitutes `{$VAR}` "before Caddyfile parsing begins" (its concepts page), so the apps'
+  site imports a snippet named by a setting. Rejected: a secret in the ask URL (a value shared
+  across two stacks, for a yes or no that gives nothing away); a DNS module (a custom Caddy build,
+  per DNS provider).
+
+- Decision (order, 2026-10-03): U7 (releases) before U5c (external stores). The owner asked for
+  release management by name; it is what lets anyone run a published version, and R1 decided its
+  parts. U5c is hardening for a production install: the bundled stores already run in both shapes.
+  Found for it meanwhile: Compose's `depends_on` takes `required: false` ("Compose only warns you
+  when the dependency service isn't started", since v2.20.0), which lets a stack leave a bundled
+  store out on Docker, as `kind: none` does in a chart.
+
+- Decision (U5c, how a stack uses a store elsewhere, 2026-10-03): on Docker, each bundled store is a
+  Compose profile named after the service, listed in the stack's `.env` as `COMPOSE_PROFILES`
+  (`init-env.sh` writes it, `make setup` adds it to an older `.env`), and every service using it
+  depends on it with `required: false`; on Kubernetes, `<stack>.services.<store>.kind: none`, the
+  library's way to leave out a service, in the values file where the cluster's workloads are
+  sized. The setting that points the stack elsewhere has the same name in both, in `.env` (a
+  secret; on Kubernetes the Secret `env`) or `settings`, and the store's label `gen9.external`
+  names it: `make up`'s preflight and the chart refuse a store left out with nothing in its place.
+  Evidence: Compose's reference, "When set to `false` Compose only warns you when the dependency
+  service isn't started or available … Introduced in Docker Compose version 2.20.0", and its
+  profiles guide, "Services without a `profiles` attribute are always enabled". Probed with
+  Compose v5.5.1 (explore/deploy, a throwaway project): a store in an inactive profile with
+  `required: false`, `up --wait` started the app alone; with `required: true`, "service "app"
+  depends on undefined service "store": invalid compose project"; `COMPOSE_PROFILES=${X-store}` in
+  `.env` interpolates. Dify does the same in its own Compose setup
+  (`COMPOSE_PROFILES=${VECTOR_STORE:-weaviate},${DB_TYPE:-postgresql}` in `docker/.env.example`).
+  Langfuse's chart leaves a store out with `<store>.deploy: false`, as `kind: none` does here.
+  Rejected: a profile interpolated from the setting (`profiles: ["${X:+external}"]`), which left the
+  store in only by accident (an unset `COMPOSE_PROFILES` counts as one empty profile, so with
+  `COMPOSE_PROFILES=local` the store was left out too); `scale: ${X:-1}`, which works, but the
+  service stays in `docker compose config`, so `make diff`, the port checks and the forwards of
+  `make k8s-e2e` would each need a case for it. Also probed: a default that holds a required
+  variable, `${SESSION_STORE_URL:-redis://:${VALKEY_PASSWORD:?…}@valkey:6379/0}`, needs
+  `VALKEY_PASSWORD` only when `SESSION_STORE_URL` is unset.
+
+- Decision (the runaway tool call, 2026-10-04; #92): gen9-agent installs its own
+  `parse_partial_json` (`partial_json.py`) where langchain-core looks it up, and renews its Temporal
+  token while half its life is left (`TOKEN_MARGIN_S`, 150 s). Adapt, not adopt: langchain-core
+  1.6.6, the latest (2026-09-29), has the function unchanged; langchain-ai/langchain#40826 (open,
+  2026-09-30) reports its quadratic cost on another path, its two pull requests closed unmerged, and
+  the change it proposes, cutting back to `JSONDecodeError.pos`, is this one. The copy returns or
+  raises what langchain-core's does, compared on every prefix of a set of documents and on random
+  corruptions, strict or not (4,000 corruptions in its tests, 60,000 more in a seeded run); 193,000
+  characters parse in 0.03 s against 85 s, the event loop's longest stall 0.1 s against 85.4 s
+  (`explore/harness/runaway_tool_call_probe.py`). It goes once a release fixes #40826. The wider
+  margin covers any stall, not only this one: at 30 s, a stall of 30 s at the wrong moment let the
+  token lapse. Rejected: a lower output limit for the agent's model, which shortens such a stall but
+  also cuts an honest long answer, a file written through a tool call.
+
+## Outcomes & Retrospective
+
+None yet.
+
+## Context
+
+Gen9 runs as eight Compose projects (`ALL_STACKS` in the `Makefile`: postgres, keycloak, langfuse,
+temporal, models, sandbox, agent, ui), each its own folder with its own `.env` written by its
+`init-env.sh` (`make setup`), joined by `gen9-<stack>` networks (docs/development.md, "How stacks
+stay decoupled"). `make up` builds 7 images on the machine with local tags: `gen9-agent:dev`,
+`gen9-ui:prod`, `gen9-keycloak:26.7.5`, `gen9-postgres:18-pgvector0.8.6-textsearch1.4.0`,
+`gen9-sandbox:opensandbox-1.1.0`, `gen9-sandbox-egress:release-1.1.0`, `gen9-sandbox-execd:v1.1.0`.
+The other images (Temporal, LiteLLM, Langfuse, ClickHouse, MinIO, Redis, Postgres, Valkey,
+Mailpit, SearXNG, Ollama, llama.cpp) are pinned by digest in the Compose files. Configuration is
+bind-mounted from each folder. OpenSandbox runs its Docker runtime: the server starts each
+sandbox as sibling containers through the Docker socket (gen9-sandbox/README.md).
+
+Nothing is published today: no tags, no releases, no packages, no Kubernetes files.
+`.github/workflows/checks.yml` runs the checks on pull requests; Dependabot updates the Actions.
+
+Terms: a *deployment shape* is Docker (Compose) or Kubernetes (Helm). The *lock* is the list of
+Gen9's image digests a version runs. *Drift* is any difference between what the lock and the
+settings declare and what runs.
+
+## Plan of work
+
+1. Research and probes (R1, R2): settle the open choices with evidence before building.
+2. Artifacts (U1): images built once and attested; the lock in git.
+3. Docker (U2), then Kubernetes (U3, U6), each verified with `make e2e` against it.
+4. Drift (U4) and the configuration surface (U5) across both.
+5. Releases (U7), then the owner's first tag (U8), then the docs (Z1).
+
+## Validation
+
+- `docker buildx bake --print` and the workflow's run: 7 images, 2 platforms each, attestations
+  verified with `gh attestation verify oci://ghcr.io/coast-guide/gen9-<name>@<digest> -R coast-guide/gen9`.
+- The Docker shape on this machine from the lock, nothing built: `make e2e` passes.
+- The chart on kind and on k3d with the same values: `kubeconform -strict` on the render, the pods
+  ready, `make e2e` passes against each.
+- The digests running in each shape equal the lock.
+- The drift command: 0 on a fresh deployment; non-zero, naming the service, after
+  `docker update`, `kubectl edit` or `kubectl set image` by hand.
+- A pre-release from a branch: a GitHub Release with notes and assets, `gh release verify`.
+
+## Interfaces
+
+To be fixed by R2 and U1 to U5; the expected shape: a bake file at the root; `make images`
+(build locally) and the release workflow (build and push); the lock file; `make deploy-docker`,
+`make deploy-k8s` and `make drift`; the chart under `deploy/`; one settings reference. As built:
+`make up IMAGES=<lock>` and `make k8s-up IMAGES=<lock>`; `make diff` and `make k8s-diff`, `make
+reset` and `make k8s-reset`; a chart per stack (`gen9-<stack>/chart`) on the library `deploy/helm/gen9-lib`.

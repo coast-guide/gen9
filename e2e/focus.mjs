@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromeOnly, launch, TOOLBAR_FOCUS } from "./browser.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { forget } from "./forget.mjs";
 
 if (chromeOnly("the focus walk", TOOLBAR_FOCUS)) process.exit(0);
 
@@ -145,8 +146,9 @@ try {
 } finally {
   await browser.close();
   rmSync(dir, { recursive: true, force: true });
-  // gen9-agent's sweep removes the chat once the user is gone from Keycloak
+  // Deleted in Keycloak, then their chat and the rest in Gen9 at once (forget.mjs)
   if (id) await admin("DELETE", `/users/${id}`).catch(() => {});
+  forget(id);
 }
 console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
 process.exit(failures ? 1 : 0);

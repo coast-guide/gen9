@@ -1,0 +1,78 @@
+# gen9-edge's sites: one host per service people reach, all under GEN9_DOMAIN (README). Each goes
+# to the name its stack gives on its own network; Caddy keeps the Host header, which Langfuse's
+# media store signs, and passes event streams on unbuffered.
+
+# A connector app's host gets its certificate on demand, at its first handshake, and only once
+# gen9-agent says the connector exists (Caddy's on-demand TLS and its `ask`), so made-up names
+# spend nothing of the CA's limits
+{
+	on_demand_tls {
+		ask http://gen9-agent:8000/internal/apps-host
+	}
+}
+
+# The certificate: `internal`, Caddy's own CA, for a machine with no public name; or an email,
+# for one from Let's Encrypt (ACME)
+(certificate) {
+	tls {$GEN9_EDGE_TLS:internal}
+	import hsts
+}
+
+# HTTPS only, from every host, as OWASP ASVS 5.0 3.4.1 asks of all responses: Langfuse and
+# Temporal's UI send none of their own. `?` keeps what a service sends itself (Keycloak, the web
+# app and the API do) (docs/plans/manual-e2e.md, P8-P2)
+(hsts) {
+	header ?Strict-Transport-Security "max-age=63072000; includeSubDomains"
+}
+
+{$GEN9_DOMAIN} {
+	import certificate
+	reverse_proxy gen9-ui:3000
+}
+
+id.{$GEN9_DOMAIN} {
+	import certificate
+	reverse_proxy gen9-keycloak:8080
+}
+
+api.{$GEN9_DOMAIN} {
+	import certificate
+	# What gen9-agent answers this edge alone (/internal/apps-host above)
+	respond /internal/* 404
+	reverse_proxy gen9-agent:8000
+}
+
+traces.{$GEN9_DOMAIN} {
+	import certificate
+	reverse_proxy gen9-langfuse:3000
+}
+
+traces-media.{$GEN9_DOMAIN} {
+	import certificate
+	reverse_proxy gen9-langfuse-media:9000
+}
+
+temporal.{$GEN9_DOMAIN} {
+	import certificate
+	reverse_proxy gen9-temporal-ui:8080
+}
+
+# The connector apps' views, one host per connector, so none shares another's origin. Each host's
+# certificate on demand, from the issuer of the sites above (GEN9_EDGE_APPS=on-demand); or a
+# wildcard of your own (GEN9_EDGE_APPS=own, GEN9_EDGE_APPS_TLS "<cert file> <key file>" under
+# /certs), which Let's Encrypt issues only by DNS challenge
+(apps-on-demand) {
+	tls {$GEN9_EDGE_TLS:internal} {
+		on_demand
+	}
+}
+
+(apps-own) {
+	tls {$GEN9_EDGE_APPS_TLS}
+}
+
+*.apps.{$GEN9_DOMAIN} {
+	import apps-{$GEN9_EDGE_APPS:on-demand}
+	import hsts
+	reverse_proxy gen9-ui-apps:3001
+}

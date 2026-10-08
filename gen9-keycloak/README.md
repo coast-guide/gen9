@@ -9,7 +9,7 @@
 ```bash
 ./init-env.sh --ui-env-file ../gen9-ui/keycloak.local.env --agent-env-file ../gen9-agent/keycloak.local.env
 for n in gen9-keycloak gen9-ui; do docker network inspect $n >/dev/null 2>&1 || docker network create $n; done   # once; make up does it
-docker compose up -d --build --wait     # healthy = realm "gen9" answers (≈40 s)
+docker compose build && docker compose up -d --wait   # healthy = realm "gen9" answers (≈40 s)
 ./verify.sh                             # independent checks, no app needed
 ```
 
@@ -82,7 +82,7 @@ Containers of other stacks therefore use `http://gen9-keycloak:8080` on the `gen
 | --- | --- |
 | `Dockerfile` | Theme jar (Node + Maven stage), then the optimized production image (`kc.sh build` with Postgres, health, metrics, the theme) plus the password blocklist |
 | `theme/` | Gen9 login and email theme (Keycloakify) |
-| `compose.yaml` | `keycloak` (prod mode `start --optimized --import-realm`), `configure` (one-shot), `ready` (starts once `configure` succeeded, so `docker compose up --wait` returns only then), `postgres`, `mailpit` |
+| `compose.yaml` | `keycloak` (prod mode `start --optimized --import-realm`), `configure` (one-shot), `ready` (starts once `configure` succeeded, so `docker compose up --wait` returns only then), `postgres` (a profile `.env`'s `COMPOSE_PROFILES` lists; or a server of your own, by `KC_DB_URL_HOST`: [docs/operations.md, "External services"](../docs/operations.md#external-services)), `mailpit` |
 | `config/configure.sh` | Realm settings the import can't express, or that realms imported earlier must get too (the import skips an existing realm), applied with `kcadm.sh` after every start; idempotent. About 25 s: each `kcadm.sh` call starts a JVM, which `KC_OPTS` on this service alone (quick JIT, serial GC, a class-data archive the first call makes) brings from 0.99 to 0.58 s |
 | `realm/gen9-realm.json` | The realm, as code |
 | `init-env.sh` | Generates `.env` (secrets, seeded users) and, optionally, the app settings files. See `--help` |
@@ -114,9 +114,11 @@ Containers of other stacks therefore use `http://gen9-keycloak:8080` on the `gen
 Import runs only for realms that don't exist yet. Either:
 
 - change it live in the admin console (or with `kcadm.sh`), and mirror the change in `realm/gen9-realm.json`, or in `config/configure.sh` for settings the import can't express (steps of built-in flows); or
-- start over (**deletes all users**): `docker compose down -v && ./init-env.sh --force … && docker compose up -d --build --wait`.
+- start over (**deletes all users**): `docker compose down -v && ./init-env.sh --force … && docker compose build && docker compose up -d --wait`.
 
 ## Deploy on a VM
+
+The simplest way: `make setup DOMAIN=…` and `make up` put gen9-edge (Caddy) in front of every stack, with its certificates, addresses and redirect URIs ([docs/operations.md, "Under a domain, over TLS"](../docs/operations.md#under-a-domain-over-tls)). Behind a TLS proxy of your own instead:
 
 Put TLS in front of `127.0.0.1:15000` (and rate-limit `/realms/gen9/device` there: [Upgrade](#upgrade)), generate `.env` with `--url https://id.example.com` and the public app URLs, and keep the management port (`15001`) private. For production, also replace the temporary bootstrap admin with a permanent one, and swap Mailpit for a real SMTP server in the realm's email settings, over TLS (SSL or StartTLS) with its user ([docs/development.md, "Connections"](../docs/development.md#connections-and-what-each-side-shows)).
 

@@ -15,6 +15,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { launch } from "./browser.mjs";
+import { forget } from "./forget.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const env = Object.fromEntries(
@@ -123,8 +124,9 @@ try {
 } finally {
   await browser.close();
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
-  // gen9-agent's sweep removes their Gen9 data once they're gone from Keycloak
+  // Deleted in Keycloak, then their Gen9 data at once (forget.mjs)
   await admin("DELETE", `/users/${id}`).catch(() => {});
+  forget(id);
 }
 console.log(failures ? `\n${failures} check(s) failed` : "\nall lockout checks passed");
 process.exit(failures ? 1 : 0);

@@ -1,0 +1,27 @@
+# The notes GitHub writes for a release (docs/development.md, "Releasing"): the pull requests
+# merged since the last release, by their titles, grouped by label in Keep a Changelog's order
+# (keepachangelog.com 1.1.0). Dependabot labels its pull requests `dependencies`; one labelled
+# `skip-release-notes` is left out. GitHub's own `enhancement` and `bug` count as Added and Fixed;
+# the other labels are made once (docs/development.md, "Releasing"). What a reader must do to
+# upgrade is added by hand.
+changelog:
+  exclude:
+    labels:
+      - skip-release-notes
+  categories:
+    - title: Added
+      labels: [added, enhancement]
+    - title: Changed
+      labels: [changed]
+    - title: Deprecated
+      labels: [deprecated]
+    - title: Removed
+      labels: [removed]
+    - title: Fixed
+      labels: [fixed, bug]
+    - title: Security
+      labels: [security]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: Other changes
+      labels: ["*"]

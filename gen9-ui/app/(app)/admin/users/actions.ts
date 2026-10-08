@@ -6,6 +6,7 @@ import { refusedAsNotAdmin } from "@/lib/admin-access";
 import { AgentError, agentFetch, agentJson } from "@/lib/agent";
 import { signedInRecently } from "@/lib/auth/recent-sign-in";
 import { refreshRoles, requireSession } from "@/lib/auth/session";
+import { deleteSessionsBySub } from "@/lib/auth/store";
 import { refusal } from "@/lib/refusal";
 
 export type ActionResult = { ok: true; message: string } | { ok: false; message: string; reauth?: boolean };
@@ -73,6 +74,9 @@ export async function deleteUser(id: string): Promise<ActionResult> {
     const detail = await response.json().then((body: { detail?: unknown }) => body.detail, () => null);
     return { ok: false, message: refusal(detail, "The user wasn’t deleted. Try again.") };
   }
+  // Keycloak's back-channel logout ends their sessions here one by one; this drops what is left of
+  // them, the index by user included, as deleting your own account does
+  await deleteSessionsBySub(id);
   revalidatePath("/admin/users");
   // 202: still deleting (a step waits on a service that is down); they show as disabled until it's done
   if (response.status === 202) return { ok: true, message: "Deleting the user and all their data. It finishes on its own; until then they show as disabled." };

@@ -151,7 +151,9 @@ try {
   // 4. In Chrome: the chat's list and step, and the task's chat
   await page.goto(`${APP}/chat/${chat.id}`, { waitUntil: "networkidle0" });
   const list = await page.$eval('section[aria-label="In the background"]', (s) => s.textContent).catch(() => "");
-  check(list.includes(PHRASE.slice(0, 8)) && /Done/.test(list), "the chat shows its task “In the background”, with its state", list.slice(0, 120));
+  // The task's title is its description, cut at a word within 80 characters (gen9-agent's
+  // runs/store.py, clipped_title): the code word at its end is cut off, so its start names it
+  check(list.includes("Wait a moment, then reply") && /…/.test(list) && /Done/.test(list), "the chat shows its task “In the background”, with its state", list.slice(0, 120));
   const opens = await page.$$eval(`a[href="/chat/${task}"]`, (as) => as.map((a) => a.textContent.trim()));
   check(opens.includes("Open its chat"), "the step that started it opens the task's chat", opens.join(" | "));
   await page.evaluate(AXE);

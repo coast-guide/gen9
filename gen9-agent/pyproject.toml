@@ -39,6 +39,7 @@ gen9-agent-worker = "gen9_agent.worker:main"
 gen9-agent-reseal = "gen9_agent.reseal:main"
 gen9-agent-erase = "gen9_agent.erase:main"
 gen9-agent-stop = "gen9_agent.stop:main"
+gen9-agent-sweep = "gen9_agent.sweep:main"
 
 [build-system]
 requires = ["uv_build>=0.12.15,<0.13.0"]

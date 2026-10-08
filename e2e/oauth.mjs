@@ -21,6 +21,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { launch } from "./browser.mjs";
 import { signInTerminal } from "./signin.mjs";
+import { forget } from "./forget.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const env = Object.fromEntries(
@@ -192,6 +193,7 @@ try {
   await browser.close();
   callback.close();
   await admin("DELETE", `/users/${id}`).catch(() => {});
+  forget(id);
   if (documentUrl) {
     const [kept] = (await admin("GET", `/clients?clientId=${encodeURIComponent(documentUrl)}`).catch(() => [])) ?? [];
     if (kept) await admin("DELETE", `/clients/${kept.id}`).catch(() => {});

@@ -281,6 +281,10 @@ render() {
 # ---- Compose: which files to merge + stable project name (stable volume names)
 COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT
 COMPOSE_FILE=docker-compose.yml:compose.override.yaml
+# The bundled services this stack runs. Each left out, Langfuse's own setting names another:
+# DATABASE_URL, REDIS_HOST, CLICKHOUSE_URL, LANGFUSE_S3_*_ENDPOINT (docs/operations.md, "External
+# services")
+COMPOSE_PROFILES=postgres,redis,clickhouse,minio
 
 # ---- Host ports (all bound to 127.0.0.1)
 LANGFUSE_PORT=$PORT
@@ -347,7 +351,7 @@ fi
 
 [ -z "$AGENT_ENV_FILE" ] || write_agent_file
 
-if [ "$OUTPUT" != "-" ]; then
+if [ "$OUTPUT" != "-" ] && [ -z "${GEN9_SETUP:-}" ]; then
   cat >&2 <<EOF
 
 Next:

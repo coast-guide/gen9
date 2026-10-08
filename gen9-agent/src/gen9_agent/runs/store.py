@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from ..models import FINAL_RUN_STATUSES, InputRequest, Run, Thread, User
+from ..standing import KEYCLOAK_UNAVAILABLE
 from ..workflows import names
 from . import log
 from .events import RunEvent
@@ -33,6 +34,11 @@ PUBLIC_BUDGET_ERROR = "You've reached your model usage limit for now. Try again 
 RATE_LIMITED = names.RATE_LIMITED
 PUBLIC_RATE_LIMITED = (
     "You've sent more requests this minute than your limit allows. Retry in a minute."
+)
+# A provider refused the key the router calls it with: missing, wrong or revoked (OpenAI's SDK
+# raises AuthenticationError for the 401; P8-Z3). Only an admin can fix it, then the person resends
+PUBLIC_KEY_REFUSED = (
+    "The model provider refused Gen9's key. Ask an admin to check it, then try again."
 )
 # The turn didn't fit the context budget even after summarizing (Deep Agents' ContextOverflowError)
 PUBLIC_TOO_LONG = (
@@ -63,6 +69,8 @@ def public_error(error: str | None) -> str:
         return PUBLIC_RATE_LIMITED
     if error and "ContextOverflowError" in error:
         return PUBLIC_TOO_LONG
+    if error and "AuthenticationError: Error code: 401" in error:
+        return PUBLIC_KEY_REFUSED
     return PUBLIC_ERROR
 
 
@@ -88,6 +96,8 @@ _DATABASE = (
     "No space left on device",
 )
 PUBLIC_NO_SAVE = "Gen9 couldn't save its work. Retry in a moment."
+# Keycloak down when the run asked whether its person may still use Gen9 (standing.py)
+PUBLIC_NO_IDENTITY = "Gen9 couldn't reach its sign-in service. Retry in a moment."
 
 
 def retry_reason(error: str) -> str:
@@ -100,6 +110,8 @@ def retry_reason(error: str) -> str:
         return PUBLIC_NO_CREDITS
     if any(marker in error for marker in _DATABASE):
         return PUBLIC_NO_SAVE
+    if KEYCLOAK_UNAVAILABLE in error:
+        return PUBLIC_NO_IDENTITY
     return PUBLIC_NO_ANSWER
 
 
@@ -122,10 +134,28 @@ class StartedRun:
     remember: bool = True
 
 
+# A chat's name, at most (as a rename allows, api/threads.py)
+TITLE_MAX = 80
+
+
+def clipped_title(text: str, default: str) -> str:
+    """The first line of `text` as a chat's name, or `default` for a blank one. A longer line is
+    cut at a word and ends in "…", within `TITLE_MAX`: cut mid-word, a name read as if that were
+    all of it ("… One sentence, wit": manual-e2e.md, P8-I4)."""
+    first = next(iter(text.strip().splitlines()), "").strip()
+    if len(first) <= TITLE_MAX:
+        return first or default
+    cut = first[: TITLE_MAX - 1]
+    space = cut.rfind(" ")
+    if space >= TITLE_MAX // 2:
+        cut = cut[:space]
+    return cut.rstrip(" ,;:") + "…"
+
+
 def chat_title(message: str) -> str:
-    """A chat's title from its first message: the first line, up to 80 characters. A blank one,
-    which the API refuses now, once failed the end of every attempt (gen9-learn.md, M9, F8)."""
-    return next(iter(message.strip().splitlines()), "")[:80] or "New chat"
+    """A chat's title from its first message (`clipped_title`). A blank one, which the API refuses
+    now, once failed the end of every attempt (gen9-learn.md, M9, F8)."""
+    return clipped_title(message, "New chat")
 
 
 async def enqueue(

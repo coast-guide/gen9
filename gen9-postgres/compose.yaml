@@ -15,10 +15,16 @@ x-logging: &logging
 services:
   postgres:
     logging: *logging
+    # Runs while .env's COMPOSE_PROFILES lists it (init-env.sh writes it so); left out, the setting
+    # in the label names a server of one's own, which the jobs below and gen9-agent then reach, and
+    # make up refuses to start without it (docs/operations.md, "External services")
+    profiles: [postgres]
+    labels:
+      gen9.external: GEN9_POSTGRES_SERVER
     # pgvector's official image (pinned by digest in the Dockerfile) plus pg_textsearch for BM25;
     # `make up` builds it. To upgrade either: the Dockerfile.
     build: .
-    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    image: ${GEN9_POSTGRES_IMAGE:-gen9-postgres:18-pgvector0.8.6-textsearch1.4.0}
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
@@ -57,44 +63,52 @@ services:
     logging: *logging
     # Every start: the extensions only the superuser may create, in each app database
     # (scripts/ensure-extensions.sh), so a database made before one joined the image gets it too
-    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    image: ${GEN9_POSTGRES_IMAGE:-gen9-postgres:18-pgvector0.8.6-textsearch1.4.0}
     entrypoint: ["/bin/sh", "/scripts/ensure-extensions.sh"]
     tmpfs: [/var/lib/postgresql]  # the image's VOLUME: no anonymous volume per run
-    environment:
-      PGHOST: postgres
-      POSTGRES_USER: postgres
+    environment: &admin
+      # The bundled server, or one's own, as its administrator (a role that may create extensions
+      # and roles, such as a managed service's postgres)
+      PGHOST: ${GEN9_POSTGRES_SERVER:-postgres}
+      PGPORT: ${GEN9_POSTGRES_SERVER_PORT:-5432}
+      PGSSLMODE: ${GEN9_POSTGRES_SSLMODE:-prefer}
+      # The CA its certificate is checked against: a file of certs/ at the repository's root
+      PGSSLROOTCERT: ${GEN9_POSTGRES_SSLROOTCERT:-}
+      POSTGRES_USER: ${GEN9_POSTGRES_ADMIN_USER:-postgres}
       PGPASSWORD: ${POSTGRES_PASSWORD:?run ./init-env.sh first}
     volumes:
       - ./scripts:/scripts:ro
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     depends_on:
       postgres:
         condition: service_healthy
+        required: false  # not there when GEN9_POSTGRES_SERVER names another server
     restart: "no"
 
   roles:
     logging: *logging
     # Every start: the role gen9-agent's services connect as, and its password
     # (scripts/ensure-roles.sh). It owns nothing; gen9-agent's migrations grant it the tables
-    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    image: ${GEN9_POSTGRES_IMAGE:-gen9-postgres:18-pgvector0.8.6-textsearch1.4.0}
     entrypoint: ["/bin/sh", "/scripts/ensure-roles.sh"]
     tmpfs: [/var/lib/postgresql]  # the image's VOLUME: no anonymous volume per run
     environment:
-      PGHOST: postgres
-      POSTGRES_USER: postgres
-      PGPASSWORD: ${POSTGRES_PASSWORD:?run ./init-env.sh first}
+      <<: *admin
       GEN9_AGENT_APP_DB_PASSWORD: ${GEN9_AGENT_APP_DB_PASSWORD:?run make setup, which adds it}
     volumes:
       - ./scripts:/scripts:ro
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     depends_on:
       postgres:
         condition: service_healthy
+        required: false  # not there when GEN9_POSTGRES_SERVER names another server
     restart: "no"
 
   ready:
     logging: *logging
     # Holds `docker compose up --wait` (and make up) until extensions and roles have succeeded:
     # Compose doesn't wait for a one-shot job that nothing depends on (docker/compose#9273)
-    image: gen9-postgres:18-pgvector0.8.6-textsearch1.4.0
+    image: ${GEN9_POSTGRES_IMAGE:-gen9-postgres:18-pgvector0.8.6-textsearch1.4.0}
     entrypoint: ["sleep", "infinity"]
     init: true
     # The image's VOLUME, covered so it makes no anonymous volume that every recreate leaves behind

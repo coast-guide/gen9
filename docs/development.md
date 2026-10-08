@@ -12,9 +12,13 @@ active, and how every session starts, is in [AGENTS.md, "Start of every session"
 
 ## Checks
 
-Which checks each part of the repository needs before a commit: [AGENTS.md, "Checks"](../AGENTS.md#checks).
+Which checks each part of the repository needs before a commit: [AGENTS.md, "Checks"](../AGENTS.md#checks). They need, besides what running Gen9 needs ([operations.md, "Requirements"](operations.md#requirements)): [uv](https://docs.astral.sh/uv/) (gen9-agent and gen9-cli; it brings their Python), Node 24.21 or later (gen9-ui, e2e, gen9-learn's verifier; CI uses 24.21.0), whose npm 11.19 applies the projects' `.npmrc`: the 7-day cooldown on new releases and the install-script allow-list, which an older npm skips with an "Unknown project config" warning, and Google Chrome (e2e). Shellcheck runs in Docker, as CI runs it.
 
 Design system: `make design-sync` copies `gen9-design` into the apps; `make design-check` fails if a copy drifted.
+
+Gen9's own images are built once for every deployment (docs/plans/deploy.md, U1): `docker-bake.hcl` names them, and `.github/workflows/images.yml` builds them with Docker's reusable bake workflow for linux/amd64 and linux/arm64, each on a native runner. On a pull request that changes a stack that builds one, it only builds; on `main` it pushes them to `ghcr.io/coast-guide/<image>` (tags `main` and `sha-<commit>`) with BuildKit's signed provenance and an SBOM, attests each with GitHub (`gh attestation verify oci://ghcr.io/coast-guide/<image>@<digest> -R coast-guide/gen9`), and keeps the digests as the run's `images.lock` artifact. `make up` still builds them on the machine, from the same contexts; `make config` fails if `docker-bake.hcl` and the Compose files differ (`scripts/check-images.py`). `docker buildx bake --set '*.platform=linux/amd64' --load` builds them here as CI does.
+
+Each stack's Helm chart (`gen9-<stack>/chart`, [docs/operations.md, "Kubernetes"](operations.md#kubernetes)) reads the stack's `compose.yaml` through the library chart `deploy/helm/gen9-lib`, so a change to a Compose file changes the chart too. CI's `charts` job renders every chart with a stand-in lock and checks it (`scripts/check-charts.sh`: `helm lint`, then every object against Kubernetes' schemas with `kubeconform -strict`); the template itself fails on a Compose service with no entry in the chart's `services`, a mounted file not linked into the chart, or an image not by digest. `make k8s-e2e` runs `make e2e` against a cluster (`e2e/k8s/docker` stands in for `docker`).
 
 CI (`.github/workflows/checks.yml`) runs on every pull request and on `main`. It checks: types, lint, unit tests, dependency advisories, the design-token copies, gen9-agent's plugin loader against the Agent Plugins conformance kit and, on Linux with real Docker, the make workflow itself (shellcheck, `setup` without a terminal, `doctor`, `config`, then gen9-postgres, gen9-keycloak and gen9-agent up and calling each other, `verify.sh`, gen9-models serving its aliases to gen9-agent's key and to no other stack's network, gen9-temporal up with its namespace, its frontend refusing callers without a token and its internal ports callers without its certificate, and starting over). `make e2e` needs Chrome and every stack, and runs locally.
 
@@ -46,7 +50,7 @@ Evals: `make evals` measures how dependably Gen9 does real tasks. It runs a suit
 
 ## How stacks stay decoupled
 
-`make up` and `make config` run `cd gen9-<name> && docker compose …` for each stack, so each keeps its own project name, `.env`, volumes and network, the same as running `docker compose` inside the folder. Both ways manage the same containers. `down`, `ps`, `logs`, `wipe` and `distclean` find a stack's containers, volumes and networks by the project label Compose puts on them (`com.docker.compose.project=gen9-<name>`), so they work even when its setup files are gone; a container counts as the stack's only if it also has Compose's `com.docker.compose.oneoff` label, as Compose itself counts them (the containers of an image Compose built carry its project label too, like OpenSandbox's egress sidecars from gen9-sandbox's image). Stacks share nothing but the `*.local.env` files one stack's setup writes into another's folder, and the per-stack networks below.
+`make up` and `make config` run `cd gen9-<name> && docker compose …` for each stack, so each keeps its own project name, `.env`, volumes and network, the same as running `docker compose` inside the folder. Both ways manage the same containers. `down`, `ps`, `logs`, `wipe` and `distclean` find a stack's containers, volumes and networks by the project label Compose puts on them (`com.docker.compose.project=gen9-<name>`), so they work even when its setup files are gone; a container counts as the stack's only if it also has Compose's `com.docker.compose.oneoff` label, as Compose itself counts them (the containers of an image Compose built carry its project label too, like OpenSandbox's egress sidecars from gen9-sandbox's image). Stacks share nothing but the `*.local.env` files one stack's setup writes into another's folder, the per-stack networks below, and, read-only, `certs/` at the repository's root: the CAs of stores elsewhere, which the services that reach one mount at `/etc/gen9/certs` (on Kubernetes the ConfigMap `certs`; docs/operations.md, "External services").
 
 Stacks are deliberately not merged with Compose [`include`](https://docs.docker.com/reference/compose-file/include/): that loads everything into one project, which renames every volume (orphaning existing data) and silently keeps only one of two same-named services (for example two `postgres`).
 
@@ -101,3 +105,27 @@ server over TLS (its realm's email settings) and gen9-agent at one with `smtps:/
 1. Create `gen9-<name>/` with a Compose file and a README; publish ports on `127.0.0.1` in the next free block (`15000–15099`, …).
 2. In the `Makefile`, add `<name>` to `ALL_STACKS` after the stacks it needs, describe it in `DESC_<name>` and list the files it can't start without in `NEEDS_<name>`. If it generates files, teach `scripts/setup.sh` and `scripts/wipe.sh` about them.
 3. Check with `make config STACKS=<name>`, then `make up STACKS=<name>`.
+
+A stack that runs only once set up (gen9-edge, with a domain) also goes in the `Makefile`'s `OPTIONAL`: `make up`, `doctor`, `config` and `diff` leave it out, with a note, until the files in its `NEEDS_<name>` exist. The scripts that list the stacks (`scripts/setup.sh`, `wipe.sh`, `backup.sh`, `doctor.sh`, `sbom.sh`, `check-networks.py`, `drift.py`) learn its name too.
+
+## Releasing
+
+One version for all of Gen9 (SemVer, `vX.Y.Z`; `vX.Y.Z-rc.N` for a pre-release): the images, the charts, the Compose bundle, the CLI and the API, tested together. gen9-agent, gen9-cli and gen9-ui declare it in their `pyproject.toml` and `package.json`, and `scripts/check-version.py` (in `make config`, so in CI) fails if they differ.
+
+To release: a pull request that sets the new version in those three files (and, when a setting or a migration needs the reader, the "Upgrading" notes to add to the release), merged once `main` is green and `make e2e` passed against both shapes from its images; then the tag, by the owner:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The tag runs `.github/workflows/release.yml`, once: it fails unless the tag is the declared version; builds the 7 images for linux/amd64 and linux/arm64 (`images.yml`), pushed to `ghcr.io/coast-guide/<image>` tagged with the version and attested; packages the 8 charts with the version and the release's `images.lock` inside (`scripts/release-charts.sh`: the charts take their images from it), pushes them to `oci://ghcr.io/coast-guide/charts` and attests them; makes the Compose bundle (`scripts/release-bundle.sh`: the tree at the tag with its lock, the same bytes for the same commit) and attests it; then drafts a release with GitHub's notes (the pull requests merged since the last one, grouped by `.github/release.yml`), the lock, the charts' lock, the bundle, each image's SBOM and the attestations (`*.sigstore.json`), and publishes it in the `release` environment once its reviewer approves. Published, it can't change: releases are immutable, and `v*` tags can't be moved or deleted.
+
+How to run a release and check it: [docs/operations.md, "Run a release"](operations.md#run-a-release).
+
+Once, by the owner: the `release` environment with the owner as its required reviewer (Settings, Environments), and the labels the notes group by, besides GitHub's own `enhancement` and `bug`:
+
+```bash
+for l in added changed deprecated removed fixed security dependencies skip-release-notes; do gh label create "$l" -R coast-guide/gen9; done
+```
+
+While Gen9 is 0.y, only the latest release gets fixes, as a patch release (`SECURITY.md`).

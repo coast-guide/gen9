@@ -8,11 +8,22 @@ import { actionWords, MEMORY_FILE, reasonIn } from "@/lib/approvals";
 import { answersIn } from "@/lib/questions";
 import { cn } from "@/lib/utils";
 
+/** At most `max` characters: a longer text is cut at a word and ends in "…", so a label never
+ *  stops mid-word as if that were all of it (manual-e2e.md, P8-F2). */
+export function clip(value: string, max = 120): string {
+  if (value.length <= max) return value;
+  const cut = value.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space >= max / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:]+$/, "")}…`;
+}
+
 /** What a tool call did, in words: "Searched the web: postgres 18", "Read /notes.md". */
 export function describeStep(step: Step): string {
   const args = (step.args ?? {}) as Record<string, unknown>;
   // Denied in a chat set to "Ask before acting" (gen9-agent's approvals.py)
   if (step.status === "declined") return `You declined: ${actionWords({ name: step.name, args })}`;
+  // Failed: what it tried, not "Edited …" beside a Failed icon (manual-e2e.md, P8-O3)
+  if (step.status === "error") return `Couldn’t ${actionWords({ name: step.name, args })}`;
   const text = (value: unknown) => (typeof value === "string" ? value : "");
   switch (step.name) {
     case "web_search":
@@ -32,11 +43,11 @@ export function describeStep(step: Step): string {
       // A subagent the agent's definition declares is named; the general-purpose one is "a helper"
       const who = text(args.subagent_type);
       const helper = who && who !== "general-purpose" ? `the ${who.replaceAll("-", " ")}` : "a helper";
-      return `Asked ${helper}: ${text(args.description).slice(0, 120)}`;
+      return `Asked ${helper}: ${clip(text(args.description))}`;
     }
     // Work started in the background (gen9-agent's background.py), each task a chat of its own
     case "start_async_task":
-      return `Started in the background: ${text(args.description).split("\n")[0].slice(0, 120)}`;
+      return `Started in the background: ${clip(text(args.description).split("\n")[0])}`;
     case "check_async_task":
       return "Checked a background task";
     case "update_async_task":
@@ -69,7 +80,7 @@ export function describeStep(step: Step): string {
       return `Listed ${text(args.path) || "files"}`;
     case "execute":
       // A command in the chat's environment (gen9-agent's environments.py)
-      return `Ran: ${text(args.command).slice(0, 120)}`;
+      return `Ran: ${clip(text(args.command))}`;
     case "glob":
     case "grep":
       return `Searched files for ${text(args.pattern)}`;
@@ -103,8 +114,10 @@ const callKey = (name: string, args: unknown): string =>
 
 /** Steps in words; a step an approval holds reads "Waiting for you: …", as its card reads "Gen9
  *  wants to …", not "Used …" for what hasn't happened (manual-e2e.md, P3-D4). */
-export function stepWords(step: Step, awaiting: Pick<Action, "name" | "args">[] = []): { text: string; waits: boolean } {
-  const waits = step.status === "running" && awaiting.some((a) => callKey(a.name, a.args) === callKey(step.name, step.args));
+export function stepWords(step: Step, awaiting: Pick<Action, "name" | "args">[] = [], waiting = false): { text: string; waits: boolean } {
+  // Held by an approval, or a connector's tool whose server asked the person (its form below)
+  const asked = waiting && step.name.includes("__");
+  const waits = step.status === "running" && (asked || awaiting.some((a) => callKey(a.name, a.args) === callKey(step.name, step.args)));
   return waits ? { text: `Waiting for you: ${actionWords({ name: step.name, args: step.args as Record<string, unknown> })}`, waits } : { text: describeStep(step), waits };
 }
 
@@ -152,7 +165,7 @@ export function Activity({
       {shown.length > 0 && (
         <ul className="space-y-1 text-sm text-muted-foreground" aria-label="Tools used">
           {shown.map((step) => {
-            const words = stepWords(step, awaiting);
+            const words = stepWords(step, awaiting, waiting);
             return (
               <li key={step.id} className="flex items-start gap-2">
                 {/* Its words say it waits: the icon's label would say it twice */}
@@ -184,7 +197,7 @@ export function Activity({
   return (
     <details className="group mb-3 text-sm">
       <summary className="cursor-pointer text-muted-foreground select-none hover:text-foreground">
-        {shown.length === 1 && !todos.length ? stepWords(shown[0], awaiting).text : stepsSummary(shown.length, todos.length > 0)}
+        {shown.length === 1 && !todos.length ? stepWords(shown[0], awaiting, waiting).text : stepsSummary(shown.length, todos.length > 0)}
       </summary>
       {list}
     </details>

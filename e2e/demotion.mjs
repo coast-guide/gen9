@@ -14,6 +14,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { launch } from "./browser.mjs";
 import { secondStep } from "./second-step.mjs";
+import { forget } from "./forget.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const env = Object.fromEntries(
@@ -112,8 +113,9 @@ try {
   check(false, "the demotion check ran to the end", e.message);
 } finally {
   await browser.close();
-  // gen9-agent's sweep removes their Gen9 data once they're gone from Keycloak
+  // Deleted in Keycloak, then their Gen9 data at once (forget.mjs)
   for (const user of [id, targetId]) if (user) await admin("DELETE", `/users/${user}`).catch(() => {});
+  forget(id, targetId);
 }
 console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
 process.exit(failures ? 1 : 0);

@@ -3,7 +3,7 @@
 # .env and settings files, back to a fresh clone. Used by `make wipe` and `make distclean` (all
 # stacks, or STACKS).
 #
-#   scripts/wipe.sh [--secrets] [--yes] STACK...      STACK: postgres keycloak langfuse temporal models sandbox agent ui
+#   scripts/wipe.sh [--secrets] [--yes] STACK...      STACK: postgres keycloak langfuse temporal models sandbox agent ui edge
 #
 # Lists what it will delete and asks you to type "yes" (like `terraform destroy`); --yes skips the
 # question, and without a terminal it refuses instead of waiting. Resources are found by the label
@@ -25,19 +25,22 @@ for arg in "$@"; do
   esac
 done
 [ ${#STACKS[@]} -gt 0 ] || { echo "usage: scripts/wipe.sh [--secrets] [--yes] STACK..." >&2; exit 2; }
+# Never another copy of Gen9's containers and data (scripts/elsewhere.sh)
+scripts/elsewhere.sh --refuse "$($SECRETS && echo distclean || echo wipe)" "${STACKS[@]}" || exit 1
 
 # What each stack's volumes hold, in plain words
 holds() {
   case $1 in
     postgres) echo "app database: Gen9 users, chats, agent memory" ;;
     keycloak) echo "accounts, passwords, passkeys, sessions, sign-in history; Mailpit's emails" ;;
-    ui) echo "web sessions: everyone gets signed out" ;;
+    ui) echo "web sessions: everyone signs in again, at once while their Keycloak session lasts" ;;
     agent) echo "no data of its own" ;;
     langfuse) echo "traces, Langfuse users, projects and API keys" ;;
     temporal) echo "workflow state: running and waiting runs, schedules, workflow history" ;;
     models) echo "the router's virtual keys, budgets and spend history" ;;
     sandbox) echo "every chat's environment (its containers and the files in them) and the server's records of them" ;;
-    *) echo "unknown stack: $1 (postgres keycloak langfuse temporal models sandbox agent ui)" >&2; exit 2 ;;
+    edge) echo "its certificates and its own CA: browsers that trusted the CA need the new one's root" ;;
+    *) echo "unknown stack: $1 (postgres keycloak langfuse temporal models sandbox agent ui edge)" >&2; exit 2 ;;
   esac
 }
 
@@ -53,6 +56,7 @@ generated() {
     sandbox) echo gen9-sandbox/.env gen9-agent/sandbox.local.env ;;
     temporal) echo gen9-temporal/.env gen9-temporal/tls.local.env ;;
     models) echo gen9-models/.env gen9-agent/models.local.env gen9-agent/models-api.local.env gen9-agent/models-evals.local.env ;;
+    edge) echo gen9-edge/.env gen9-keycloak/edge.local.env ;;
   esac
 }
 
@@ -131,7 +135,7 @@ if [ $((${#containers[@]} + ${#volumes[@]} + ${#networks[@]} + ${#files[@]})) -e
   exit 0
 fi
 others=""
-for stack in postgres keycloak langfuse temporal models sandbox agent ui; do
+for stack in postgres keycloak langfuse temporal models sandbox agent ui edge; do
   [[ " ${STACKS[*]} " == *" $stack "* ]] || others="$others gen9-$stack"
 done
 if $SECRETS; then

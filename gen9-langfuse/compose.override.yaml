@@ -22,11 +22,35 @@ services:
     environment:
       # Public media URL handed to browsers + SDKs (set per deployment via .env)
       LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: "${LANGFUSE_MEDIA_PUBLIC_URL:-http://localhost:13001}"
-      # Langfuse's own server-side media reads stay on its internal network
-      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: "http://minio:9000"
+      # Langfuse's own server-side media reads stay on its internal network (or reach the S3
+      # elsewhere that replaces minio: docs/operations.md, "External services")
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: "${LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT:-http://minio:9000}"
       # Next.js listens on $HOSTNAME, which Docker sets to the container ID: that is one address on
       # one network. Listen on every interface, so gen9-agent reaches it on the gen9-langfuse network.
       HOSTNAME: 0.0.0.0
+      # Nobody signs themselves up: Gen9 makes Langfuse's first user, and anyone else is invited.
+      # Langfuse's default lets anyone who reaches it make an account and organizations of their
+      # own (which only its Enterprise Edition can restrict), and under a domain gen9-edge publishes
+      # it at traces.<domain>. To let someone you invited make their account: false in .env, then
+      # back (gen9-langfuse/README.md, "Operate"; docs/plans/manual-e2e.md, P8-C1)
+      AUTH_DISABLE_SIGNUP: ${AUTH_DISABLE_SIGNUP:-true}
+      <<: &tls
+        # Stores elsewhere over TLS, checked against a CA of certs/ (docs/operations.md, "External
+        # services"): Node's own NODE_EXTRA_CA_CERTS for ClickHouse's and S3's clients, Langfuse's
+        # REDIS_TLS_CA_PATH (what Langfuse reads; its Compose file passes REDIS_TLS_CA) and its
+        # migrations' CLICKHOUSE_MIGRATION_SSL (encrypted, which Langfuse never checks)
+        NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-}
+        REDIS_TLS_CA_PATH: ${REDIS_TLS_CA_PATH:-}
+        CLICKHOUSE_MIGRATION_SSL: ${CLICKHOUSE_MIGRATION_SSL:-false}
+    volumes: &certs
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
+    # Each bundled store may be elsewhere instead, left out of COMPOSE_PROFILES in .env
+    # (docs/operations.md, "External services")
+    depends_on: &stores
+      postgres: {condition: service_healthy, required: false}
+      minio: {condition: service_healthy, required: false}
+      redis: {condition: service_healthy, required: false}
+      clickhouse: {condition: service_healthy, required: false}
     networks:
       default: {}
       gen9-langfuse:
@@ -48,10 +72,16 @@ services:
       - "127.0.0.1:${LANGFUSE_WORKER_PORT:-13003}:3030"  # worker health check
     environment:
       HOSTNAME: 0.0.0.0  # as langfuse-web
+      <<: *tls
+    volumes: *certs
     depends_on:
+      <<: *stores
       # The raw events' expiry in place before any are written (and Compose's --wait then expects
-      # the one-shot to exit)
+      # the one-shot to exit); with S3 elsewhere, its owner sets the expiry
       minio-lifecycle:
+        condition: service_completed_successfully
+        required: false
+      migrated:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null -T 3 http://127.0.0.1:3030/api/health"]
@@ -61,8 +91,25 @@ services:
       start_period: 120s
       start_interval: 2s
 
+  # Langfuse's migrations applied before its worker starts: the worker loads the newest model
+  # prices once, at start (Langfuse 4.48.0, worker/src/initialize.ts), and on a fresh install it
+  # ran before the web had made their tables ("relation "models" does not exist"), which left only
+  # the migrations' older prices until it restarted, so calls to newer models were traced without
+  # a cost (docs/plans/deploy.md, U3). The web serves only once it has migrated; Langfuse's own
+  # Compose file and chart start the worker after Postgres alone
+  migrated:
+    logging: *logging
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.48.0@sha256:9349b003a453326b3d2e2033eb94fe5ca9ee12ee237779c10984b9d3dfe0f8ed
+    entrypoint: ["sh", "-c", "until wget -qO /dev/null -T 3 'http://langfuse-web:3000/api/public/health?failIfDatabaseUnavailable=true'; do sleep 2; done"]
+    restart: "no"
+
   minio:
     logging: *logging
+    # Runs while .env's COMPOSE_PROFILES lists it (init-env.sh writes it so); left out, the setting
+    # in the label points Langfuse at another, and make up refuses to start without it
+    profiles: [minio]
+    labels:
+      gen9.external: LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT
     # Chainguard's free tier only publishes :latest, so the digest is the only real pin. MinIO's own
     # repository is archived; Chainguard builds its fork (chainguard-forks/minio), which still takes
     # fixes: this digest is its RELEASE.2026-09-22T19-25-18Z (`minio --version` in the image)
@@ -79,6 +126,7 @@ services:
 
   minio-lifecycle:
     logging: *logging
+    profiles: [minio]  # the bundled MinIO's: left out with it
     # One-shot, safe on every start: Langfuse's raw event files (events/, one per batch it ingests,
     # the messages in them) expire a day after they're written. Deleting a chat or an account erases
     # its traces in ClickHouse, but not these files, filed by time: every deleted chat's text stayed
@@ -103,18 +151,33 @@ services:
 
   postgres:
     logging: *logging
+    # Runs while .env's COMPOSE_PROFILES lists it (init-env.sh writes it so); left out, the setting
+    # in the label points Langfuse at another, and make up refuses to start without it
+    profiles: [postgres]
+    labels:
+      gen9.external: DATABASE_URL
     image: docker.io/postgres:17.11@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
     ports: !override
       - "127.0.0.1:${LANGFUSE_POSTGRES_PORT:-13004}:5432"
 
   redis:
     logging: *logging
+    # Runs while .env's COMPOSE_PROFILES lists it (init-env.sh writes it so); left out, the setting
+    # in the label points Langfuse at another, and make up refuses to start without it
+    profiles: [redis]
+    labels:
+      gen9.external: REDIS_HOST
     image: docker.io/redis:7.4.11@sha256:c6eabf748fc7a61dbb5a705c78bcf3d6377b1127a97d0ce965c11c44ba46896f
     ports: !override
       - "127.0.0.1:${LANGFUSE_REDIS_PORT:-13005}:6379"
 
   clickhouse:
     logging: *logging
+    # Runs while .env's COMPOSE_PROFILES lists it (init-env.sh writes it so); left out, the setting
+    # in the label points Langfuse at another, and make up refuses to start without it
+    profiles: [clickhouse]
+    labels:
+      gen9.external: CLICKHOUSE_URL
     # Not upstream's 25.12, which ClickHouse no longer fixes: its LTS line (README.md, "ClickHouse's version")
     image: docker.io/clickhouse/clickhouse-server:26.8.13.2@sha256:d3cdda9b2137852b20b96b1262b043dbedbe78c2b2c7063a3da60781a29e3463
     # Its own logs, bounded: Langfuse reads none of them (clickhouse/disk.xml)

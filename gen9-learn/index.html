@@ -542,7 +542,7 @@ footer { border-top: 1px solid var(--hairline); padding-top: 1.5rem; font-size: 
         <div class="cmd"><pre><code data-check="run">docker exec gen9-ui-valkey-1 sh -c 'export REDISCLI_AUTH="$VALKEY_PASSWORD"; keys=$(valkey-cli --scan --pattern "gen9:auth-txn:*"); for k in $keys; do echo "$k expires in $(valkey-cli TTL "$k") s"; done; [ -n "$keys" ] || echo "no sign-in in progress"'</code></pre></div>
         <div class="where code">In the code</div>
         <ul><li><code data-at="randomPKCECodeVerifier" data-to="buildAuthorizationUrl">gen9-ui/app/auth/login/route.ts:30-58</code>: state, nonce, PKCE; <code>prompt=create</code> for sign-up (<code data-at="authorizationParams.prompt">:51</code>).</li>
-        <li><code data-at="K.txn(state), seal(txn, K.txn(state))">gen9-ui/lib/auth/store.ts:120</code>: the transaction, sealed, 600 s.</li></ul>
+        <li><code data-at="K.txn(state), seal(txn, K.txn(state))">gen9-ui/lib/auth/store.ts:149</code>: the transaction, sealed, 600 s.</li></ul>
       </div>
     </li>
 
@@ -605,7 +605,7 @@ events so far: REGISTER SEND_VERIFY_EMAIL</div>
         <ul>
           <li><code data-at="!state || params.get(">gen9-ui/app/auth/callback/route.ts:28</code>: state must match the cookie; <code data-at="authorizationCodeGrant">:52</code>: the code exchange with the PKCE verifier and nonce, over <code>gen9-keycloak:8080</code>.</li>
           <li><code>…/callback/route.ts</code>, after the exchange: a <em>new</em> random session id every sign-in, the old one deleted (no session fixation).</li>
-          <li><code data-at="const K = {" data-to="await multi.exec()">gen9-ui/lib/auth/store.ts:44-73</code> and <code>crypto.ts</code>: the key is <code>gen9:session:&lt;sha256 of the cookie&gt;</code>, the value AES-256-GCM, bound to that key, indexed by <code>sid</code> and <code>sub</code>.</li>
+          <li><code data-at="const K = {" data-to="await multi.exec()">gen9-ui/lib/auth/store.ts:65-102</code> and <code>crypto.ts</code>: the key is <code>gen9:session:&lt;sha256 of the cookie&gt;</code>, the value AES-256-GCM, bound to that key, indexed by <code>sid</code> and <code>sub</code>.</li>
         </ul>
       </div>
     </li>
@@ -727,7 +727,7 @@ INFO gen9_agent.worker: run &lt;run id&gt;: <mark>attempt 1</mark> on thread &lt
           <li><code>gen9-ui/app/api/threads/[id]/runs/route.ts</code>: checks the session and origin, then pipes the run's stream through.</li>
           <li><code data-at="def from_jwks_url" data-to="claims=claims,">gen9-agent/src/gen9_agent/auth.py:61-100</code>: the token check: signature against Keycloak's keys (cached 5 minutes), <code>iss</code>, <code>aud</code>, expiry, <code>typ: Bearer</code>, <code>azp</code> in {gen9-ui, gen9-cli}.</li>
           <li><code data-at="async def queued_run">gen9-agent/src/gen9_agent/api/runs.py:83</code>: <code>queued_run</code> records the run (a thread has at most one active run: <code>409</code> otherwise) and starts it; <code data-at="async def _events">:143</code> <code>_events</code> replays the log and follows it.</li>
-          <li><code data-at="temporal.start_workflow(">gen9-agent/src/gen9_agent/runs/control.py:72</code> starts the run's Temporal workflow, <code>RunWorkflow</code>, with ids only; <code data-at="workflow.execute_activity(">workflows/runs.py:218</code> runs the whole turn as one Activity on a worker (<code data-at="async def agent_turn">runs/activities.py:38</code>, heartbeating every half second); <code data-at="runtime.agent.astream(">runs/executor.py:338</code> runs <code>agent.astream()</code> and <code data-at="class EventMapper">runs/events.py:154</code> turns its stream into these events.</li>
+          <li><code data-at="temporal.start_workflow(">gen9-agent/src/gen9_agent/runs/control.py:72</code> starts the run's Temporal workflow, <code>RunWorkflow</code>, with ids only; <code data-at="workflow.execute_activity(">workflows/runs.py:218</code> runs the whole turn as one Activity on a worker (<code data-at="async def agent_turn">runs/activities.py:38</code>, heartbeating every half second); <code data-at="runtime.agent.astream(">runs/executor.py:338</code> runs <code>agent.astream()</code> and <code data-at="class EventMapper">runs/events.py:160</code> turns its stream into these events.</li>
           <li><code>gen9-agent/src/gen9_agent/model_router.py</code>: the agent's model is <code>chat</code> through gen9-models; a request hook adds the run's user (<code>x-litellm-end-user-id</code>) to every call the run makes.</li>
         </ul>
       </div>
@@ -956,7 +956,7 @@ pk_chat_search | btree</div>
         <div class="out"><span class="cap">verified</span><mark>Asked the fact checker:</mark> Verify this exact claim against authoritative sources and return only a single verdict line…</div>
         <div class="where store">In the App DB, the run's steps</div>
         <div class="out"><span class="cap">verified</span>tool <mark>task</mark>, subagent_type <mark>fact-checker</mark></div>
-        <p>The agent delegates with Deep Agents' <code>task</code> tool, naming which helper. The run also records the version of the agent it ran with (<code>runs.agent_version</code>, a hash of the agent's folder), so a change to its instructions shows in which runs had it. In Langfuse, the helper's work is an observation of its own, named after it.</p>
+        <p>The agent delegates with Deep Agents' <code>task</code> tool, naming which helper. The helper's own steps aren't shown in the chat, but the pages its searches found are, under the answer's Sources. The run also records the version of the agent it ran with (<code>runs.agent_version</code>, a hash of the agent's folder), so a change to its instructions shows in which runs had it. In Langfuse, the helper's work is an observation of its own, named after it.</p>
         <div class="where code">In the code</div>
         <ul>
           <li><code>gen9-agent/src/gen9_agent/agents/gen9/agents/fact-checker/AGENTS.md</code>: the helper, as a folder: its name, description and instructions. <code>definition.py</code>: how the folder becomes the agent, its skills and its subagents; <code>agent.py</code>, <code>subagents</code>.</li>
@@ -1503,7 +1503,7 @@ after Ada agrees: research-brief · Gen9’s own   <mark>gen9-learn-greeting</ma
         <p>Keycloak's <code>email</code> event listener tells you whenever how you sign in changes (a password set, an app, a passkey or recovery codes added or removed), as NIST SP 800-63B-4 asks; not failed sign-ins, which anyone could send you by the dozen.</p>
         <div class="where code">In the code</div>
         <ul><li><code data-at="const ACCOUNT_ACTIONS" data-to="const DELETE_CREDENTIAL">gen9-ui/lib/auth/account-actions.ts:3-11</code>: the only actions the app will start (a whitelist), and <code>delete_credential:&lt;id&gt;</code> for removing one; below them, what each one did as <code>?updated=</code> names it (taken from the app's own transaction, not from Keycloak's redirect) and the words Settings then shows.</li>
-          <li><code data-at="text(next) ===" data-to="action=CONFIGURE_RECOVERY_AUTHN_CODES">gen9-ui/app/(app)/settings/page.tsx:119-122</code>: <code>next=recovery-codes</code> starts the codes when there is an app and no codes, carrying <code>updated=authenticator</code> along; <code data-at="/settings?next=recovery-codes">:234</code>: only a first app's <em>Set up</em> returns there.</li></ul>
+          <li><code data-at="text(next) ===" data-to="action=CONFIGURE_RECOVERY_AUTHN_CODES">gen9-ui/app/(app)/settings/page.tsx:121-124</code>: <code>next=recovery-codes</code> starts the codes when there is an app and no codes, carrying <code>updated=authenticator</code> along; <code data-at="/settings?next=recovery-codes">:236</code>: only a first app's <em>Set up</em> returns there.</li></ul>
       </div>
     </li>
 
@@ -1943,7 +1943,7 @@ no token, no sealed value anywhere in it</div>
         <p>One request, after the fresh sign-in. The agent's 401 never shows in this flow, because gen9-ui checks first; it's there for any client that doesn't.</p>
         <div class="where code">In the code</div>
         <ul>
-          <li><code data-at="export function signedInRecently">gen9-ui/lib/auth/recent-sign-in.ts:7</code>: the rule. <code data-at="recentlySignedIn={signedInRecently">gen9-ui/app/(app)/settings/page.tsx:370</code>: the dialog's <code>recentlySignedIn</code>; <code data-at="if (!signedInRecently(session.authTime))">settings/actions.ts:72</code>: the action's check, and <code data-at="await agentFetch(session," data-to="return reauth;">:74-76</code>: the agent's 401 turned into <em>Sign in again</em>.</li>
+          <li><code data-at="export function signedInRecently">gen9-ui/lib/auth/recent-sign-in.ts:7</code>: the rule. <code data-at="recentlySignedIn={signedInRecently">gen9-ui/app/(app)/settings/page.tsx:378</code>: the dialog's <code>recentlySignedIn</code>; <code data-at="if (!signedInRecently(session.authTime))">settings/actions.ts:72</code>: the action's check, and <code data-at="await agentFetch(session," data-to="return reauth;">:74-76</code>: the agent's 401 turned into <em>Sign in again</em>.</li>
           <li><code data-at="authorizationParams.max_age">gen9-ui/app/auth/login/route.ts:53</code>: <code>reauth=1</code> becomes <code>max_age=0</code>. <code data-at="def require_recent_authentication" data-to="return dependency">gen9-agent/src/gen9_agent/auth.py:173-188</code>: <code>require_recent_authentication</code>, tested in <code>gen9-agent/tests/test_step_up.py</code>.</li>
         </ul>
       </div>
@@ -2202,7 +2202,7 @@ models-api: <mark>embed, rerank</mark></div>
         <p>It retries (<code>num_retries: 2</code>), then falls back to another company's model, <code>chat-backup</code> (<code>fallbacks: [{"chat": ["chat-backup"]}]</code> in <code>config.yaml</code>). Only when that fails too, on each of gen9-agent's own attempts, does the run park for Retry. Web search has the same shape: the <code>web</code> alias, SearXNG by default, a hosted provider if you give it one.</p>
       </details>
       <div class="notice">
-        <p>The <code>-local</code> aliases, <code>rerank</code> and <code>speak</code>, <code>transcribe</code> and <code>image</code> exist whether or not their models run: the <code>local</code> profile starts Ollama and the reranker (<code>COMPOSE_PROFILES=local</code> in <code>gen9-models/.env</code>, then <code>make up STACKS=models</code>: gen9-models/README.md, "Self-hosted models").</p>
+        <p>The <code>-local</code> aliases, <code>rerank</code> and <code>speak</code>, <code>transcribe</code> and <code>image</code> exist whether or not their models run: the <code>local</code> profile starts Ollama and the reranker (<code>local</code> added to <code>COMPOSE_PROFILES</code> in <code>gen9-models/.env</code>, then <code>make up STACKS=models</code>: gen9-models/README.md, "Self-hosted models").</p>
         <div class="where store">Its admin API</div>
         <div class="out"><span class="cap">verified</span>GET localhost:19001/users/&lt;sub&gt;/usage without a key: <mark>401</mark></div>
         <p>Gen9's own small API next to LiteLLM, on LiteLLM's image: a person's usage and budget for Settings and the export, and erasing a person's records. Only gen9-agent's keys open it.</p>
@@ -2387,6 +2387,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr data-service="gen9-langfuse/redis"><td><code>redis</code></td><td>Langfuse's queues between web and worker, and its cache</td><td>13005 → 6379; <code>gen9-langfuse_langfuse_redis_data</code></td><td><a href="#b7-langfuse">Langfuse, inside</a></td></tr>
       <tr data-service="gen9-langfuse/minio"><td><code>minio</code></td><td>S3 storage: raw event batches under <code>events/</code>, and a trace's images. Containers reach it as <code>gen9-langfuse-media:9000</code></td><td>13001 → 9000, 13002 → 9001 (console); <code>gen9-langfuse_langfuse_minio_data</code></td><td><a href="#b6-4">What outlives the account</a></td></tr>
       <tr data-service="gen9-langfuse/minio-lifecycle"><td><code>minio-lifecycle</code></td><td>One-shot, every start: the one-day expiry rule on <code>events/</code></td><td>none</td><td><a href="#b6-4">What outlives the account</a></td></tr>
+      <tr data-service="gen9-langfuse/migrated"><td><code>migrated</code></td><td>One-shot, every start: waits until langfuse-web answers, so its migrations are in, before the worker starts and loads the newest model prices</td><td>none</td><td></td></tr>
     </tbody>
   </table></div>
 
@@ -2447,6 +2448,13 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr data-service="gen9-ui/dev"><td><code>dev</code></td><td>Profile <code>dev</code>: the same app with Next.js's dev server</td><td>14001 → 3000</td><td></td></tr>
       <tr data-service="gen9-ui/sandbox"><td><code>sandbox</code></td><td>The MCP Apps sandbox proxy (<code>sandbox/server.ts</code>): a connector's View runs on this origin, each server on a host name of its own, never the web app's</td><td>14003 → 3001</td><td><a href="#b2x-app">A connector with an app</a></td></tr>
       <tr data-service="gen9-ui/valkey"><td><code>valkey</code></td><td>Web sessions (sealed), 10-minute sign-in transactions, the refresh lock, and the replay guard for logout notices</td><td>14002 → 6379; <code>gen9-ui_valkey_data</code></td><td><a href="#b1-4">Back in the app</a></td></tr>
+    </tbody>
+  </table></div>
+  <h3>gen9-edge: Gen9 under a domain (optional)</h3>
+  <div class="table"><table>
+    <thead><tr><th>Service</th><th>What it does</th><th>Ports, volume</th><th>Seen in</th></tr></thead>
+    <tbody>
+      <tr data-service="gen9-edge/edge"><td><code>edge</code></td><td>Caddy in front of the other stacks, once <code>make setup DOMAIN=…</code> has set it up: one host per service people reach (the web app, <code>id.</code>, <code>api.</code>, <code>traces.</code>, <code>traces-media.</code>, <code>temporal.</code>, and <code>*.apps.</code> for the connector apps), over TLS from Let's Encrypt or its own CA</td><td>80, 443; <code>gen9-edge_edge_data</code>, <code>gen9-edge_edge_config</code></td><td></td></tr>
     </tbody>
   </table></div>
   <p>The networks they meet on, each named for the stack that owns it: <code>gen9-postgres</code>, <code>gen9-keycloak</code>, <code>gen9-langfuse</code>, <code>gen9-temporal</code>, <code>gen9-models</code>, <code>gen9-sandbox</code>, <code>gen9-agent</code> and <code>gen9-ui</code>. Who joins which: <a href="#b7-3">Who can reach whom</a>.</p>
@@ -2551,6 +2559,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>GET /v1/me/controls</code></td><td>What you let Gen9 do with your chats</td></tr>
       <tr><td><code>PUT /v1/me/controls</code></td><td>Choose what Gen9 may do with your chats</td></tr>
       <tr><td><code>GET /v1/me/limit</code></td><td>How much of your model usage limit you've used, and when it resets</td></tr>
+      <tr><td><code>GET /v1/version</code></td><td>Which Gen9 runs: its version, one for all of Gen9, and the commit its images were built from (signed in only); shown in Settings, "About Gen9", and by <code>gen9 whoami</code></td></tr>
       <tr><td><code>GET /v1/me/security</code></td><td>The caller's sign-in methods (no secrets)</td></tr>
       <tr><td><code>POST /v1/me/recovery-codes/prune</code></td><td>Remove the caller's recovery codes once no authenticator app is left</td></tr>
       <tr><td><code>POST /v1/me/sign-out-everywhere</code></td><td>End all of the caller's Keycloak sessions (every device and app)</td></tr>
@@ -2658,7 +2667,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>/admin/plugins</code></td><td>Admins: plugin sources, and who gets each plugin</td><td><a href="#b2x-4">Add a plugin</a></td></tr>
       <tr><td><code>/admin/audit</code></td><td>Admins: the audit log</td><td><a href="#b2w-4">Who did what</a>, <a href="#b4-admin">Admin rights</a></td></tr>
       <tr><td><code>/privacy</code></td><td>What a person is told about their data (GDPR Art. 13), readable before signing up</td><td><a href="#b1-6">What a person is told</a></td></tr>
-      <tr><td><code>/signed-out</code></td><td>After signing out, or after the account was deleted (<code>?reason=deleted</code>), or while its deletion is still under way (<code>?reason=deleting</code>, when the API answered <code>202</code>)</td><td><a href="#b4-5">A normal sign-out</a></td></tr>
+      <tr><td><code>/signed-out</code></td><td>After signing out, or out everywhere from Settings (<code>?reason=everywhere</code>), or after the account was deleted (<code>?reason=deleted</code>), or while its deletion is still under way (<code>?reason=deleting</code>, when the API answered <code>202</code>)</td><td><a href="#b4-5">A normal sign-out</a></td></tr>
       <tr><td><code>/auth/login</code></td><td>Starts every sign-in: PKCE, state, nonce; sign-up (<code>?intent=signup</code>), account actions (<code>?action=</code>), a fresh sign-in (<code>?reauth=1</code>)</td><td><a href="#b1-1">Start the sign-up</a></td></tr>
       <tr><td><code>/auth/callback</code></td><td>Finishes it: checks state, exchanges the code, makes a new web session</td><td><a href="#b1-4">Back in the app</a></td></tr>
       <tr><td><code>/auth/logout</code></td><td>Deletes the web session, then ends Keycloak's</td><td><a href="#b4-5">A normal sign-out</a></td></tr>
@@ -2770,13 +2779,15 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>gen9-sandbox_store</code></td><td>OpenSandbox's server state (<code>/var/lib/opensandbox</code>)</td></tr>
       <tr><td><code>gen9-sandbox_metadata</code></td><td>Each sandbox's renewals, so a restarted server still removes it on time</td></tr>
       <tr><td><code>gen9-ui_valkey_data</code></td><td>Web sessions</td></tr>
+      <tr><td><code>gen9-edge_edge_data</code></td><td>Its certificates, and its own CA (its root is what a machine's browsers trust)</td></tr>
+      <tr><td><code>gen9-edge_edge_config</code></td><td>Caddy's running configuration</td></tr>
     </tbody>
   </table></div>
 </section>
 
 <section class="part" id="ref-settings" aria-labelledby="ref-settings-h">
   <div class="part-head"><h2 id="ref-settings-h">Settings</h2>
-    <p class="covers">Every key of every settings file, by name. <code>make setup</code> writes them: each stack's <code>.env</code>, and the <code>*.local.env</code> files one stack writes for another (so gen9-agent gets Keycloak's issuer without anyone copying it). Values are never shown here; <code>docs/secrets.md</code> says where each secret lives and how to replace it. <code>COMPOSE_PROJECT_NAME</code>, in every stack's <code>.env</code>, is its Compose project, <code>gen9-&lt;stack&gt;</code>.</p></div>
+    <p class="covers">Every key of every settings file, by name. <code>make setup</code> writes them: each stack's <code>.env</code>, and the <code>*.local.env</code> files one stack writes for another (so gen9-agent gets Keycloak's issuer without anyone copying it). Values are never shown here; <code>docs/secrets.md</code> says where each secret lives and how to replace it. <code>COMPOSE_PROJECT_NAME</code>, in every stack's <code>.env</code>, is its Compose project, <code>gen9-&lt;stack&gt;</code>. <code>COMPOSE_PROFILES</code> lists the optional services a stack runs: its bundled stores (the <code>postgres</code> of gen9-postgres, gen9-keycloak, gen9-models and gen9-temporal; gen9-langfuse's <code>postgres</code>, <code>redis</code>, <code>clickhouse</code> and <code>minio</code>; gen9-ui's <code>valkey</code>), which a setting can replace with one elsewhere (<code>docs/operations.md</code>, "External services"), and gen9-models' <code>local</code> models.</p></div>
 
   <h3>gen9-agent: what it reads (<code>settings.py</code>)</h3>
   <p>From <code>gen9-agent/.env</code>, the <code>*.local.env</code> files other stacks wrote, and <code>compose.yaml</code>. A later file wins; <code>langfuse.local.env</code> overrides <code>.env</code>. Each Compose service gets only the ones it uses (<a href="#b7-3b">What each container holds</a>).</p>
@@ -2784,7 +2795,8 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
     <thead><tr><th>Key</th><th>Default</th><th>What it sets</th></tr></thead>
     <tbody>
       <tr><th colspan="3" scope="colgroup">Database (<code>postgres.local.env</code> for migrate, <code>postgres-app.local.env</code> for the services)</th></tr>
-      <tr><td><code>DATABASE_HOST</code>, <code>DATABASE_PORT</code>, <code>DATABASE_NAME</code></td><td>localhost, 16000, gen9_agent</td><td>Where the App DB is; containers use <code>gen9-postgres:5432</code></td></tr>
+      <tr><td><code>DATABASE_HOST</code>, <code>DATABASE_PORT</code>, <code>DATABASE_NAME</code></td><td>localhost, 16000, gen9_agent</td><td>Where the App DB is; containers use <code>gen9-postgres:5432</code>, or the server <code>GEN9_POSTGRES_SERVER</code> names</td></tr>
+      <tr><td><code>DATABASE_SSLMODE</code>, <code>DATABASE_SSLROOTCERT</code></td><td>prefer, none</td><td>libpq's <code>sslmode</code> and <code>sslrootcert</code>: require insists on TLS, verify-full checks the certificate against that CA, its name too (a server elsewhere)</td></tr>
       <tr><td><code>DATABASE_USER</code>, <code>DATABASE_PASSWORD</code></td><td>gen9_agent</td><td>The owner for migrations; <code>gen9_agent_app</code> for the API and worker</td></tr>
       <tr><th colspan="3" scope="colgroup">Keycloak (<code>keycloak.local.env</code>)</th></tr>
       <tr><td><code>KEYCLOAK_ISSUER</code></td><td></td><td>The exact <code>iss</code> of tokens</td></tr>
@@ -2820,6 +2832,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>FILES_MAX_BYTES_PER_PERSON</code></td><td>10 GiB</td><td>What a person's chats' files may add up to</td></tr>
       <tr><th colspan="3" scope="colgroup">Other programs</th></tr>
       <tr><td><code>GEN9_API_PUBLIC_URL</code></td><td>:17000</td><td>The API as callers outside reach it: trigger URLs, and <code>/mcp</code> and <code>/a2a</code> as tokens' audiences</td></tr>
+      <tr><td><code>GEN9_COMMIT</code></td><td>empty</td><td>The commit the image was built from, set by its build (CI's <code>GITHUB_SHA</code>; empty when built here), shown with the version (<code>/v1/version</code>)</td></tr>
       <tr><td><code>MCP_ASK_WAIT_S</code></td><td>120</td><td>How long <code>ask</code> waits before saying the run is still working</td></tr>
       <tr><td><code>MCP_ALLOWED_ORIGINS</code></td><td>none</td><td>Browser origins that may call <code>/mcp</code>; any other is refused (403)</td></tr>
       <tr><td><code>A2A_WAIT_S</code></td><td>120</td><td>How long a blocking A2A <code>SendMessage</code> waits</td></tr>
@@ -2837,6 +2850,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><th colspan="3" scope="colgroup">Runs, Temporal, tracing</th></tr>
       <tr><td><code>RUN_WAIT_S</code></td><td>7 days</td><td>How long a run waits for the person's answer</td></tr>
       <tr><td><code>DELETED_USERS_SWEEP_INTERVAL_S</code></td><td>900</td><td>The <code>sweep-deleted-users</code> Schedule</td></tr>
+      <tr><td><code>SWEEP_MAX_DELETIONS</code></td><td>10</td><td>The most people one sweep deletes; more, or more than half of the people Gen9 knows, and it deletes nobody until <code>gen9-agent-sweep --allow</code> or <code>--only</code></td></tr>
       <tr><td><code>TEMPORAL_ADDRESS</code>, <code>TEMPORAL_NAMESPACE</code></td><td>:18001, gen9</td><td>Temporal's frontend (<code>gen9-temporal:7233</code>) and the namespace</td></tr>
       <tr><td><code>TEMPORAL_PAYLOAD_KEYS</code></td><td></td><td>The key ring payloads are encrypted with; the first encrypts</td></tr>
       <tr><td><code>TEMPORAL_UI_URL</code></td><td>:18000</td><td>The one browser origin allowed on the codec endpoint</td></tr>
@@ -2859,6 +2873,8 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>gen9-sandbox/.env</code></td><td><code>GEN9_SANDBOX_PORT</code>, <code>SANDBOX_API_KEY</code></td></tr>
       <tr><td><code>gen9-ui/.env</code></td><td><code>SESSION_SECRET</code> (seals web sessions), <code>VALKEY_PASSWORD</code>; optionally <code>PRIVACY_CONTROLLER</code>, <code>PRIVACY_CONTACT</code>, <code>PRIVACY_DPO</code>, <code>PRIVACY_AUTHORITY</code>, <code>PRIVACY_NOTICE_URL</code> (the privacy page)</td></tr>
       <tr><td><code>gen9-ui/keycloak.local.env</code></td><td><code>KEYCLOAK_ISSUER</code>, <code>KEYCLOAK_CLIENT_ID</code>, <code>KEYCLOAK_CLIENT_SECRET</code>: the web app's client. Its <code>compose.yaml</code> adds <code>APP_URL</code>, <code>SESSION_STORE_URL</code>, <code>GEN9_AGENT_URL</code>, <code>MCP_APPS_SANDBOX_URL</code></td></tr>
+      <tr><td><code>gen9-edge/.env</code></td><td><code>GEN9_DOMAIN</code> (what <code>make setup DOMAIN=…</code> gave), and <code>GEN9_EDGE_TLS</code> if <code>EDGE_TLS</code> was given</td></tr>
+      <tr><td><code>gen9-keycloak/edge.local.env</code></td><td><code>KC_PROXY_HEADERS</code> (xforwarded): Keycloak reads the edge's forwarded headers. <code>make setup DOMAIN=…</code> also writes each stack's public addresses under the domain (<code>KC_HOSTNAME</code>, the issuers, <code>GEN9_UI_URL</code>, <code>NEXTAUTH_URL</code>…); <code>DOMAIN=localhost</code> puts back the ports</td></tr>
     </tbody>
   </table></div>
 
@@ -2867,13 +2883,16 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
   <div class="table"><table>
     <thead><tr><th>Stack</th><th>Settings</th></tr></thead>
     <tbody>
-      <tr><td>gen9-postgres</td><td><code>GEN9_POSTGRES_PORT</code> (16000)</td></tr>
-      <tr><td>gen9-keycloak</td><td>ports <code>KEYCLOAK_PORT</code> (15000), <code>KEYCLOAK_MANAGEMENT_PORT</code> (15001), <code>MAILPIT_PORT</code> (15002), <code>KEYCLOAK_POSTGRES_PORT</code> (15003); the addresses its clients use, <code>GEN9_UI_URL</code>, <code>GEN9_UI_DEV_URL</code>, <code>GEN9_UI_BACKCHANNEL_LOGOUT_URL</code>, <code>GEN9_TEMPORAL_UI_URL</code>, and the audiences of agents' tokens, <code>GEN9_MCP_URL</code> (:17000/mcp) and <code>GEN9_A2A_URL</code> (:17000/a2a); self-registering MCP clients, <code>GEN9_MCP_CLIENT_DOMAINS</code> (claude.ai, vscode.dev, code.visualstudio.com, localhost, 127.0.0.1, host.docker.internal) and <code>GEN9_MCP_CLIENT_ALLOW_HTTP</code> (true: set false in production); the seeded users, <code>GEN9_SEED_ADMIN_EMAIL</code>, <code>GEN9_SEED_USER_EMAIL</code>, and <code>KC_BOOTSTRAP_ADMIN_USERNAME</code>, <code>KC_HOSTNAME</code></td></tr>
-      <tr><td>gen9-temporal</td><td><code>GEN9_TEMPORAL_PORT</code> (18001), <code>GEN9_TEMPORAL_UI_PORT</code> (18000), <code>GEN9_TEMPORAL_CODEC_URL</code> (where the web UI's browser reaches gen9-agent's codec, :17000/v1/temporal/codec)</td></tr>
-      <tr><td>gen9-models</td><td><code>GEN9_MODELS_PORT</code> (19000), <code>GEN9_MODELS_ADMIN_PORT</code> (19001); <code>GEN9_LOCAL_MODELS</code> (qwen3:0.6b embeddinggemma, the <code>local</code> profile's); the budgets and keys of its <code>.env</code> above</td></tr>
+      <tr><td>gen9-postgres</td><td><code>GEN9_POSTGRES_PORT</code> (16000); a server of your own instead of the bundled one (<code>docs/operations.md</code>, "External services"): <code>GEN9_POSTGRES_SERVER</code>, <code>GEN9_POSTGRES_SERVER_PORT</code> (5432), <code>GEN9_POSTGRES_SSLMODE</code> (prefer), <code>GEN9_POSTGRES_SSLROOTCERT</code> (the CA, a file of <code>certs/</code> mounted at /etc/gen9/certs), which gen9-agent's <code>compose.yaml</code> reads too, and <code>GEN9_POSTGRES_ADMIN_USER</code> (postgres)</td></tr>
+      <tr><td>gen9-keycloak</td><td>ports <code>KEYCLOAK_PORT</code> (15000), <code>KEYCLOAK_MANAGEMENT_PORT</code> (15001), <code>MAILPIT_PORT</code> (15002), <code>KEYCLOAK_POSTGRES_PORT</code> (15003); the addresses its clients use, <code>GEN9_UI_URL</code>, <code>GEN9_UI_DEV_URL</code>, <code>GEN9_UI_BACKCHANNEL_LOGOUT_URL</code>, <code>GEN9_TEMPORAL_UI_URL</code>, and the audiences of agents' tokens, <code>GEN9_MCP_URL</code> (:17000/mcp) and <code>GEN9_A2A_URL</code> (:17000/a2a); self-registering MCP clients, <code>GEN9_MCP_CLIENT_DOMAINS</code> (claude.ai, vscode.dev, code.visualstudio.com, localhost, 127.0.0.1, host.docker.internal) and <code>GEN9_MCP_CLIENT_ALLOW_HTTP</code> (true: set false in production); the seeded users, <code>GEN9_SEED_ADMIN_EMAIL</code>, <code>GEN9_SEED_USER_EMAIL</code>, and <code>KC_BOOTSTRAP_ADMIN_USERNAME</code>, <code>KC_HOSTNAME</code>; its Postgres, the bundled one or another (<code>docs/operations.md</code>, "External services"): Keycloak's own <code>KC_DB_URL_HOST</code> (postgres), <code>KC_DB_URL_PORT</code> (5432), <code>KC_DB_URL_DATABASE</code> and <code>KC_DB_USERNAME</code> (keycloak), <code>KC_DB_URL_PROPERTIES</code> (?sslmode=require for TLS)</td></tr>
+      <tr><td>gen9-langfuse</td><td>Gen9's <code>compose.override.yaml</code>: <code>MINIO_ROOT_USER</code> (minio: the store's root user, as which <code>minio-lifecycle</code> sets the expiry), <code>LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT</code> (http://minio:9000: where Langfuse itself reads media; an S3 elsewhere's address), <code>AUTH_DISABLE_SIGNUP</code> (true: nobody signs up uninvited; false for a moment to let someone invited make their account), and for stores elsewhere over TLS <code>NODE_EXTRA_CA_CERTS</code>, <code>REDIS_TLS_CA_PATH</code> (their CA, a file of <code>certs/</code>) and <code>CLICKHOUSE_MIGRATION_SSL</code> (false), with the ports and addresses of its <code>.env</code> above; the rest is Langfuse's own <code>docker-compose.yml</code>, which Langfuse documents</td></tr>
+      <tr><td>gen9-temporal</td><td><code>GEN9_TEMPORAL_PORT</code> (18001), <code>GEN9_TEMPORAL_UI_PORT</code> (18000), <code>GEN9_TEMPORAL_CODEC_URL</code> (where the web UI's browser reaches gen9-agent's codec, :17000/v1/temporal/codec); its Postgres, the bundled one or another: Temporal's own <code>POSTGRES_SEEDS</code> (postgres), <code>DB_PORT</code> (5432), <code>SQL_TLS_ENABLED</code> (false), <code>SQL_HOST_VERIFICATION</code> (false) and <code>SQL_CA</code> (the CA, a file of <code>certs/</code>)</td></tr>
+      <tr><td>gen9-models</td><td><code>GEN9_MODELS_PORT</code> (19000), <code>GEN9_MODELS_ADMIN_PORT</code> (19001); <code>GEN9_LOCAL_MODELS</code> (qwen3:0.6b embeddinggemma, the <code>local</code> profile's); the budgets and keys of its <code>.env</code> above; its Postgres, the bundled one or another: <code>LITELLM_DB_HOST</code> (postgres), <code>LITELLM_DB_PORT</code> (5432), <code>LITELLM_DB_SSLMODE</code> (prefer; require for TLS), <code>LITELLM_DB_SSLROOTCERT</code> (the CA, a file of <code>certs/</code>: its certificate and name checked)</td></tr>
       <tr><td>gen9-sandbox</td><td><code>GEN9_SANDBOX_PORT</code> (20000); <code>SANDBOX_PUBLISH_HOST</code> (127.0.0.1: where sandboxes' ports are published; on Linux, the Docker bridge's gateway); <code>SANDBOX_DISK_GB</code> (10) and <code>SANDBOX_DISK_CHECK_S</code> (10): how much one sandbox may write, and how often that's checked</td></tr>
       <tr><td>gen9-agent</td><td><code>GEN9_AGENT_PORT</code> (17000); <code>LANGFUSE_TIMEOUT</code> (35 s: long enough that a Langfuse restart loses no trace)</td></tr>
-      <tr><td>gen9-ui</td><td><code>GEN9_UI_PORT</code> (14000), <code>GEN9_UI_DEV_PORT</code> (14001), <code>GEN9_UI_VALKEY_PORT</code> (14002), <code>GEN9_UI_SANDBOX_PORT</code> (14003); <code>GEN9_UI_URL</code>, <code>GEN9_UI_DEV_URL</code>; <code>MCP_APPS_SANDBOX_URL</code>; <code>VALKEY_MAXMEMORY</code> (256mb); the privacy page's <code>PRIVACY_*</code></td></tr>
+      <tr><td>Gen9's own images</td><td><code>GEN9_AGENT_IMAGE</code> (gen9-agent:dev), <code>GEN9_UI_IMAGE</code> (gen9-ui:prod), <code>GEN9_KEYCLOAK_IMAGE</code>, <code>GEN9_POSTGRES_IMAGE</code>, <code>GEN9_SANDBOX_IMAGE</code>, <code>GEN9_SANDBOX_EGRESS_IMAGE</code>, <code>GEN9_SANDBOX_EXECD_IMAGE</code>: unset, <code>make up</code> builds each here under its local tag; <code>make up IMAGES=&lt;lock&gt;</code> sets them all, by digest, in <code>images.env</code>, and builds nothing</td></tr>
+      <tr><td>gen9-ui</td><td><code>GEN9_UI_PORT</code> (14000), <code>GEN9_UI_DEV_PORT</code> (14001), <code>GEN9_UI_VALKEY_PORT</code> (14002), <code>GEN9_UI_SANDBOX_PORT</code> (14003); <code>GEN9_UI_URL</code>, <code>GEN9_UI_DEV_URL</code>; <code>MCP_APPS_SANDBOX_URL</code>; <code>SESSION_STORE_URL</code> (the bundled Valkey; another Valkey or Redis by its URL, with <code>valkey</code> out of <code>COMPOSE_PROFILES</code>), <code>NODE_EXTRA_CA_CERTS</code> (its CA over TLS, a file of <code>certs/</code>); <code>VALKEY_MAXMEMORY</code> (256mb); the privacy page's <code>PRIVACY_*</code></td></tr>
+          <tr><td>gen9-edge</td><td><code>GEN9_DOMAIN</code> (gen9.localhost, which resolves to this machine), <code>GEN9_EDGE_TLS</code> (internal: its own CA; or an email, for Let's Encrypt), <code>GEN9_EDGE_APPS</code> (on-demand: each connector app's host its own certificate at its first handshake, once gen9-agent says the connector exists; own: a wildcard of yours), <code>GEN9_EDGE_APPS_TLS</code> (with own: "&lt;cert&gt; &lt;key&gt;" under <code>gen9-edge/certs</code>), <code>GEN9_EDGE_ADDRESS</code> (127.0.0.1; 0.0.0.0 on a server)</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -2893,7 +2912,9 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>make down</code></td><td>Stops them; data stays</td><td><a href="#b7-1">Restart Keycloak</a></td></tr>
       <tr><td><code>make ps</code></td><td>Their containers, and where to open each</td><td><a href="#b0-2">Terminal</a></td></tr>
       <tr><td><code>make logs</code></td><td>The last 50 lines of each (<code>TAIL=n</code>; <code>FOLLOW=1</code> with one stack)</td><td><a href="#b0-5">Logs</a></td></tr>
-      <tr><td><code>make config</code></td><td>Validates the Compose files, and fails if a network change would let a stack reach another under a service name it uses itself</td><td><a href="#b7-3">Who can reach whom</a></td></tr>
+      <tr><td><code>make config</code></td><td>Validates the Compose files, and fails if a network change would let a stack reach another under a service name it uses itself, or if <code>docker-bake.hcl</code> would build one of Gen9's images differently from the Compose files</td><td><a href="#b7-3">Who can reach whom</a></td></tr>
+      <tr><td><code>make diff</code></td><td>What runs that differs from what the Compose files, the settings and <code>images.env</code> declare: a container's configuration, its image, what <code>docker update</code> changed, a service with no container or a container no Compose file declares; exit 2 if anything does</td><td></td></tr>
+      <tr><td><code>make reset</code></td><td>Recreates only the services that differ, as declared, and removes containers no Compose file declares</td><td></td></tr>
       <tr><td><code>make admin-code</code></td><td>The seeded admin's authenticator code now, for signing in as Ada: admins need a second step, and her app's secret in <code>gen9-keycloak/.env</code> isn't in the form an authenticator app takes</td><td><a href="#b3-3">Lock yourself out</a></td></tr>
       <tr><td><code>make stop-agents</code></td><td>Cancels every run not yet over, pauses every scheduled task, stops the worker; people can still read their chats</td><td><a href="#b7-6">Restore it</a></td></tr>
       <tr><td><code>make resume-agents</code></td><td>Starts the worker and unpauses what the stop paused</td><td><a href="#b7-6">Restore it</a></td></tr>
@@ -2910,6 +2931,13 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>make audit</code></td><td>Known vulnerabilities in the npm and Python dependencies (an npm advisory with no fix accepted only with its reason, in <code>scripts/npm-audit.json</code>); npm's registry signatures, and the Python packages' PyPI provenance against their pinned repositories</td><td></td></tr>
       <tr><td><code>make sbom</code></td><td>A CycloneDX SBOM of every image the stacks build or run, in <code>scripts/sbom/out/</code></td><td><a href="#b7-toolbox">The operator's toolbox</a></td></tr>
       <tr><td><code>make scan</code></td><td>Known vulnerabilities in those images; fails on a fixable high or critical one not accepted, with its reason, in <code>scripts/sbom/grype.yaml</code></td><td><a href="#b7-toolbox">The operator's toolbox</a></td></tr>
+      <tr><td><code>make k8s-up</code></td><td>The same stacks on a Kubernetes cluster: each a Helm release of <code>gen9-&lt;stack&gt;/chart</code> in its namespace <code>gen9-&lt;stack&gt;</code>, images by digest from a lock (<code>IMAGES=</code>), settings files as Secrets (<code>docs/operations.md</code>, "Kubernetes")</td><td></td></tr>
+      <tr><td><code>make k8s-diff</code></td><td>What on the cluster differs from what the charts and settings declare, changes made by hand included; exit 2 if anything does</td><td></td></tr>
+      <tr><td><code>make k8s-reset</code></td><td>Puts back what was changed by hand on the cluster: each object replaced whole with what the charts render, the Secrets with the settings files</td><td></td></tr>
+      <tr><td><code>make k8s-down</code></td><td>Uninstalls the stacks from the cluster; their volumes and Secrets stay</td><td></td></tr>
+      <tr><td><code>make k8s-stop-agents</code></td><td><code>make stop-agents</code> on the cluster: every run cancelled and scheduled task paused, then the worker's Deployment scaled to 0</td><td></td></tr>
+      <tr><td><code>make k8s-resume-agents</code></td><td><code>make resume-agents</code> on the cluster: the worker back, and what the stop paused unpaused</td><td></td></tr>
+      <tr><td><code>make k8s-e2e</code></td><td><code>make e2e</code> against the cluster, each stack's ports forwarded to <code>localhost</code></td><td></td></tr>
       <tr><td><code>make updates</code></td><td>Pinned images rebuilt under their tag since, and newer releases (Renovate's dry run)</td><td></td></tr>
       <tr><td><code>make design-sync</code></td><td>Copies <code>gen9-design</code> (tokens, font, logo) into the apps</td><td></td></tr>
       <tr><td><code>make design-check</code></td><td>Fails if an app's copy differs from <code>gen9-design</code></td><td></td></tr>
@@ -2924,6 +2952,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td><code>gen9-agent-worker</code></td><td>The worker (the <code>worker</code> service)</td></tr>
       <tr><td><code>gen9-agent-migrate</code></td><td>The migrations (the <code>migrate</code> job)</td></tr>
       <tr><td><code>gen9-agent-stop</code></td><td>Cancels every run and pauses every task's Schedule; <code>--resume</code> undoes it. <code>make stop-agents</code> runs it</td></tr>
+      <tr><td><code>gen9-agent-sweep</code></td><td>Who Gen9 knows that Keycloak no longer has (id, email, name, last visit, chats), and whether the sweep holds; <code>--allow N</code> runs the sweep once, deleting them if they're N or fewer; <code>--only ID…</code> deletes just those named</td></tr>
       <tr><td><code>gen9-agent-erase</code></td><td>Deletes accounts and chats again by id (<code>--users</code>, <code>--threads</code>), as <code>make restore</code> does</td></tr>
       <tr><td><code>gen9-agent-reseal</code></td><td>Seals every kept secret again with the current key of <code>GEN9_SECRET_KEYS</code>, so an old key can go (<code>--check</code>, <code>--verify</code>)</td></tr>
     </tbody>
@@ -3009,6 +3038,7 @@ the audit record: <mark>operator.stop</mark> success, <mark>operator.resume</mar
       <tr><td>An answer ends "I stopped here: this turn reached its limit of 50 steps…"</td><td>The turn's step budget (<code>MODEL_CALLS_PER_TURN</code> in <code>grounding.py</code>): the chat's steps in the App DB (<code>run_events</code>, <code>tool.started</code>) show what it repeated</td></tr>
       <tr><td>An answer ends "I stopped here: this answer reached the longest one answer may be…"</td><td>The router's cap on one answer (<code>max_tokens</code>, 32,000, on each chat alias in <code>gen9-models/config.yaml</code>): the model wrote that much in one go, often one tool call's arguments. Its tool calls didn't run (<code>OutputLimit</code> in <code>grounding.py</code>)</td></tr>
       <tr><td>"You've reached your model usage limit for now"</td><td>The router's budgets: the person's (<code>GEN9_USER_BUDGET_USD</code>) or the worker key's for the day (<code>GEN9_AGENT_BUDGET_USD</code>), both in <code>gen9-models/.env</code>; the spend log under the person's <code>sub</code></td></tr>
+      <tr><td>"The model provider refused Gen9's key"</td><td>A provider key the router's <code>gen9-models/config.yaml</code> uses is missing or wrong in <code>gen9-models/.env</code>: <code>make up</code> names each missing one; the provider's 401 is in the run's row and the worker's log</td></tr>
       <tr><td>One person's scheduled runs hold back another's</td><td>Temporal's fairness holds within a queue partition: <code>gen9-temporal/dynamicconfig/gen9.yaml</code> keeps <code>gen9-agent</code> on one; <code>e2e/fairness.mjs</code></td></tr>
       <tr><td>A user is locked</td><td>Keycloak's Admin API <code>attack-detection</code>, or the Locked badge; not <code>login_failure</code></td></tr>
       <tr><td>Anything</td><td><code>make doctor</code>, <code>make ps</code>, <code>make logs STACKS=&lt;stack&gt;</code></td></tr>

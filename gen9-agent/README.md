@@ -60,6 +60,7 @@ More workers: `docker compose up -d --scale worker=3`, or start `gen9-agent-work
 | Method and path | Who | What |
 | --- | --- | --- |
 | `GET /healthz`, `GET /readyz` | anyone | Liveness; readiness (the database answers and has this version's schema: migrated). Compose asks `/readyz` every few seconds, so a check that passed isn't in the access log (`main.py`); one that failed is |
+| `GET /internal/apps-host?domain=` | gen9-edge | 200 when the host's first label is a connector's id (a connector app's host, `<id>.apps.…`), else 404: gen9-edge asks before getting that host a certificate (its on-demand TLS; gen9-edge/README.md). Not in the OpenAPI document, and gen9-edge doesn't serve `/internal/` from outside (`api/apps_host.py`) |
 | `GET /.well-known/agent-card.json`, `POST /a2a` | anyone (the card); an agent with a token for this endpoint (audience `GEN9_A2A_URL`, scope `gen9-a2a`) | Gen9 as an [A2A agent](#a2a): its Agent Card, and A2A 1.0 over JSON-RPC (`SendMessage`, `SendStreamingMessage`, `GetTask`, `ListTasks`, `CancelTask`, `SubscribeToTask`). Without a valid token, `401` |
 | `POST /v1/agui` | any signed-in user (their own threads) | Gen9 as an [AG-UI](#ag-ui) agent: a `RunAgentInput` in, its events out (SSE). `404` for another person's thread, `409` while it's answering or with nothing to resume, `422` without a user message |
 | `POST /mcp`, `GET /.well-known/oauth-protected-resource/mcp` | an MCP client with a token for this server (audience `GEN9_MCP_URL`, scope `gen9-mcp`) | Gen9 as an [MCP server](#mcp-server): its tools `ask`, `read_chat`, `list_chats`, `search_chats`, and MCP Tasks for `ask` (`tasks/get`, `tasks/update`, `tasks/cancel`); its Protected Resource Metadata (RFC 9728). Without a valid token, `401` naming both |
@@ -77,7 +78,7 @@ More workers: `docker compose up -d --scale worker=3`, or start `gen9-agent-work
 | `POST /v1/admin/users/{id}/logout`, `…/password-reset`, `…/unlock` | `gen9-admin` | Sign out everywhere; email a reset link; clear a sign-in lockout |
 | `POST /v1/temporal/codec/decode`, `…/encode` | Gen9 admin signed in to Temporal's web UI (token from client `temporal-ui`, audience `temporal`, `gen9:admin`) | Temporal's [codec protocol](https://docs.temporal.io/codec-server): the UI sends encrypted payloads, gets them decrypted (`TEMPORAL_PAYLOAD_KEYS`). CORS allows only the UI's origin (`TEMPORAL_UI_URL`); the UI calls it only over https (gen9-temporal/README.md, "Security") |
 | `GET/POST /v1/admin/plugin-sources`, `POST …/{id}/sync`, `DELETE …/{id}` | `gen9-admin` | Plugin sources ([Plugins](#plugins)): list them with their state; add a git repository (`url`, https and public, and an optional `ref`; `422` says why one is refused, `409` if it's already a source), which starts its sync; sync one now (`202`); remove one and its plugins |
-| `POST /v1/tasks/{id}/fire` | the task's trigger token (no sign-in) | Fire a task in a new chat ([Scheduled tasks](#scheduled-tasks)): `202`; the same `401` for no token, a wrong one or no such task; `409` paused; `429` with `Retry-After` past the hourly limits. `POST`/`DELETE …/{id}/trigger` (signed in, its owner) make its token (shown once) or revoke it |
+| `POST /v1/tasks/{id}/fire` | the task's trigger token (no sign-in) | Fire a task in a new chat ([Scheduled tasks](#scheduled-tasks)): `202`; the same `401` for no token, a wrong one or no such task; `409` paused; `429` with `Retry-After` past the hourly limits; `503` with `Retry-After` while Keycloak doesn't answer (its person can't be checked). `POST`/`DELETE …/{id}/trigger` (signed in, its owner) make its token (shown once) or revoke it |
 | `GET/POST /v1/tasks`, `PATCH/DELETE /v1/tasks/{id}`, `POST …/{id}/run`, `…/pause`, `…/resume` | any signed-in user (their own tasks) | Scheduled tasks ([Scheduled tasks](#scheduled-tasks)): each with its schedule in words, its next run, its latest runs' chats and how many firings were skipped; add one (`422` says why a schedule or time zone is refused, and "Name the task." or "Say what Gen9 should do." for a name or a message of only spaces; `409` past `TASKS_MAX_PER_PERSON`); change, run now, pause and resume (a recurring one), delete (its chats stay). Others' get `404` |
 | `GET /v1/me/limit` | any signed-in user | How much of their model usage limit they've used this period (`used`, 0 to 1), whether they have one (`limited`), and when it resets (`resets_at`, UTC), from gen9-models' admin API; `503` when it can't be read. A turn refused over the limit says when it resets too (manual-e2e.md, P5-D1) |
 | `GET/PUT /v1/me/controls` | any signed-in user | What they let Gen9 do with their chats: `search_past_chats` ([Past chats](#past-chats)) and `remember` ([Memory](#memory)). `PUT` changes the ones it names |
@@ -98,6 +99,14 @@ More workers: `docker compose up -d --scale worker=3`, or start `gen9-agent-work
 **Headers**: every response is not cached, framed or sniffed (`headers.py`), and when
 `GEN9_API_PUBLIC_URL` is https, as behind a TLS proxy, it also carries `Strict-Transport-Security:
 max-age=63072000; includeSubDomains`, as the web app's pages do; over plain http, none (RFC 6797).
+
+**Errors** come in FastAPI's two shapes. A refusal Gen9 words itself is `{"detail": "…"}`, a
+sentence with its status: 401 "Authentication required", 403 "Requires role gen9-admin", 404
+"Thread not found", and the 409s, 413s, 429s and 503s below. A body or query that fails
+validation is 422 with FastAPI's list, one entry a problem: `{"detail": [{"type", "loc", "msg",
+"input", "ctx"}]}`. `loc` names the field (`["body", "message"]`), `msg` says what's wrong, in
+Pydantic's words ("String should have at most 8000 characters") or Gen9's own ("Value error,
+Write a message first."), and `input` holds what was sent.
 
 **Limits**, so one caller can't make Gen9 hold or do without end (OWASP API4:2023): a request
 body over 1 MiB is refused with 413 before anything reads it (26 MiB for a chat's files, 8 MiB for
@@ -140,7 +149,7 @@ A run is one turn of a thread. `POST …/runs/stream` records it (a `runs` row),
 | `message.delta` | `id`, `text` | Answer text as the model writes it (merged to at most about 10 events a second) |
 | `message.completed` | `id`, `text`, `citations` | The model finished a message with text. `citations`: the pages it cites (`url`, `title`), from the web search's annotations |
 | `status` | `text` | Something without a tool call of its own, such as "Searching the web" |
-| `tool.started`, `tool.completed` | `id`, `name`, `args`, `plugin` / `status`, `output`, `sources` | A tool call and its result (output truncated to 2,000 characters); `plugin` names the plugin a read of a plugin's skill came from; `status` is `success`, `error`, or `declined` (the person denied it). The model's own web tool shows up as `web_search` (`query`), `web_open` (`url`) and `web_find` (`pattern`, `url`). `sources`: the pages a web search consulted (the model's, through `include`; the router's, from the tool's artifact), at most 30 |
+| `tool.started`, `tool.completed` | `id`, `name`, `args`, `plugin` / `status`, `output`, `sources` | A tool call and its result (output truncated to 2,000 characters); `plugin` names the plugin a read of a plugin's skill came from; `status` is `success`, `error`, or `declined` (the person denied it). The model's own web tool shows up as `web_search` (`query`), `web_open` (`url`) and `web_find` (`pattern`, `url`). `sources`: the pages a web search consulted (the model's, through `include`; the router's, from the tool's artifact), at most 30; on a `task` step, the pages its subagent's searches found, at most 100 (a subagent's own steps aren't shown) |
 | `todos.updated` | `todos` | The agent's plan changed (it keeps one with `write_todos` for work with several steps) |
 | `input.requested` | `id`, `kind`, and `questions`, `action_requests` or `error` | The run paused for the person. A question ([Questions](#questions)): each one's `question`, `type` (`text` or `multiple_choice`), `choices` and `required`. An approval ([Approvals](#approvals)): each action's `name` and `args`, with `review_configs`. A retry ([Retry](#retry)): why the turn failed, in plain words |
 | `input.provided` | `id`, `answers`, `decisions` or `retry` | The person answered; the run goes on |
@@ -385,7 +394,9 @@ person's Retry (Temporal's Resumable Activity pattern, `workflows/runs.py`).
 - **Which failures:** the turn's 3 attempts spent (the model provider down past the router's
   fallbacks, out of credits, unreachable), or the person over their usage limit.
 - **Which don't:** a failure a retry can't fix still ends as `error`: a 400, 401, 403, 404 or 422
-  from the model, or the recursion limit.
+  from the model, or the recursion limit. A provider's 401 (its key missing or wrong in
+  gen9-models) says so: "The model provider refused Gen9's key. Ask an admin to check it, then
+  try again."
 - **Waiting:** the `park_run` Activity records a request of kind `retry` (`retry-1`, `retry-2`,
   and so on), with the reason in plain words ("The model provider has no credits left…", "…didn't
   answer…", the usage-limit message). It appends `input.requested` and marks the run `waiting`.
@@ -403,6 +414,10 @@ join that person's chats, named `<connector>__<tool>` ("Used deepwiki: read wiki
 - **Per person, per run.** The agent is compiled once for everyone, so connector tools are added
   to each model call by a middleware and run through it (LangChain's runtime tool registration).
   A name is only ever looked up among that person's own tools.
+- **Listed at once, kept a minute.** A person's connectors are listed together, so a server that
+  hangs costs a model call its own wait (at most 15 s), not the sum of all. What came of a
+  listing, its tools or its failure, is reused for a minute, so a server that doesn't answer
+  isn't waited for on every call; meanwhile the model is told it couldn't be reached.
 - **Asking first.** The connector's policy decides when a call waits for Allow or Deny:
   - `ask` (the default): always;
   - `changes`: unless the server marks the tool read-only;
@@ -436,7 +451,7 @@ join that person's chats, named `<connector>__<tool>` ("Used deepwiki: read wiki
   - `CONNECTORS_ALLOW_PRIVATE=true` allows every private network and http, for a server of your
     own;
   - `CONNECTORS_ALLOWED_HOSTS` names hosts, over http too, and nothing next to them. `make setup`
-    adds e2e's test server.
+    adds e2e's test servers when the setting is missing, and keeps a list of yours, `[]` for none.
 - **Sign-in** (`connector_auth.py`, MCP authorization 2026-07-28). A server that answers 401 is
   kept as "Sign in at …":
   - **Discovery:** its Protected Resource Metadata (RFC 9728) names the authorization server, whose
@@ -558,7 +573,8 @@ in the web app; `gen9 tasks`).
   ("This task's person can't use Gen9 right now"), a firing makes no chat, and a run already
   queued ends as an error (`PersonInactive`) without answering. Each process keeps Keycloak's
   answer for a minute, so the work stops within a minute of disabling. A Keycloak that doesn't
-  answer makes the run retry rather than guess.
+  answer makes the run retry rather than guess; once its tries are spent it waits for Retry,
+  saying "Gen9 couldn't reach its sign-in service." (`IdentityUnavailable`).
 - **Its runs** keep the task's permission mode. One that needs Allow waits, and its chat says
   "Needs you".
 - **Editing** a task makes its Schedule again, so Temporal's counts (actions, skipped) start
@@ -865,7 +881,8 @@ agents/gen9/
 - **Loading:** it's read once when the API or a worker starts, in a thread.
 - **Subagents:** each becomes one the agent can delegate to with `task`. Today that's
   `fact-checker`, which checks claims against primary sources, and the chat shows it as "Asked
-  the fact checker: …".
+  the fact checker: …". Its own steps aren't shown; the pages its searches found are, under the
+  answer's Sources (`subagent_sources.py` puts them on the `task` step).
 - **Versioned:** the definition's version is the first 12 hex of a SHA-256 over its files. Every run
   records it (`runs.agent_version`, also in `GET …/runs/{run}` and the trace's metadata), so an
   answer can be traced to the exact definition behind it.
@@ -955,7 +972,8 @@ with a `plugin.json`, skills under `skills/` and MCP servers in `mcp.json` (mile
   - shallow, no tags or submodules, `transfer.fsckObjects`, 120 s a command, and a 200 MB
     checkout.
   - `PLUGIN_SOURCES_ALLOWED_HOSTS` names hosts that may be private and use http (e2e's git
-    server; `make setup` adds it).
+    server; `make setup` adds it when the setting is missing, and keeps a list of yours, `[]` for
+    none).
 - **A person's plugins** (`plugin_skills.py`; Settings > Plugins): a person has a plugin an
   admin made available once they add it (`plugin_installs`), and every plugin an admin gave to
   everyone. Its skills join that person's chats only:
@@ -1098,6 +1116,7 @@ Deleting a chat or an account is a Temporal workflow (`workflows/deletion.py`, A
 - **The response:** the API waits for the workflow's `deleted` Update, which returns once the data is gone (`204`). If that takes longer, it answers `202`, and the workflow finishes on its own.
 - **Late traces:** Langfuse ingests traces a few seconds after a run (0.8–6 s measured). So the workflow erases traces again 1 and 10 minutes later, catching a chat deleted right after an answer.
 - **Users deleted in Keycloak directly:** a Temporal Schedule, `sweep-deleted-users`, finds them. Each candidate is confirmed missing by its own lookup, then removed by its own `DeleteAccountWorkflow` without the Keycloak steps, late trace passes included. The sweep starts each deletion and leaves it to finish on its own (`ParentClosePolicy.ABANDON`), so one waiting on Langfuse holds up no other. The worker creates or updates the Schedule at start-up; to run it now: [docs/temporal.md, "Running a Schedule now"](../docs/temporal.md#running-a-schedule-now).
+- **Mass deletions held:** a sweep that would delete more than `SWEEP_MAX_DELETIONS` people (10), or more than half of the people Gen9 knows (its only one too), deletes nobody: that is how a Keycloak on another realm or an empty database looks, not people deleted one by one (`accounts.sweep_holds`; Microsoft Entra's sync stops the same way, docs/plans/deploy.md, U5c-6). It logs an error and records `account.sweep.held`, every time it runs, until an admin decides: `gen9-agent-sweep` (`sweep.py`, in the worker's container) lists who is missing (each by id, email, name, last visit and number of chats); `gen9-agent-sweep --allow N` runs the sweep once, deleting them if they're N or fewer; `gen9-agent-sweep --only ID…` deletes just the people named, each confirmed missing from Keycloak, and nothing if one isn't. Either is recorded as `account.sweep.allowed`, and each person deleted as `account.sweep`.
 - **The record:** every deletion is an audit event with its id as the target:
   - `account.delete`, by the person;
   - `admin.user.delete`, by an admin;

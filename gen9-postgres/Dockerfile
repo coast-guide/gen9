@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1
 # gen9-postgres: Postgres's official image (18) with pgvector from the PostgreSQL project's own apt
 # repository (apt.postgresql.org, signed; the image carries its key) and pg_textsearch, BM25
 # full-text search (timescale/pg_textsearch, PostgreSQL licence). Not pgvector's own image: it isn't

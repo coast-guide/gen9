@@ -318,7 +318,7 @@ def with_evaluations(
 
 
 class RunIn(BaseModel):
-    message: Annotated[MessageText, Field(min_length=1, max_length=8000)]
+    message: MessageText
     # The chat's permission mode from this message on (approvals.py); none: the chat's current one
     permission_mode: approvals.Mode | None = None
     # Files attached to this message (POST …/files first): put in the environment's /work/in

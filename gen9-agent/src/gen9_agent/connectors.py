@@ -21,6 +21,11 @@ docs/plans/harness.md).
   server adds or changes later (a "rug pull") is held back from the model and its View until the
   person looks at it in Settings and keeps it (`changes`; OWASP's MCP Security Cheat Sheet:
   "Re-prompt for consent when tool definitions change"; docs/plans/manual-e2e.md, P5-C4).
+- **Told what's missing.** The model gets only the tools it may use, so each model call also
+  says which of the person's connectors it can't use now, and why (held changes, a sign-in, out
+  of reach): asked for one, it tells them where to fix it rather than reaching for another
+  connector's tool (manual-e2e.md, P8-J5). Only the connector's name, the person's own, goes in:
+  never a server's own words.
 - **Apps.** Clients advertise MCP Apps (apps.py): a View's own tools stay away from the model, a
   UI tool's result is tagged with its View, and the web app's View reads resources and calls
   tools through `app_resource` and `app_call`, under the connector's policy.
@@ -66,6 +71,7 @@ from .connector_net import (
     http_client,
     mcp_http_client,
 )
+from .grounding import with_note
 from .models import Connector, Plugin, User
 from .plugin_skills import has_plugin
 from .vault import Vault
@@ -84,9 +90,26 @@ SEP = "__"
 POLICIES = ("ask", "changes", "never")
 # Model providers take tool names up to 64 characters (OpenAI: ^[a-zA-Z0-9_-]{1,64}$)
 MAX_TOOL_NAME = 64
+# Why a connector the person has can't be used: it waits for them to sign in (again)
+SIGN_IN = "waits for the person to sign in to it in Settings > Connectors"
+
+
+def unavailable_note(missing: list[str]) -> str:
+    """What each model call is told of the person's connectors it can't use now."""
+    lines = "\n".join(f"- {m}" for m in missing)
+    return (
+        f"The person's connectors you can't use now, and why:\n{lines}\n"
+        "Asked for one of them, tell the person why and where to fix it; don't use another "
+        "connector's tool in its place."
+    )
+
+
 DISCOVER_TIMEOUT_S = 15
-# How long a connector's tools are reused before they are listed again
+# How long a connector's tools, or its failure to list them, are reused before it is listed again:
+# a server that hangs costs one wait a minute, not one each model call (manual-e2e.md, P8-N1)
 TOOLS_FRESH_S = 60
+# Why a connector the person has can't be used: its server didn't answer when last listed
+UNREACHABLE = "couldn't be reached just now"
 # Revoking a connector's tokens as it goes: per request, best effort
 REVOKE_TIMEOUT_S = 10
 # A View's calls and reads through Gen9, and how large a resource or a call's answer it may relay
@@ -276,6 +299,8 @@ class _Listed:
     at: float
     updated_at: datetime
     tools: list[BaseTool]
+    # Why it gave no tools (UNREACHABLE, SIGN_IN), when listing it failed
+    why: str | None = None
 
 
 class ConnectorTools(AgentMiddleware):
@@ -291,11 +316,13 @@ class ConnectorTools(AgentMiddleware):
         self._listed: dict[uuid.UUID, _Listed] = {}
         # The last tools loaded for each person (by sub): what their approvals and calls see
         self._people: dict[str, dict[str, _Loaded]] = {}
+        # Their connectors the model can't use now, each with why (`unavailable_note`)
+        self._unavailable: dict[str, list[str]] = {}
 
-    async def tools_of(self, sub: str) -> dict[str, _Loaded]:
-        """This person's connector tools by their names here, listing any not fresh."""
+    async def _rows(self, sub: str) -> list[Any]:
+        """This person's connectors, by name."""
         async with self.engine.connect() as conn:
-            rows = list(
+            return list(
                 await conn.execute(
                     select(Connector)
                     .join(User, User.id == Connector.user_id)
@@ -308,35 +335,35 @@ class ConnectorTools(AgentMiddleware):
                     .order_by(Connector.name)
                 )
             )
+
+    async def tools_of(self, sub: str) -> dict[str, _Loaded]:
+        """This person's connector tools by their names here, listing any not fresh."""
+        rows = await self._rows(sub)
+        # Waiting for the person to sign in (again): no tools until they do
+        ready = [row for row in rows if row.status == "ready"]
+        # Each one not listed lately, all at once: a slow server costs one wait, not the sum
+        await asyncio.gather(
+            *(self._list(row, sub) for row in ready if self._stale(row))
+        )
         loaded: dict[str, _Loaded] = {}
+        unavailable: list[str] = []
         for row in rows:
-            # Waiting for the person to sign in (again): no tools until they do
             if row.status != "ready":
+                unavailable.append(f"{row.name}: {SIGN_IN}")
                 continue
-            listed = self._listed.get(row.id)
-            if (
-                listed is None
-                or listed.updated_at != row.updated_at
-                or time.monotonic() - listed.at > TOOLS_FRESH_S
-            ):
-                try:
-                    if row.sealed_tokens:
-                        token = await self._access_token(row.id, sub)
-                        if token is None:
-                            continue
-                    else:
-                        token = self._header_token(row, sub)
-                    tools = await discover(
-                        row.url, row.header, token, self.allow_private
-                    )
-                except (ConnectorError, ValueError) as e:
-                    log.warning("connector %s of %s left out: %s", row.name, sub, e)
-                    continue
-                listed = _Listed(time.monotonic(), row.updated_at, tools)
-                self._listed[row.id] = listed
+            listed = self._listed[row.id]
+            if listed.why:
+                unavailable.append(f"{row.name}: {listed.why}")
+                continue
             same, changed = changes(row.tools, listed.tools)
             if changed != (row.changed or []):
                 await self._record_changes(row.id, changed)
+            if changed:
+                unavailable.append(
+                    f"{row.name}: {len(changed)} of its tools are new or changed since the "
+                    "person connected it, and wait until they look at them in Settings > "
+                    "Connectors"
+                )
             for tool in same:
                 name = f"{row.name}{SEP}{tool.name}"
                 if len(name) <= MAX_TOOL_NAME:
@@ -347,7 +374,35 @@ class ConnectorTools(AgentMiddleware):
                         row.name,
                     )
         self._people[sub] = loaded
+        self._unavailable[sub] = unavailable
         return loaded
+
+    def _stale(self, row: Connector | Row[Any]) -> bool:
+        """Whether its last listing, or failure, is older than TOOLS_FRESH_S or from before
+        the person changed it (a new sign-in, say)."""
+        listed = self._listed.get(row.id)
+        return (
+            listed is None
+            or listed.updated_at != row.updated_at
+            or time.monotonic() - listed.at > TOOLS_FRESH_S
+        )
+
+    async def _list(self, row: Connector | Row[Any], sub: str) -> None:
+        """Lists a connector's tools, keeping what came of it, a failure too."""
+        tools: list[BaseTool] = []
+        why = None
+        try:
+            if row.sealed_tokens:
+                token = await self._access_token(row.id, sub)
+                why = SIGN_IN if token is None else None
+            else:
+                token = self._header_token(row, sub)
+            if why is None:
+                tools = await discover(row.url, row.header, token, self.allow_private)
+        except (ConnectorError, ValueError) as e:
+            log.warning("connector %s of %s left out: %s", row.name, sub, e)
+            why = UNREACHABLE
+        self._listed[row.id] = _Listed(time.monotonic(), row.updated_at, tools, why)
 
     async def _record_changes(
         self, connector_id: uuid.UUID, changed: list[dict[str, Any]]
@@ -507,11 +562,8 @@ class ConnectorTools(AgentMiddleware):
 
     async def _tools_for_app(self, row: Connector, sub: str) -> list[BaseTool]:
         listed = self._listed.get(row.id)
-        if (
-            listed
-            and listed.updated_at == row.updated_at
-            and (time.monotonic() - listed.at <= TOOLS_FRESH_S)
-        ):
+        # A View's call is the person's own click: a server that failed lately is tried again
+        if listed and not listed.why and not self._stale(row):
             return changes(row.tools, listed.tools)[0]
         mcp = await self._client(row, sub)
         async with asyncio.timeout(DISCOVER_TIMEOUT_S):
@@ -584,6 +636,12 @@ class ConnectorTools(AgentMiddleware):
     async def awrap_model_call(self, request, handler):
         sub = getattr(request.runtime.context, "user_sub", None)
         extra = await self.tools_of(sub) if sub else {}
+        if missing := self._unavailable.get(sub or ""):
+            request = request.override(
+                system_message=with_note(
+                    request.system_message, unavailable_note(missing)
+                )
+            )
         if not extra:
             return await handler(request)
         # A View's own tools never reach the model (MCP Apps, `visibility`)

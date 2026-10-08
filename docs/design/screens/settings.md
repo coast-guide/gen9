@@ -28,6 +28,9 @@ Titled sections of rows (label, value, one action on the right), in one column:
   the account, every chat as Gen9 shows it, memory, scheduled tasks, connectors and environment
   secrets' settings, plugins, and the chats' files; no tokens or secret values (GDPR Art. 20, as
   ChatGPT and Claude offer it, without their emailed link).
+- **About Gen9:** "Version": Gen9's version and the commit its images were built from ("0.1.0,
+  commit 0123abc", or "built from local code"), from gen9-agent's `GET /v1/version`; left out when
+  the API can't say. Above Delete account, which stays last.
 - **Delete account:** needs a sign-in from the last 5 minutes, then deletes everywhere.
 
 ## Memory

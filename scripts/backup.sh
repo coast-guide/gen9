@@ -3,7 +3,7 @@
 # Used by `make backup DIR=...` (all stacks, or STACKS), and on a schedule by
 # `make backup INTO=... KEEP=...`.
 #
-#   scripts/backup.sh DIR STACK...      STACK: postgres keycloak langfuse temporal models sandbox agent ui
+#   scripts/backup.sh DIR STACK...      STACK: postgres keycloak langfuse temporal models sandbox agent ui edge
 #   scripts/backup.sh --into ROOT --keep N STACK...
 #
 # With --into, the backup is ROOT/gen9-backup-<UTC time>, and once it is complete only the newest N
@@ -36,6 +36,8 @@ else
   shift
 fi
 STACKS=("$@")
+# Never another copy of Gen9's stacks: a backup stops them (scripts/elsewhere.sh)
+scripts/elsewhere.sh --refuse backup "${STACKS[@]}" || exit 1
 if [ -e "$DIR" ] && [ -n "$(ls -A "$DIR" 2>/dev/null)" ]; then
   echo "$DIR isn't empty: name a new folder for the backup." >&2
   exit 1
@@ -68,6 +70,7 @@ generated() {
     sandbox) echo gen9-sandbox/.env gen9-agent/sandbox.local.env ;;
     temporal) echo gen9-temporal/.env gen9-temporal/tls.local.env ;;
     models) echo gen9-models/.env gen9-agent/models.local.env gen9-agent/models-api.local.env gen9-agent/models-evals.local.env ;;
+    edge) echo gen9-edge/.env gen9-keycloak/edge.local.env ;;
     *) echo "unknown stack: $1" >&2; exit 2 ;;
   esac
 }

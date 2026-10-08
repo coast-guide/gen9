@@ -1,0 +1,22 @@
+# gen9-ui on Kubernetes: what compose.yaml doesn't say (deploy/helm/gen9-lib, "gen9.stack").
+stack: ui
+usedBy: [keycloak]
+
+global:
+  images: {}
+  storageClass: ""
+
+services:
+  prod:
+    kind: Deployment
+    ports: {http: 3000}
+    public: {host: "", port: http}  # the domain itself
+  sandbox:
+    kind: Deployment
+    ports: {http: 3001}
+    public: {host: "*.apps", port: http}  # one host per connector's app
+  dev: {kind: none}  # the dev server: development only
+  valkey:
+    kind: StatefulSet
+    ports: {valkey: 6379}
+    storage: {valkey_data: 1Gi}

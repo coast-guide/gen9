@@ -4,7 +4,12 @@
 # overwrites or deletes anything (start over with `make distclean`), with one exception: a provider
 # key left in gen9-agent/.env from before the model router moves to gen9-models/.env.
 #
-#   scripts/setup.sh [STACK...]      default: postgres keycloak langfuse temporal models sandbox agent ui
+#   scripts/setup.sh [STACK...]      default: postgres keycloak langfuse temporal models sandbox agent ui edge
+#
+# DOMAIN=gen9.example.com serves Gen9 under that domain, over TLS: gen9-edge set up (optional
+# otherwise), EDGE_TLS its certificate (`internal`, Caddy's own CA, the default; or an email, for
+# Let's Encrypt), and every address browsers and terminals use, in each stack's settings files,
+# one host per service under it (gen9-edge/README.md). DOMAIN=localhost goes back to the ports.
 #
 # gen9-langfuse's first user comes from LANGFUSE_EMAIL and LANGFUSE_NAME, or is asked for. Its
 # project keys go to gen9-agent/langfuse.local.env, which gen9-agent reads before its .env.
@@ -12,8 +17,11 @@
 # (hidden) when there is a terminal: `chat` needs OpenRouter's, speech and images OpenAI's.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Each stack's init-env.sh prints its own "Next:" (docker compose up, its addresses) when run alone;
+# under make setup, make up starts them, lists the addresses, and this script ends with the sign-ins
+export GEN9_SETUP=1
 
-ALL=(postgres keycloak langfuse temporal models sandbox agent ui)
+ALL=(postgres keycloak langfuse temporal models sandbox agent ui edge)
 [ $# -gt 0 ] || set -- "${ALL[@]}"
 for stack in "$@"; do
   case " ${ALL[*]} " in *" $stack "*) ;; *) echo "unknown stack: $stack (${ALL[*]})" >&2; exit 2 ;; esac
@@ -47,6 +55,25 @@ unset_env() {
     case $line in "$key="*) ;; *) printf '%s\n' "$line" ;; esac
   done <"$file" >"$tmp"
   mv -f "$tmp" "$file"
+}
+
+# The host a setting names: a URL's (its scheme, user and password, port and path dropped), or
+# the value itself. A store's setting that names the store's own service names no other
+host_of() { local v=${1#*://}; v=${v##*@}; v=${v%%/*}; v=${v%%\?*}; printf '%s\n' "${v%:*}"; }
+
+# A bundled store (a Compose profile named after its service) in FILE's COMPOSE_PROFILES, as
+# init-env.sh writes it, unless FILE's SETTING points the stack at another one (docs/operations.md,
+# "External services"). An .env from before the stores were profiles (no COMPOSE_PROFILES) gets
+# it in any case, as every store ran then; other profiles are kept
+bundled() {
+  local file=$1 store=$2 setting=$3 profiles value
+  [ -f "$file" ] || return 0
+  profiles=$(sed -n 's/^COMPOSE_PROFILES=//p' "$file" | tail -n 1)
+  case ",$profiles," in *",$store,"*) return 0 ;; esac
+  value=$(sed -n "s/^$setting=//p" "$file" | tail -n 1)
+  if grep -q '^COMPOSE_PROFILES=' "$file" && [ -n "$value" ] && [ "$(host_of "$value")" != "$store" ]; then return 0; fi
+  set_env "$file" COMPOSE_PROFILES "${profiles:+$profiles,}$store"
+  echo "  $file: COMPOSE_PROFILES now lists $store, the bundled one ($setting names no other)"
 }
 
 # No usable OpenAI key in gen9-agent/.env: missing, empty, or sample.env's placeholder
@@ -83,6 +110,7 @@ if selected postgres; then
   echo "gen9-postgres"
   if [ -f gen9-postgres/.env ]; then
     kept gen9-postgres/.env
+    bundled gen9-postgres/.env postgres GEN9_POSTGRES_SERVER
     # An .env from before gen9-agent's services had a role of their own: add its
     # password; gen9-postgres creates the role on its next start
     if ! grep -Eq '^GEN9_AGENT_APP_DB_PASSWORD=.+' gen9-postgres/.env; then
@@ -104,6 +132,7 @@ if selected keycloak; then
   echo "gen9-keycloak"
   if [ -f gen9-keycloak/.env ]; then
     kept gen9-keycloak/.env
+    bundled gen9-keycloak/.env postgres KC_DB_URL_HOST
     # An .env from before Temporal's web UI signed in through Keycloak: add its client (configure.sh
     # creates it on the next start)
     if ! grep -Eq '^GEN9_TEMPORAL_UI_CLIENT_SECRET=.+' gen9-keycloak/.env; then
@@ -136,6 +165,10 @@ if selected langfuse; then
   echo "gen9-langfuse"
   if [ -f gen9-langfuse/.env ]; then
     kept gen9-langfuse/.env
+    bundled gen9-langfuse/.env postgres DATABASE_URL
+    bundled gen9-langfuse/.env redis REDIS_HOST
+    bundled gen9-langfuse/.env clickhouse CLICKHOUSE_URL
+    bundled gen9-langfuse/.env minio LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT
   else
     gen9-langfuse/init-env.sh --email "$LANGFUSE_EMAIL" --name "$LANGFUSE_NAME" \
       --agent-env-file gen9-agent/langfuse.local.env
@@ -144,7 +177,7 @@ fi
 
 if selected temporal; then
   echo "gen9-temporal"
-  if [ -f gen9-temporal/.env ]; then kept gen9-temporal/.env; else gen9-temporal/init-env.sh; fi
+  if [ -f gen9-temporal/.env ]; then kept gen9-temporal/.env; bundled gen9-temporal/.env postgres POSTGRES_SEEDS; else gen9-temporal/init-env.sh; fi
   # The internode certificate; an install from before it existed gets one here
   if [ -f gen9-temporal/tls.local.env ]; then kept gen9-temporal/tls.local.env; else gen9-temporal/init-tls.sh; fi
 fi
@@ -164,6 +197,7 @@ if selected models; then
   echo "gen9-models"
   if [ -f gen9-models/.env ]; then
     kept gen9-models/.env
+    bundled gen9-models/.env postgres LITELLM_DB_HOST
     # Settings added since: the admin API's database role and port, generated once
     if ! grep -Eq '^GEN9_ADMIN_DB_PASSWORD=.+' gen9-models/.env; then
       set_env gen9-models/.env GEN9_ADMIN_DB_PASSWORD "$(openssl rand -hex 16)"
@@ -230,8 +264,11 @@ if selected agent; then
   # The private addresses this local Gen9's connectors may reach: e2e's test MCP servers (sign-in,
   # e2e/connectors-oauth.mjs; asking the person, e2e/elicitation.mjs; an app, e2e/apps.mjs; one that
   # trusts Keycloak, e2e/connectors-keycloak.mjs, and that Keycloak's test realms). Leave them out
-  # where others' connectors run
-  if ! grep -Eq '^CONNECTORS_ALLOWED_HOSTS=.*17804' gen9-agent/.env; then
+  # where others' connectors run: set it to [] (or hosts of your own), which this keeps. It's added
+  # when missing, and an older copy of e2e's own list (before 17804) is brought up to date
+  if ! grep -q '^CONNECTORS_ALLOWED_HOSTS=' gen9-agent/.env ||
+    { grep -q '^CONNECTORS_ALLOWED_HOSTS=.*host\.docker\.internal:1780[0-9]' gen9-agent/.env &&
+      ! grep -q '^CONNECTORS_ALLOWED_HOSTS=.*17804' gen9-agent/.env; }; then
     set_env gen9-agent/.env CONNECTORS_ALLOWED_HOSTS '["host.docker.internal:17801", "host.docker.internal:17802", "host.docker.internal:17803", "host.docker.internal:17804", "host.docker.internal:15000"]'
     echo "  allowed connectors to reach e2e's test server (CONNECTORS_ALLOWED_HOSTS) in gen9-agent/.env"
   fi
@@ -243,8 +280,9 @@ if selected agent; then
     echo "  set SMTP_URL and SMTP_FROM (notification emails, to Mailpit) in gen9-agent/.env"
   fi
   # The git server e2e's plugins check serves marketplaces from (e2e/plugins.mjs), which plugin
-  # sources may reach although private, over http. Leave it out where others add sources
-  if ! grep -Eq '^PLUGIN_SOURCES_ALLOWED_HOSTS=.*17805' gen9-agent/.env; then
+  # sources may reach although private, over http. Leave it out where others add sources: set it
+  # to [] (or hosts of your own), which this keeps
+  if ! grep -q '^PLUGIN_SOURCES_ALLOWED_HOSTS=' gen9-agent/.env; then
     set_env gen9-agent/.env PLUGIN_SOURCES_ALLOWED_HOSTS '["host.docker.internal:17805"]'
     echo "  allowed plugin sources to reach e2e's git server (PLUGIN_SOURCES_ALLOWED_HOSTS) in gen9-agent/.env"
   fi
@@ -267,7 +305,99 @@ fi
 
 if selected ui; then
   echo "gen9-ui"
-  if [ -f gen9-ui/.env ]; then kept gen9-ui/.env; else gen9-ui/init-env.sh; fi
+  if [ -f gen9-ui/.env ]; then kept gen9-ui/.env; bundled gen9-ui/.env valkey SESSION_STORE_URL; else gen9-ui/init-env.sh; fi
+fi
+
+if selected edge && [ -z "${DOMAIN:-}" ]; then
+  echo "gen9-edge"
+  if [ -f gen9-edge/.env ]; then
+    kept gen9-edge/.env
+  else
+    echo "  optional, left out: make setup DOMAIN=<domain> serves Gen9 under it, over TLS"
+  fi
+fi
+
+# A value of FILE's KEY (a port: never a secret), or DEFAULT
+value_of() { local v; v=$(sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -n 1); echo "${v:-$3}"; }
+# KEY=VALUE in FILE, if FILE exists (a stack not set up yet gets it from its own setup later)
+set_if_there() { if [ -f "$1" ]; then set_env "$1" "$2" "$3"; fi; }
+
+# Every address browsers and terminals reach Gen9 by, in each stack's settings files: under the
+# domain, one host per service, as gen9-edge serves them; for localhost, each stack's own port.
+# Containers call each other inside and keep their addresses
+public_addresses() {
+  local ui id api traces media temporal apps
+  if [ "$1" = localhost ]; then
+    ui="http://localhost:$(value_of gen9-ui/.env GEN9_UI_PORT 14000)"
+    id="http://localhost:$(value_of gen9-keycloak/.env KEYCLOAK_PORT 15000)"
+    api="http://localhost:$(value_of gen9-agent/.env GEN9_AGENT_PORT 17000)"
+    traces="http://localhost:$(value_of gen9-langfuse/.env LANGFUSE_PORT 13000)"
+    media="http://localhost:$(value_of gen9-langfuse/.env LANGFUSE_MEDIA_PORT 13001)"
+    temporal="http://localhost:$(value_of gen9-temporal/.env GEN9_TEMPORAL_UI_PORT 18000)"
+    apps="http://{id}.apps.localhost:$(value_of gen9-ui/.env GEN9_UI_SANDBOX_PORT 14003)"
+  else
+    ui="https://$1" id="https://id.$1" api="https://api.$1" traces="https://traces.$1"
+    media="https://traces-media.$1" temporal="https://temporal.$1" apps="https://{id}.apps.$1"
+  fi
+  set_if_there gen9-keycloak/.env KC_HOSTNAME "$id"
+  set_if_there gen9-keycloak/.env GEN9_UI_URL "$ui"
+  set_if_there gen9-keycloak/.env GEN9_TEMPORAL_UI_URL "$temporal"
+  set_if_there gen9-keycloak/.env GEN9_MCP_URL "$api/mcp"
+  set_if_there gen9-keycloak/.env GEN9_A2A_URL "$api/a2a"
+  set_if_there gen9-ui/keycloak.local.env KEYCLOAK_ISSUER "$id/realms/gen9"
+  set_if_there gen9-agent/keycloak.local.env KEYCLOAK_ISSUER "$id/realms/gen9"
+  set_if_there gen9-temporal/keycloak.local.env TEMPORAL_AUTH_ISSUER_URL "$id/realms/gen9"
+  set_if_there gen9-ui/.env GEN9_UI_URL "$ui"
+  set_if_there gen9-ui/.env MCP_APPS_SANDBOX_URL "$apps"
+  set_if_there gen9-agent/.env GEN9_UI_URL "$ui"
+  set_if_there gen9-agent/.env GEN9_API_PUBLIC_URL "$api"
+  set_if_there gen9-agent/.env TEMPORAL_UI_URL "$temporal"
+  set_if_there gen9-langfuse/.env NEXTAUTH_URL "$traces"
+  # The media store's address only when it is the bundled MinIO (COMPOSE_PROFILES lists it, or an
+  # .env from before the stores were profiles has none): an S3 elsewhere keeps its own
+  if [ -f gen9-langfuse/.env ] && { ! grep -q '^COMPOSE_PROFILES=' gen9-langfuse/.env ||
+    case ",$(sed -n 's/^COMPOSE_PROFILES=//p' gen9-langfuse/.env | tail -n 1)," in *,minio,*) true ;; *) false ;; esac; }; then
+    set_env gen9-langfuse/.env LANGFUSE_MEDIA_PUBLIC_URL "$media"
+    set_env gen9-langfuse/.env LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT "$media"
+  fi
+  set_if_there gen9-temporal/.env GEN9_TEMPORAL_UI_URL "$temporal"
+  set_if_there gen9-temporal/.env GEN9_TEMPORAL_CODEC_URL "$api/v1/temporal/codec"
+}
+
+if [ -n "${DOMAIN:-}" ]; then
+  echo "gen9-edge"
+  if [ "$DOMAIN" = localhost ]; then
+    public_addresses localhost
+    rm -f gen9-edge/.env gen9-keycloak/edge.local.env
+    echo "  every address back on this machine's ports; gen9-edge no longer set up (make down STACKS=edge stops it)"
+  else
+    [ -f gen9-edge/.env ] || (umask 077 && : >gen9-edge/.env)
+    set_env gen9-edge/.env GEN9_DOMAIN "$DOMAIN"
+    [ -z "${EDGE_TLS:-}" ] || set_env gen9-edge/.env GEN9_EDGE_TLS "$EDGE_TLS"
+    # A wildcard of one's own for the apps' hosts, given before they had certificates on demand
+    if [ "$(value_of gen9-edge/.env GEN9_EDGE_APPS_TLS internal)" != internal ] && ! grep -q '^GEN9_EDGE_APPS=' gen9-edge/.env; then
+      set_env gen9-edge/.env GEN9_EDGE_APPS own
+      echo "  gen9-edge/.env: GEN9_EDGE_APPS=own, so the apps' hosts keep the wildcard in GEN9_EDGE_APPS_TLS"
+    fi
+    # Keycloak behind the edge reads its forwarded headers (gen9-keycloak/compose.yaml)
+    (umask 077 && printf 'KC_PROXY_HEADERS=xforwarded\n' >gen9-keycloak/edge.local.env)
+    public_addresses "$DOMAIN"
+    echo "  Gen9 under $DOMAIN: every address in the stacks' settings files, one host per service (gen9-edge/README.md)"
+  fi
+fi
+
+# Where gen9-agent reaches its database: gen9-postgres/.env's server of one's own, if it names one
+# (docs/operations.md, "External services"), copied into gen9-agent/.env, so both stacks agree
+if { selected postgres || selected agent; } && [ -f gen9-postgres/.env ] && [ -f gen9-agent/.env ]; then
+  for key in GEN9_POSTGRES_SERVER GEN9_POSTGRES_SERVER_PORT GEN9_POSTGRES_SSLMODE GEN9_POSTGRES_SSLROOTCERT; do
+    value=$(sed -n "s/^$key=//p" gen9-postgres/.env | tail -n 1)
+    if [ -n "$value" ]; then
+      [ "$(sed -n "s/^$key=//p" gen9-agent/.env | tail -n 1)" = "$value" ] ||
+        { set_env gen9-agent/.env "$key" "$value"; echo "  gen9-agent/.env: $key as in gen9-postgres/.env"; }
+    elif grep -q "^$key=" gen9-agent/.env; then
+      unset_env gen9-agent/.env "$key"; echo "  gen9-agent/.env: no $key, as in gen9-postgres/.env"
+    fi
+  done
 fi
 
 # Settings files one stack writes for another: without them `make up` stops at that stack
@@ -291,3 +421,15 @@ if [ ${#missing[@]} -gt 0 ]; then
   exit 1
 fi
 if [ "$ARGS" = " ${ALL[*]} " ]; then echo "Ready. Next: make up"; else echo "Ready. Next: make up STACKS=\"$*\""; fi
+# Who signs in where, once make up lists the addresses (the passwords stay in the files)
+setting() { sed -n "s/^$2=//p" "$1" | tail -n 1; }
+if [ -f gen9-keycloak/.env ] || [ -f gen9-langfuse/.env ]; then
+  echo "To sign in:"
+  if [ -f gen9-keycloak/.env ]; then
+    echo "  Gen9:               $(setting gen9-keycloak/.env GEN9_SEED_ADMIN_EMAIL) (admin; code: make admin-code) or $(setting gen9-keycloak/.env GEN9_SEED_USER_EMAIL), passwords: grep ^GEN9_SEED_ gen9-keycloak/.env"
+    echo "  Keycloak's console: admin, password: grep ^KC_BOOTSTRAP_ADMIN_PASSWORD= gen9-keycloak/.env"
+  fi
+  if [ -f gen9-langfuse/.env ]; then
+    echo "  Langfuse:           $(setting gen9-langfuse/.env LANGFUSE_INIT_USER_EMAIL), password: grep ^LANGFUSE_INIT_USER_PASSWORD= gen9-langfuse/.env"
+  fi
+fi

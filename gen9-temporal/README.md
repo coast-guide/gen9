@@ -45,7 +45,8 @@ creates the network; by hand: `docker network create gen9-temporal`.
 
 ## What gets created
 
-**On the first start only** (`initdb/10-temporal-databases.sh`):
+**On the first start only** (`initdb/10-temporal-databases.sh`; on a Postgres of your own, by
+`POSTGRES_SEEDS`, you create them: [docs/operations.md, "External services"](../docs/operations.md#external-services)):
 - Role `temporal`: login only, no superuser, `CREATEDB` or `CREATEROLE`.
 - Databases `temporal` and `temporal_visibility`, both owned by that role, with access revoked from
   `PUBLIC`.

@@ -13,7 +13,7 @@
 #
 # Works with GNU Make 3.81 (macOS default) and later.
 
-ALL_STACKS := postgres keycloak langfuse temporal models sandbox agent ui
+ALL_STACKS := postgres keycloak langfuse temporal models sandbox agent ui edge
 TAIL       ?= 50
 
 DESC_postgres := Postgres 18 + pgvector + pg_textsearch (BM25): the app database  [16000]
@@ -24,6 +24,7 @@ DESC_models   := Model router: every model by alias (LiteLLM), own Postgres  [19
 DESC_sandbox  := Environments: OpenSandbox runs the code of each chat in containers of its own  [20000]
 DESC_agent    := Agent API and workers: FastAPI + Deep Agents, checks Keycloak tokens  [17000]
 DESC_ui       := Web app: sign-in and chat, the sandbox for connector apps, Valkey sessions  [14000-14003]
+DESC_edge     := Optional: Gen9 under one domain, over TLS (Caddy), once make setup DOMAIN=… ran  [80, 443]
 
 # Files a stack can't start without: its .env, and the settings other stacks' setup writes for it
 NEEDS_postgres := .env
@@ -34,11 +35,13 @@ NEEDS_models   := .env
 NEEDS_sandbox  := .env
 NEEDS_agent    := .env postgres.local.env postgres-app.local.env keycloak.local.env models.local.env models-api.local.env sandbox.local.env
 NEEDS_ui       := .env keycloak.local.env
+NEEDS_edge     := .env
 
 # Stacks a stack calls while running. Only a note when they're down: each stack can point elsewhere.
 USES_temporal := keycloak
 USES_agent := postgres keycloak temporal models sandbox
 USES_ui    := keycloak agent
+USES_edge  := ui keycloak agent langfuse temporal
 
 # Which stacks a command covers: STACKS (default all), in start order; gen9- prefix optional
 STACKS   ?= $(ALL_STACKS)
@@ -48,6 +51,11 @@ ifneq ($(strip $(_unknown)),)
 $(error Unknown stack: $(_unknown). Stacks are: $(ALL_STACKS) (see make stacks))
 endif
 SELECTED := $(filter $(_asked),$(ALL_STACKS))
+# Stacks that run only once set up (gen9-edge: make setup DOMAIN=…): up, config and diff leave
+# them out until then, with a note. RUNNING: the selected stacks that run
+OPTIONAL := edge
+RUNNING   = $(foreach s,$(SELECTED),$(if $(and $(filter $(s),$(OPTIONAL)),$(call missing,$(s))),,$(s)))
+SKIPPED   = $(filter-out $(RUNNING),$(SELECTED))
 reverse   = $(if $(1),$(call reverse,$(wordlist 2,$(words $(1)),$(1))) $(firstword $(1)))
 
 # Needed files of stack $(1) that don't exist, and which stacks' setup writes them
@@ -57,9 +65,9 @@ owner   = $(firstword $(subst /, ,$(1:gen9-%=%)))
 prefix  = $(firstword $(subst -, ,$(notdir $(1:.local.env=))))
 writer  = $(if $(filter $(call prefix,$(1)),$(ALL_STACKS)),$(call prefix,$(1)),$(call owner,$(1)))
 writers = $(filter $(foreach f,$(1),$(if $(filter %.local.env,$(f)),$(call writer,$(f)),$(f:gen9-%/.env=%))),$(ALL_STACKS))
-MISSING = $(strip $(foreach s,$(SELECTED),$(call missing,$(s))))
+MISSING = $(strip $(foreach s,$(RUNNING),$(call missing,$(s))))
 # stack:used pairs where the used stack isn't in STACKS (up checks whether it's running)
-OUTSIDE = $(foreach s,$(SELECTED),$(foreach u,$(filter-out $(SELECTED),$(USES_$(s))),$(s):$(u)))
+OUTSIDE = $(foreach s,$(RUNNING),$(foreach u,$(filter-out $(RUNNING),$(USES_$(s))),$(s):$(u)))
 
 # down, logs and ps go by the project name Compose labels everything with, so they work whatever
 # the setup state. Run from / so Compose finds no compose file in a parent folder instead.
@@ -82,7 +90,7 @@ unexport COMPOSE_FILE COMPOSE_PROJECT_NAME COMPOSE_PROFILES
 # gen9-<stack>), and so do the stacks that call it. Compose files declare them external, so no stack
 # owns another's network; up creates all of them, as a stack's Compose file needs the networks of
 # the stacks it calls even when those aren't running.
-NETWORKS := $(addprefix gen9-,$(ALL_STACKS))
+NETWORKS := $(addprefix gen9-,$(filter-out $(OPTIONAL),$(ALL_STACKS)))
 
 # Where to open what is running: each stack labels its own services (gen9.name, gen9.url)
 list_urls = for s in $(SELECTED); do docker ps $(OWN) \
@@ -93,7 +101,7 @@ list_urls = for s in $(SELECTED); do docker ps $(OWN) \
 WIPE_FLAGS := $(if $(filter 1,$(YES)),--yes)
 
 .DEFAULT_GOAL := help
-.PHONY: help stacks doctor up down ps logs config setup admin-code backup restore stop-agents resume-agents wipe distclean fresh design-sync design-check e2e evals evals-calibrate audit sbom scan updates
+.PHONY: help stacks doctor up down ps logs config diff reset k8s-up k8s-diff k8s-reset k8s-down k8s-e2e k8s-stop-agents k8s-resume-agents setup admin-code backup restore stop-agents resume-agents wipe distclean fresh design-sync design-check e2e evals evals-calibrate audit sbom scan updates
 
 help:
 	@echo "Gen9: every command covers all stacks, or only STACKS=\"...\" (see make stacks)"
@@ -103,13 +111,25 @@ help:
 	@echo "  make setup           generate what is missing: secrets, seeded users, app settings;"
 	@echo "                       asks for provider keys (or OPENROUTER_API_KEY=… OPENAI_API_KEY=…)"
 	@echo "  make up              start the stacks, wait until healthy"
+	@echo "                       IMAGES=<lock file or URL>: Gen9's images by digest from it, built nowhere;"
+	@echo "                       IMAGES=local: built here again (the default)"
 	@echo "  make down            stop them (keeps data)"
 	@echo "  make stop-agents     stop every agent now: runs cancelled, scheduled tasks paused, worker stopped"
 	@echo "  make resume-agents   start the worker again and unpause what stop-agents paused"
 	@echo "  make ps              their containers"
 	@echo "  make logs            last $(TAIL) log lines (TAIL=n; FOLLOW=1 follows, with one stack)"
 	@echo "  make config          validate their Compose config"
+	@echo "  make diff            what runs that differs from what's declared, changes by hand too (exit 2 if any)"
+	@echo "  make reset           put back what differs: those containers recreated as declared"
 	@echo "  make admin-code      the seeded admin's authenticator code now (admins need a second step)"
+	@echo
+	@echo "Kubernetes (kubectl's context, or K8S_CONTEXT=…; settings: deploy/values.yaml, or K8S_VALUES=\"files…\"):"
+	@echo "  make k8s-up IMAGES=<lock>  each stack a Helm release in its namespace gen9-<stack>, images by digest"
+	@echo "  make k8s-diff        what differs from what's declared, changes by hand too (exit 2 if any)"
+	@echo "  make k8s-reset       put back what was changed by hand: each object replaced with what's declared"
+	@echo "  make k8s-down        uninstall them (keeps volumes and Secrets)"
+	@echo "  make k8s-e2e         make e2e against the cluster (the stacks' ports forwarded to localhost)"
+	@echo "  make k8s-stop-agents | k8s-resume-agents   stop-agents and resume-agents, on the cluster"
 	@echo
 	@echo "Starting over (deletes for good; lists what, then asks you to type yes):"
 	@echo "  make backup DIR=d    copy their data and the keys to it into folder d (they stop meanwhile)"
@@ -141,18 +161,26 @@ stacks:
 	@$(foreach s,$(ALL_STACKS),printf '  %-10s gen9-%-10s %s\n' '$(s)' '$(s)' '$(DESC_$(s))';)
 
 doctor:
-	@scripts/doctor.sh $(SELECTED)
+	@$(foreach s,$(SKIPPED),echo "note: gen9-$(s) isn't set up, so left out ($(DESC_$(s)))";)
+	@scripts/doctor.sh $(or $(strip $(RUNNING)),--no-stacks)
 
 admin-code:
 	@scripts/admin-code.sh
 
+# Gen9's own images: by digest from images.env when it exists (IMAGES=<lock> writes it, IMAGES=local
+# removes it: scripts/images.sh), so nothing is built; else built here from each stack's folder
 up:
-	@scripts/doctor.sh --preflight $(SELECTED)
+	@scripts/doctor.sh --preflight $(or $(strip $(RUNNING)),--no-stacks)
+	@$(foreach s,$(SKIPPED),echo "note: gen9-$(s) isn't set up, so left out ($(DESC_$(s)))";)
+	@$(if $(IMAGES),scripts/images.sh $(IMAGES))
 	@$(if $(MISSING),printf 'Not set up yet. Missing:%b\nRun: make setup STACKS="%s"\n' \
 	  "$(foreach f,$(MISSING),\n  $(f))" "$(call writers,$(MISSING))" >&2; exit 1)
+	@# Each provider key the router's config.yaml uses and gen9-models/.env lacks: a chat on it fails
 	@case " $(SELECTED) " in *" models "*) \
-	  grep -Eq '^[A-Z0-9_]+_API_KEY=.+' gen9-models/.env || \
-	  echo "note: gen9-models/.env has no provider key, so no model can answer (make setup STACKS=models asks for an OpenAI key)" ;; esac
+	  for k in $$(grep -v '^[[:space:]]*#' gen9-models/config.yaml | grep -o 'os.environ/[A-Z0-9_]*_API_KEY' | sort -u | cut -d/ -f2); do \
+	    grep -Eq "^$$k=.+" gen9-models/.env || \
+	    echo "note: gen9-models/.env has no $$k, which gen9-models/config.yaml uses: its models can't answer until you add it, then (cd gen9-models && docker compose up -d litellm)"; \
+	  done ;; esac
 	@for p in $(OUTSIDE); do s=$${p%%:*} u=$${p#*:}; \
 	  [ -n "$$(docker ps -q --filter label=com.docker.compose.project=gen9-$$u --filter label=com.docker.compose.oneoff --filter status=running)" ] || \
 	  echo "note: gen9-$$s uses gen9-$$u, which isn't running (make up STACKS=\"$$u $$s\")"; done
@@ -161,14 +189,20 @@ up:
 	@# A container failing its health check (its database wiped, Keycloak down) is restarted first,
 	@# so its checks start over: Compose's --wait fails at once on an unhealthy container it doesn't
 	@# replace. Failing, not only unhealthy yet: one a failure short of it turned unhealthy during the
-	@# wait and failed make up (gen9-learn's b7, manual-e2e.md P4-E5)
-	@for s in $(SELECTED); do \
+	@# wait and failed make up (gen9-learn's b7, manual-e2e.md P4-E5). Gen9's own images are built
+	@# before up, not by up --build: Compose would first try to pull, and fail loudly, an image a
+	@# service reuses from another that builds it ("pull access denied … may require 'docker
+	@# login'", manual-e2e.md P8-Z4b)
+	@if [ -f images.env ]; then set -a; . ./images.env; set +a; build=false; \
+	  echo "Gen9's images: by digest (images.env; make up IMAGES=local builds them here)"; \
+	else build=true; fi; \
+	for s in $(RUNNING); do \
 	  echo "== gen9-$$s"; \
 	  sick=$$(for c in $$(docker ps -q $(OWN)); do \
 	    [ "$$(docker inspect -f '{{if .State.Health}}{{.State.Health.FailingStreak}}{{else}}0{{end}}' $$c)" = 0 ] || echo $$c; done); \
 	  [ -z "$$sick" ] || { echo "restarting $$(docker inspect -f '{{.Name}}' $$sick | tr -d / | tr '\n' ' ')(failing its health check), so its checks start over"; \
 	    docker restart $$sick >/dev/null; }; \
-	  (cd gen9-$$s && docker compose up -d --build --wait) || \
+	  (cd gen9-$$s && { ! $$build || docker compose build; } && docker compose up -d --no-build --wait) || \
 	  { echo "gen9-$$s didn't start. Its logs: make logs STACKS=$$s" >&2; exit 1; }; \
 	done
 	@$(list_urls)
@@ -196,17 +230,57 @@ logs:
 	done
 
 # Every profile, so opt-in services are checked too. Then, across all stacks: no stack may reach
-# another under one of its own service names on a shared network (scripts/check-networks.py).
+# another under one of its own service names on a shared network (scripts/check-networks.py), and
+# docker-bake.hcl must build each Gen9 image as the Compose files do (scripts/check-images.py), and
+# Gen9's packages must declare one version (scripts/check-version.py).
 config:
 	@status=0; $(foreach s,$(SELECTED),printf '== gen9-$(s): '; \
+	  $(if $(filter $(s),$(SKIPPED)),echo "not set up (optional)";, \
 	  $(if $(call missing,$(s)),echo "not set up: missing $(call missing,$(s))"; status=1;, \
-	  (cd gen9-$(s) && docker compose --profile '*' config --quiet) && echo ok || status=1;)) \
+	  (cd gen9-$(s) && docker compose --profile '*' config --quiet) && echo ok || status=1;))) \
 	  exit $$status
-	@if command -v python3 >/dev/null; then scripts/check-networks.py; \
-	  else echo "python3 not found: skipped the shared-network name check"; fi
+	@if command -v python3 >/dev/null; then scripts/check-networks.py && scripts/check-images.py && scripts/check-version.py; \
+	  else echo "python3 not found: skipped the shared-network name and image checks"; fi
 
+# What runs against what's declared: Compose's hash of each service, its image, what docker update
+# changes, containers missing or not declared (scripts/drift.py). reset recreates what differs
+diff:
+	@scripts/drift.py $(RUNNING)
+
+reset:
+	@scripts/elsewhere.sh --refuse reset $(RUNNING)
+	@scripts/drift.py --reset $(RUNNING)
+
+# Kubernetes (docs/operations.md, "Kubernetes"): each stack a Helm release of gen9-<stack>/chart in
+# its namespace, with the lock's images (images.env, as IMAGES=… writes it) and its settings files
+# as Secrets (scripts/k8s.sh)
+k8s-up:
+	@$(if $(IMAGES),scripts/images.sh $(IMAGES))
+	@scripts/k8s.sh up $(SELECTED)
+
+k8s-diff:
+	@scripts/k8s.sh diff $(SELECTED)
+
+k8s-reset:
+	@scripts/k8s.sh reset $(SELECTED)
+
+k8s-down:
+	@scripts/k8s.sh down $(SELECTED)
+
+k8s-e2e:
+	@scripts/k8s.sh e2e $(SELECTED)
+
+k8s-stop-agents:
+	@scripts/k8s.sh stop-agents
+
+k8s-resume-agents:
+	@scripts/k8s.sh resume-agents
+
+# The preflight but of the optional stacks: setup writes their files, and make up checks their ports
+# once they run, so a domain (or DOMAIN=localhost, which unsets gen9-edge) isn't stopped by what
+# holds ports 80 and 443 meanwhile; nor what setup itself writes (an older .env's COMPOSE_PROFILES)
 setup:
-	@scripts/doctor.sh --preflight $(SELECTED)
+	@scripts/doctor.sh --preflight --before-setup $(or $(strip $(filter-out $(OPTIONAL),$(SELECTED))),--no-stacks)
 	@scripts/setup.sh $(SELECTED)
 
 # A cold backup of the stacks' volumes and settings files (scripts/backup.sh), and its restore
@@ -244,8 +318,10 @@ design-sync:
 design-check:
 	@gen9-design/sync.sh --check
 
+# With images.env, the lock's images too: context and fairness start a worker with docker compose run
 e2e:
-	@cd e2e && npm ci --silent && npm run -s stacks && npm run -s temporal && npm run -s runs && npm run -s models && npm run -s search && npm run -s memory && npm run -s skills && npm run -s agents && npm run -s questions && npm run -s approvals && npm run -s retry && npm run -s connectors && npm run -s connectors-oauth && npm run -s connectors-keycloak && npm run -s directory && npm run -s elicitation && npm run -s apps && npm run -s tool-changes && npm run -s environments && npm run -s scheduled && npm run -s triggers && npm run -s notifications && npm run -s outcomes && npm run -s background && npm run -s mcp-server && npm run -s agui && npm run -s a2a && npm run -s context && npm run -s past-chats && npm run -s memory-controls && npm run -s authz && npm run -s standing && npm run -s stop && npm run -s database && npm run -s audit && npm run -s admin-api && npm run -s demotion && npm run -s export && npm run -s cross-site && npm run -s fairness && npm run -s plugins && npm run -s plugins-conformance && npm run -s recovery && npm run -s lockout && npm run -s oauth && npm run -s passkeys && npm run -s keyboard && npm run -s focus && npm run -s a11y
+	@if [ -f images.env ]; then set -a; . ./images.env; set +a; fi; \
+	cd e2e && npm ci --silent && npm run -s stacks && npm run -s temporal && npm run -s runs && npm run -s models && npm run -s search && npm run -s memory && npm run -s skills && npm run -s agents && npm run -s questions && npm run -s approvals && npm run -s retry && npm run -s connectors && npm run -s connectors-oauth && npm run -s connectors-keycloak && npm run -s directory && npm run -s elicitation && npm run -s apps && npm run -s tool-changes && npm run -s environments && npm run -s scheduled && npm run -s triggers && npm run -s notifications && npm run -s outcomes && npm run -s background && npm run -s mcp-server && npm run -s agui && npm run -s a2a && npm run -s context && npm run -s past-chats && npm run -s memory-controls && npm run -s authz && npm run -s standing && npm run -s stop && npm run -s database && npm run -s audit && npm run -s admin-api && npm run -s demotion && npm run -s export && npm run -s cross-site && npm run -s fairness && npm run -s plugins && npm run -s plugins-conformance && npm run -s recovery && npm run -s lockout && npm run -s oauth && npm run -s passkeys && npm run -s keyboard && npm run -s focus && npm run -s a11y
 
 # The evals (gen9-agent/README.md, "Evals"): the seeded user signs in to a temporary config
 # directory (e2e/token.mjs), and a suite runs through the API, each task TRIALS times, as a

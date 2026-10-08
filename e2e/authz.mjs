@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { deleteChats } from "./chats.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { forget } from "./forget.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -232,6 +233,7 @@ try {
     check(false, "cleanup", String(e));
   }
   if (otherId) await admin(`/users/${otherId}`, { method: "DELETE" }).catch(() => {});
+  forget(otherId);
   rmSync(seeded, { recursive: true, force: true });
   rmSync(other, { recursive: true, force: true });
 }

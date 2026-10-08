@@ -29,6 +29,7 @@ from gen9_agent.model_router import (
 from gen9_agent.runs.store import (
     PUBLIC_BUDGET_ERROR,
     PUBLIC_ERROR,
+    PUBLIC_KEY_REFUSED,
     PUBLIC_RATE_LIMITED,
     public_error,
     retry_reason,
@@ -137,6 +138,17 @@ async def test_people_see_why_a_run_failed_only_for_budgets():
     )
     assert public_error("ApplicationError: BadRequestError: …") == PUBLIC_ERROR
     assert public_error(None) == PUBLIC_ERROR
+
+
+async def test_a_refused_provider_key_is_named():
+    # What the run's row kept with no OpenRouter key set (live, P8-Z3)
+    refused = (
+        "ApplicationError: AuthenticationError: Error code: 401 - {'error': {'message': "
+        "'litellm.AuthenticationError: AuthenticationError: OpenrouterException - "
+        '{"error":{"message":"No cookie auth credentials found","code":401}}. Received Model '
+        "Group=chat'}}"
+    )
+    assert public_error(refused) == PUBLIC_KEY_REFUSED
 
 
 async def test_web_search_goes_through_the_router_by_alias_and_is_cut_to_size():

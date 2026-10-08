@@ -1,0 +1,16 @@
+# gen9-agent on Kubernetes: what compose.yaml doesn't say (deploy/helm/gen9-lib, "gen9.stack").
+stack: agent
+usedBy: [ui]
+
+global:
+  images: {}
+  storageClass: ""
+
+services:
+  migrate: {kind: Job, phase: pre}  # the API and worker wait for the schema
+  api:
+    kind: Deployment
+    ports: {http: 8000}
+    public: {host: api, port: http}
+  worker:
+    kind: Deployment

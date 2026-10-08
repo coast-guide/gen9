@@ -78,7 +78,7 @@ if [ -n "$AGENT_ENV_FILE" ]; then
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$PORT" "$API_KEY" | write_private "$AGENT_ENV_FILE"
 fi
 
-if [ "$OUTPUT" != "-" ] && [ "$FROM_ENV" != "true" ]; then
+if [ "$OUTPUT" != "-" ] && [ "$FROM_ENV" != "true" ] && [ -z "${GEN9_SETUP:-}" ]; then
   cat >&2 <<NEXT
 
 Next:

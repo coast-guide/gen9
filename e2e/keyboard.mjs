@@ -15,6 +15,7 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { chromeOnly, launch, TOOLBAR_FOCUS } from "./browser.mjs";
+import { forget } from "./forget.mjs";
 
 if (chromeOnly("the keyboard walk", TOOLBAR_FOCUS)) process.exit(0);
 
@@ -273,6 +274,7 @@ try {
 } finally {
   await browser.close();
   await admin(`/users/${user.id}`, { method: "DELETE" }).catch((e) => console.log(`(the user wasn't deleted: ${e.message})`));
+  forget(user.id);
 }
 
 console.log(failures ? `\n${failures} check(s) failed` : "\nall keyboard checks passed");

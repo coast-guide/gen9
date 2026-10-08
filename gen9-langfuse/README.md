@@ -24,7 +24,7 @@ Log in at http://localhost:13000 → org **Gen9** → project **gen9-agent**.
 | File                      | Purpose                                                                    |
 | ------------------------- | -------------------------------------------------------------------------- |
 | `docker-compose.yml`    | Upstream Langfuse file, pinned to a release.**Never edit.**          |
-| `compose.override.yaml` | Our changes: image pins (`tag@digest`), ports, media URLs, ClickHouse's config |
+| `compose.override.yaml` | Our changes: image pins (`tag@digest`), ports, media URLs, ClickHouse's config, and `migrated`, which holds the worker back until the web has migrated, so it loads the newest model prices at start |
 | `clickhouse/disk.xml`   | ClickHouse's own logs, bounded ([Disk](#disk))                             |
 | `init-env.sh`           | Generates`.env` (secrets, URLs, ports, org/project/keys). See `--help` |
 | `.env`                  | Generated, secret, gitignored                                              |
@@ -60,6 +60,12 @@ LANGFUSE_SECRET_KEY=   # LANGFUSE_INIT_PROJECT_SECRET_KEY from .env
 | Logs                               | `docker compose logs --tail=50 langfuse-web langfuse-worker` |
 | Stop (keeps data)                  | `docker compose down`                                        |
 | Reset (**deletes all data**) | `docker compose down -v`, then `./init-env.sh ... --force` |
+
+Who signs in: the first user `make setup` asked for, and the people they invite (Settings,
+Members). Nobody can sign up uninvited (`AUTH_DISABLE_SIGNUP`, true unless `.env` says
+otherwise), and that also stops someone invited who has no account yet. So, to add someone:
+invite them, set `AUTH_DISABLE_SIGNUP=false` in `.env` and `make up STACKS=langfuse`, let them
+sign up, then take the line out and `make up STACKS=langfuse` again.
 
 ## Disk
 
@@ -98,12 +104,18 @@ A public media URL (below) is reached as it is.
 
 ## Deploy on a VM
 
+The simplest way: `make setup DOMAIN=…` and `make up` put gen9-edge (Caddy) in front of every stack, with its certificates, addresses and redirect URIs ([docs/operations.md, "Under a domain, over TLS"](../docs/operations.md#under-a-domain-over-tls)). Behind a TLS proxy of your own instead:
+
 Put a TLS reverse proxy in front of `127.0.0.1:13000` (UI/API) and `127.0.0.1:13001` (media), and generate `.env` with its public URLs:
 
 ```bash
 ./init-env.sh --email you@example.com --name "Your Name" \
   --url https://langfuse.example.com --media-url https://media.langfuse.example.com
 ```
+
+Its Postgres, Redis, ClickHouse and S3 can each be elsewhere instead (a managed service, a
+cluster's operator): Langfuse's own settings in `.env`, the store left out of `COMPOSE_PROFILES`
+([docs/operations.md, "External services"](../docs/operations.md#external-services)).
 
 ## Upgrade
 

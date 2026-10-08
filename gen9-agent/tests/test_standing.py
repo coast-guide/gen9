@@ -1,9 +1,11 @@
 """Whether work may still be done for a person (standing.py): Keycloak says, once a minute."""
 
+import httpx
 import pytest
 
 from gen9_agent.keycloak_admin import KeycloakAdminError
-from gen9_agent.standing import Standing
+from gen9_agent.runs.store import PUBLIC_NO_ANSWER, PUBLIC_NO_IDENTITY, retry_reason
+from gen9_agent.standing import KEYCLOAK_UNAVAILABLE, IdentityUnavailable, Standing
 
 pytestmark = pytest.mark.asyncio
 
@@ -48,8 +50,26 @@ async def test_keycloak_is_asked_once_a_minute_per_person() -> None:
 
 async def test_a_keycloak_that_fails_raises_rather_than_guessing() -> None:
     s, _ = standing({"ada": 503})
-    with pytest.raises(KeycloakAdminError):
+    with pytest.raises(IdentityUnavailable, match=KEYCLOAK_UNAVAILABLE):
         await s.active("ada")
+
+
+class Down(Admin):
+    async def get_user(self, user_id: str) -> dict:
+        raise httpx.ConnectError("[Errno -2] Name or service not known")
+
+
+async def test_a_keycloak_that_is_down_raises_and_the_run_says_so() -> None:
+    with pytest.raises(IdentityUnavailable) as raised:
+        await Standing(Down({})).active("ada")  # ty: ignore[invalid-argument-type]
+    # As the run's failure carries it (workflows/runs.py, `_describe`), then its Retry's words:
+    # the sign-in service, not the model provider (manual-e2e.md, P8-N3)
+    failure = f"ApplicationError: {raised.value}"
+    assert retry_reason(failure) == PUBLIC_NO_IDENTITY
+    assert (
+        retry_reason("ApplicationError: APIConnectionError: timed out")
+        == PUBLIC_NO_ANSWER
+    )
 
 
 async def test_without_an_admin_client_it_cant_tell_and_says_yes() -> None:

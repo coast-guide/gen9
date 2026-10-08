@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { launch } from "./browser.mjs";
 import { chatOf, deleteChats } from "./chats.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { forget } from "./forget.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -203,6 +204,7 @@ try {
   check(false, "the memory check ran to the end", e.message);
 } finally {
   if (userId) await admin(`/users/${userId}`, { method: "DELETE" }).catch(() => {});
+  forget(userId);
   if (seededChats.length) {
     const left = await deleteChats(seededDir, seededChats).catch((e) => [e.message]);
     check(!left.length, "the seeded user's chat is deleted", left.join(", "));

@@ -24,8 +24,11 @@ async def test_a_message_of_spaces_is_refused_and_one_with_words_kept_as_sent() 
             RunIn(message=blank)
         assert refusal(refused) == ["Value error, Write a message first."]
     assert RunIn(message="  indented code\n").message == "  indented code\n"
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as refused:
         RunIn(message="x" * 8001)
+    # In Pydantic's words for text, not "at most 8000 items after validation" (P8-Z4f)
+    assert refusal(refused) == ["String should have at most 8000 characters"]
+    assert len(RunIn(message="x" * 8000).message) == 8000
 
 
 async def test_a_task_needs_a_name_and_something_to_do() -> None:
@@ -48,7 +51,15 @@ async def test_a_change_may_leave_them_out_but_not_blank_them() -> None:
 
 async def test_a_chats_title_is_its_first_line_and_never_fails() -> None:
     assert chat_title("  What is RFC 10017?\nAnd why?") == "What is RFC 10017?"
-    assert chat_title("x" * 100) == "x" * 80
+    assert chat_title("x" * 80) == "x" * 80
+    assert chat_title("x" * 100) == "x" * 79 + "…"
+    # Cut at a word, its comma dropped, within 80
+    long = "Search the web: what is the latest released version of Valkey? One sentence, with its source."
+    assert (
+        chat_title(long)
+        == "Search the web: what is the latest released version of Valkey? One sentence…"
+    )
+    assert len(chat_title(long)) <= 80
     assert chat_title("   \n  ") == "New chat"
 
 

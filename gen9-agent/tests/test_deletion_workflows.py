@@ -61,6 +61,8 @@ class Fakes:
         self.langfuse_down = langfuse_down
         self.missing = missing
         self.retry_after = retry_after
+        # The allowance each sweep's Activity was given (gen9-agent-sweep --allow)
+        self.allowed: list[int] = []
 
     def all(self) -> list:
         steps = self.steps
@@ -128,7 +130,8 @@ class Fakes:
             steps.append(f"keycloak {sub}")
 
         @activity.defn(name=FIND_DELETED_USERS)
-        async def find_deleted_users() -> list[DeletedUser]:
+        async def find_deleted_users(allow: int = 0) -> list[DeletedUser]:
+            self.allowed.append(allow)
             return [DeletedUser(sub=s, since=SINCE) for s in self.missing]
 
         return [
@@ -291,6 +294,29 @@ async def test_the_sweep_starts_each_missing_users_deletion_and_leaves_it_runnin
                 f"histories {sub}",
             ]
             await handle.terminate()  # its late passes would outlive the Worker
+
+
+async def test_an_admins_allowance_reaches_the_sweeps_activity(
+    env: WorkflowEnvironment,
+) -> None:
+    """gen9-agent-sweep --allow N starts the sweep with N, which its Activity weighs against the
+    guard on mass deletions (U5c-6); the Schedule's sweep gives none."""
+    fakes = Fakes(missing=())
+    async with Worker(
+        env.client,
+        task_queue=SYSTEM_QUEUE,
+        workflows=[SweepDeletedUsersWorkflow, DeleteAccountWorkflow],
+        workflow_runner=WORKFLOW_RUNNER,
+        activities=fakes.all(),
+    ):
+        for args in ([], [3]):
+            await env.client.execute_workflow(
+                SweepDeletedUsersWorkflow.run,
+                args=args,
+                id=f"test-{uuid.uuid4()}",
+                task_queue=SYSTEM_QUEUE,
+            )
+    assert fakes.allowed == [0, 3]
 
 
 async def test_an_account_gone_from_keycloak_is_erased_again_late_too(

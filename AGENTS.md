@@ -7,7 +7,10 @@ this repository; they are not behavior of Gen9's own agent.
 ## Start of every session
 
 1. `git status`, `git log --oneline -15` and `gh pr view` (if a PR is open): what changed last.
-2. Read the active plan in `docs/plans/` (today `docs/plans/release.md`, then
+2. Read the active plan in `docs/plans/` (today `docs/plans/deploy.md`, the owner's deployment
+   and release work, with its standing instructions; `docs/plans/manual-e2e.md`'s Phase 8, the
+   owner's audit by hand of 2026-10-04, ended that day but for P8-Y1, which waits on upstream
+   releases; then `docs/plans/release.md`, then
    `docs/plans/gen9-learn.md`, then `docs/plans/manual-e2e.md` from P6-B6, where the owner had
    paused it, resumed by their instruction to finish the repository's remaining items; its
    standing instructions apply; `harness.md` is complete): its `Progress` says what is done and what is next, `Surprises & Discoveries` what
@@ -106,9 +109,10 @@ Only then implement. The same applies to design and UX work, and to any change o
   isn't there to ask.
 - The verification work ran as a loop of phases in `docs/plans/manual-e2e.md` (each phase's
   last task the next one: /rigor first, then the next large list) until the owner stopped it
-  after phase 7 (2026-10-01). Start another phase only when the owner asks; P7-Z2 says what it
-  would cover. Its open waits (P7-A1 to A3) are done when they land. No keep-alive cron is
-  needed meanwhile.
+  after phase 7 (2026-10-01). Start another phase only when the owner asks. They asked for
+  phase 8 on 2026-10-04 (a full audit by hand, the docs judged as a newcomer), which ended the
+  same day (its Z5); P7-Z2's ASVS chapters wait for a later one. The open waits (P7-A1 to A3,
+  carried as P8-Y1) are done when they land.
 - Secrets: never print, commit or paste values of `.env` or `*.local.env` files; print key names.
   Scripts that need a user's token use `e2e/token.mjs` (device flow, confirmed in headless Chrome).
 - Browser automation driven by an agent must not type passwords; password flows run in Puppeteer
@@ -125,7 +129,9 @@ Only then implement. The same applies to design and UX work, and to any change o
 | Proposing a change; the code of conduct                            | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/` (issue and pull request templates) |
 | Reporting a vulnerability, and where each part of Gen9's security is described | `SECURITY.md` |
 | Active plans (goal, progress, decisions, surprises)                | `docs/plans/`, written as `docs/PLANS.md` says         |
-| Operating Gen9: upgrade, back up and restore, stop every agent, start over, disk | `docs/operations.md` |
+| Operating Gen9: Docker or Kubernetes, a release, a domain, stores elsewhere; before people use it; upgrade, back up and restore, stop every agent, start over, disk | `docs/operations.md` |
+| Releases: one version, how one is cut, what the workflow publishes | `docs/development.md` ("Releasing"), `.github/workflows/release.yml` |
+| Kubernetes: the library chart, each stack's chart, the settings | `deploy/helm/gen9-lib`, `gen9-*/chart`, `deploy/values.yaml` |
 | Architecture: identity and tokens                                  | `docs/auth-architecture.md`                              |
 | Secrets: each one, where it lives, how to replace it              | `docs/secrets.md`                                        |
 | Cryptography: each key and algorithm, and what uses it            | `docs/cryptography.md`                                   |
@@ -152,10 +158,13 @@ Only then implement. The same applies to design and UX work, and to any change o
 - gen9-ui: `npx tsc --noEmit && npx eslint . && npx vitest run && npm run build` (only the build
   enforces `server-only`). gen9-keycloak's theme: `npx tsc --noEmit`.
 - The shell scripts: shellcheck, as the workflow's `shellcheck` step runs it (in Docker).
+- The Helm charts (`gen9-*/chart`, `deploy/helm`): `scripts/check-charts.sh` (helm lint and
+  kubeconform), also after changing a stack's `compose.yaml`, which each chart reads.
 - gen9-learn: `cd gen9-learn/verify && node page.mjs && node reference.mjs`, and `node run.mjs` when a flow changed.
   `reference.mjs` also after any change to gen9-agent, gen9-ui or gen9-cli code: the page points
   into it by line (`data-at`), and an edit above a pointer moves it.
 
-CI (`.github/workflows/checks.yml`) runs the non-interactive ones on every pull request and on `main`. Run them
+CI (`.github/workflows/checks.yml`) runs the non-interactive ones on every pull request and on `main`;
+`.github/workflows/images.yml` builds Gen9's images for both platforms (docs/development.md). Run them
 locally before each commit anyway: CI is the second net. The live checks (`make e2e`, gen9-learn's `run.mjs`) run only
 locally, on the stacks.

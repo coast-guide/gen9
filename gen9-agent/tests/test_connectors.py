@@ -1,11 +1,15 @@
 """Connectors (connectors.py): which URLs they may reach, how tokens are sent, when a call waits
 for Allow, and a Deep Agent using a person's connector tools while another person sees none."""
 
+import asyncio
 import base64
 import json
 import os
+import time
 import uuid
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from deepagents import create_deep_agent
@@ -16,7 +20,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from gen9_agent import connector_auth
+from gen9_agent import connector_auth, connectors
 from gen9_agent.connectors import (
     SEP,
     ConnectorApprovals,
@@ -250,6 +254,108 @@ async def test_another_person_is_offered_none_and_cant_call_them() -> None:
     [told] = [m for m in done["messages"] if isinstance(m, ToolMessage)]
     assert told.status == "error" and "isn't available" in told.text
     assert "x" not in NOTES
+
+
+class Prompts(Scripted):
+    """Records each call's system prompt."""
+
+    systems: list[str] = []  # noqa: RUF012 (pydantic copies it per instance)
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
+        self.systems.append(str(messages[0].content))
+        return super()._generate(messages, stop, run_manager, **kwargs)
+
+
+class HeldConnectors(InMemoryConnectors):
+    """`sub-a` also has `words`, whose tools changed since they connected it (manual-e2e.md,
+    P8-J5)."""
+
+    async def tools_of(self, sub: str) -> dict[str, _Loaded]:
+        loaded = await super().tools_of(sub)
+        self._unavailable[sub] = (
+            ["words: 2 of its tools are new or changed"] if sub == "sub-a" else []
+        )
+        return loaded
+
+
+@pytest.mark.parametrize(("sub", "told"), [("sub-a", True), ("sub-b", False)])
+async def test_the_model_is_told_which_connectors_it_cant_use(sub, told) -> None:
+    connectors = HeldConnectors(engine=None, vault=None, allow_private=False)  # ty: ignore[invalid-argument-type]
+    model = Prompts(script=[AIMessage("ok")])
+    agent = create_deep_agent(
+        model=model,
+        checkpointer=InMemorySaver(),
+        context_schema=Gen9Context,
+        middleware=[connectors, ConnectorApprovals(connectors)],
+    )
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+    await agent.ainvoke(
+        {"messages": [{"role": "user", "content": "go"}]},
+        config,
+        context=Gen9Context(sub),
+    )
+    note = "- words: 2 of its tools are new or changed"
+    assert (note in model.systems[0]) is told
+    assert (
+        "don't use another connector's tool in its place" in model.systems[0]
+    ) is told
+
+
+def a_row(name: str, updated_at: datetime) -> SimpleNamespace:
+    """A connector as `_rows` gives it, with no sign-in."""
+    return SimpleNamespace(
+        id=uuid.uuid5(uuid.NAMESPACE_URL, name),
+        name=name,
+        status="ready",
+        url=f"https://{name}.example/mcp",
+        header=None,
+        sealed_token=None,
+        sealed_tokens=None,
+        updated_at=updated_at,
+        tools=[],
+        changed=None,
+        policy="ask",
+    )
+
+
+class Rows(ConnectorTools):
+    """The person's connectors given, not read from a database."""
+
+    def __init__(self, rows: list[SimpleNamespace]) -> None:
+        super().__init__(engine=None, vault=None, allow_private=False)  # ty: ignore[invalid-argument-type]
+        self.rows = rows
+
+    async def _rows(self, sub: str) -> list[Any]:
+        return self.rows
+
+
+async def test_hanging_servers_cost_a_call_one_wait_and_then_none(monkeypatch) -> None:
+    calls: list[str] = []
+
+    async def hangs(url, header, token, reach):
+        calls.append(url)
+        await asyncio.sleep(0.3)
+        raise ConnectorError("It didn't answer in time.")
+
+    monkeypatch.setattr(connectors, "discover", hangs)
+    now = datetime.now(UTC)
+    held = Rows([a_row("slow", now), a_row("slower", now)])
+    started = time.monotonic()
+    assert await held.tools_of("sub-a") == {}
+    # Listed at once: one wait, not the sum of both (manual-e2e.md, P8-N1)
+    assert time.monotonic() - started < 0.5
+    assert held._unavailable["sub-a"] == [
+        "slow: couldn't be reached just now",
+        "slower: couldn't be reached just now",
+    ]
+    # The next model call doesn't wait for them again
+    started = time.monotonic()
+    await held.tools_of("sub-a")
+    assert time.monotonic() - started < 0.1 and len(calls) == 2
+    # A connector the person changed since (a new sign-in, say) is listed again at once
+    held.rows[0].updated_at = now + timedelta(seconds=1)
+    await held.tools_of("sub-a")
+    assert calls == [*calls[:2], "https://slow.example/mcp"]
 
 
 async def test_a_going_connectors_tokens_are_revoked_best_effort(monkeypatch) -> None:

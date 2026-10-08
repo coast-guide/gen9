@@ -12,7 +12,7 @@ Authentication is a **Backend-for-Frontend** ([RFC 10017](https://www.rfc-editor
 ./init-env.sh                               # .env: session secret + Valkey password
 # keycloak.local.env comes from ../gen9-keycloak/init-env.sh --ui-env-file ../gen9-ui/keycloak.local.env
 for n in gen9-ui gen9-keycloak gen9-agent; do docker network inspect $n >/dev/null 2>&1 || docker network create $n; done   # once; make up does it
-docker compose up -d --build --wait         # production → http://localhost:14000
+docker compose build && docker compose up -d --wait   # production → http://localhost:14000
 docker compose watch dev                    # development (Fast Refresh) → http://localhost:14001
 ```
 
@@ -41,7 +41,7 @@ Keycloak renders sign-in, sign-up, reset password, 2FA and email verification wi
 | --- | --- | --- |
 | Sign in | `app/auth/login/route.ts` | Authorization Code + PKCE (S256) + state + nonce via [openid-client](https://github.com/panva/openid-client) (OpenID Certified). `?intent=signup` → `prompt=create`; `?action=UPDATE_PASSWORD` etc. → Keycloak application-initiated actions |
 | Callback | `app/auth/callback/route.ts` | One-time transaction (Valkey, 10 min) bound to this browser by a cookie; validates the ID token; new session id on every sign-in (no fixation) |
-| Sessions | `lib/auth/session.ts`, `lib/auth/store.ts` | Valkey; records sealed with AES-256-GCM, each bound to its key in the store; TTL = refresh token lifetime; access token refreshed 30 s before expiry under a per-session lock (Keycloak rotates refresh tokens). Valkey is capped (`VALKEY_MAXMEMORY`, default 256 MB) and evicts the keys closest to expiry first, so a flood of sign-in starts can't exhaust memory or push out sessions. Its append-only file keeps sessions through a restart or a crash. While it's down, pages say Gen9 may be restarting (after about 5 s), sign-in says it's unavailable, and sign-out still ends the session in this browser and at Keycloak, which asks to confirm |
+| Sessions | `lib/auth/session.ts`, `lib/auth/store.ts` | Valkey; records sealed with AES-256-GCM, each bound to its key in the store; TTL = refresh token lifetime; each user's index of them (for signing out everywhere) as long as their longest session and an hour more, and dropped when their account is deleted, by them or by an admin; access token refreshed 30 s before expiry under a per-session lock (Keycloak rotates refresh tokens). Valkey is capped (`VALKEY_MAXMEMORY`, default 256 MB) and evicts the keys closest to expiry first, so a flood of sign-in starts can't exhaust memory or push out sessions. Its append-only file keeps sessions through a restart or a crash. While it's down, pages say Gen9 may be restarting (after about 5 s), sign-in says it's unavailable, and sign-out still ends the session in this browser and at Keycloak, which asks to confirm |
 | Cookie | `lib/auth/cookies.ts` | Random 256-bit id, `HttpOnly`, `SameSite=Lax`; over https also `Secure` + `__Host-` prefix, and ended with the same attributes (a browser ignores a `__Host-` cookie set without them) |
 | Sign out | `app/auth/logout/route.ts` | POST, same origin only; deletes the session, then RP-initiated logout at Keycloak (`id_token_hint`) |
 | Back-channel logout | `app/auth/backchannel-logout/route.ts` | Keycloak POSTs a signed logout token when a session ends anywhere; at most 64 KiB of the body is read, before anything else; validated (signature, iss, aud, the type `logout+jwt`, events claim, no nonce, jti replay; `lib/auth/logout-token.ts`) → sessions with that `sid` are deleted |
@@ -58,7 +58,8 @@ Containers reach Keycloak over the `gen9-keycloak` network (`KEYCLOAK_INTERNAL_U
 | --- | --- | --- |
 | `KEYCLOAK_ISSUER`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` | `keycloak.local.env` | OIDC client |
 | `SESSION_SECRET`, `VALKEY_PASSWORD` | `.env` (`init-env.sh`) | Session encryption (64 hex characters), session store |
-| `APP_URL`, `KEYCLOAK_INTERNAL_URL`, `SESSION_STORE_URL`, `GEN9_AGENT_URL` | `compose.yaml` | Per container (prod `:14000`, dev `:14001`) |
+| `SESSION_STORE_URL` | `compose.yaml`, or `.env` | The session store: the bundled Valkey, or another Valkey or Redis given by its URL, with `valkey` taken out of `COMPOSE_PROFILES` in `.env` ([docs/operations.md, "External services"](../docs/operations.md#external-services)). When it can't be reached, a request fails at once (sign-in: `/auth/error?reason=temporarily_unavailable`; `/api/health`: 503) and the next one tries again; a store that drops is reconnected in the background (`lib/auth/store.ts`, `reconnectDelay`) |
+| `APP_URL`, `KEYCLOAK_INTERNAL_URL`, `GEN9_AGENT_URL` | `compose.yaml` | Per container (prod `:14000`, dev `:14001`) |
 | `MCP_APPS_SANDBOX_URL` | `compose.yaml` | Where connectors' Views run: an origin template, `{id}` naming each connector (default `http://{id}.apps.localhost:14003`: Chrome resolves `*.localhost` to this machine, and it is another site than `localhost`). Unset, Views aren't shown |
 | `PRIVACY_CONTROLLER`, `PRIVACY_CONTACT`, `PRIVACY_DPO`, `PRIVACY_AUTHORITY`, `PRIVACY_NOTICE_URL` | `.env` (optional) | The privacy page, `/privacy` (GDPR Art. 13), readable before signing up and linked from Settings and the sign-up page. The page states what Gen9 itself does: what it keeps and why, who else receives it (the model providers, search engines, email, connected services), for how long, and what a person can do. The organization running Gen9 fills in who it is and where to write (`PRIVACY_CONTROLLER`, `PRIVACY_CONTACT`), optionally its data protection officer and supervisory authority, or points to its own notice instead (`PRIVACY_NOTICE_URL`). Unset, the page says the organization hasn't named itself yet |
 
@@ -73,7 +74,7 @@ Tokens, font and logo come from `gen9-design` (copies: `app/gen9-theme.css`, `ap
 | File | Purpose |
 | --- | --- |
 | `Dockerfile`, `Dockerfile.dev` | Production image (standalone output, non-root) and dev image |
-| `compose.yaml` | `prod`, `sandbox`, `dev` (profile) and `valkey` services |
+| `compose.yaml` | `prod`, `sandbox`, `dev` (profile) and `valkey` (profile, in `.env`'s `COMPOSE_PROFILES`) services |
 | `sandbox/server.ts` | The MCP Apps sandbox proxy (`node:http`, run from the prod image): one page, its CSP from the View's declared domains, framed by this app only |
 | `init-env.sh` | Generates `.env` |
 | `proxy.ts` | Optimistic route guard |
@@ -99,14 +100,16 @@ Published on `127.0.0.1` only.
 | --- | --- |
 | Status | `docker compose --profile dev ps` |
 | Logs | `docker compose logs --tail=50 prod` |
-| Rebuild prod | `docker compose up -d --build --wait` |
+| Rebuild prod | `docker compose build && docker compose up -d --wait` |
 | Lint / types | `npm run lint && npx tsc --noEmit` |
 | Unit tests | `npm test` (Vitest: auth, sessions and cookies, origin checks, what an approval shows, links, app asks, audit words, limits, and more) |
 | Build | `npm run build`: the only check that refuses a server-only module (`lib/agent.ts`, `lib/env.ts`) imported into a client component; a failed image build leaves the old container running, so check `docker compose ps` shows it recreated |
-| Sign everyone out of this app | Rotate `SESSION_SECRET` in `.env` (`./init-env.sh --force`), then `docker compose up -d`: old session records can no longer be decrypted |
+| Sign everyone out of this app | Rotate `SESSION_SECRET` in `.env` (`./init-env.sh --force`), then `docker compose up -d`: old session records can no longer be decrypted. A browser still signed in to Keycloak gets a new one at its next page; to end those too, Keycloak's `logout-all` (docs/operations.md, "Start over") |
 | Stop everything | `docker compose --profile dev down` |
 
 ## Deploy on a VM
+
+The simplest way: `make setup DOMAIN=…` and `make up` put gen9-edge (Caddy) in front of every stack, with its certificates, addresses and redirect URIs ([docs/operations.md, "Under a domain, over TLS"](../docs/operations.md#under-a-domain-over-tls)). Behind a TLS proxy of your own instead:
 
 Put a TLS reverse proxy in front of `127.0.0.1:14000`, set `APP_URL=https://…` (cookies become `__Host-`, `Secure`, and pages send `Strict-Transport-Security: max-age=63072000; includeSubDomains`; checked behind a local TLS proxy, sign-in to sign-out), register the new redirect and post-logout URIs and the back-channel logout URL in Keycloak, and keep Valkey private. A chat's answer and a run waiting for you are server-sent events: the API pings every 15 s while one is quiet and responses say `X-Accel-Buffering: no`, so a proxy's usual idle timeout (nginx's `proxy_read_timeout`, 60 s) and buffering leave them open, given `proxy_http_version 1.1` (checked behind nginx 1.29: a run waiting 150 s, its stream never cut). For more than one instance, all instances share the Valkey session store.
 

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: gen9-agent
+description: Gen9's agent, its API and its Temporal worker (docs/plans/deploy.md, U3)
+type: application
+version: 0.1.0
+dependencies:
+  - name: gen9-lib
+    version: 0.1.0
+    repository: file://../../deploy/helm/gen9-lib

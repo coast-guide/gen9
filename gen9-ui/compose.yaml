@@ -1,4 +1,5 @@
-# gen9-ui: production and development containers for the Next.js app, plus Valkey for sessions.
+# gen9-ui: production and development containers for the Next.js app, plus Valkey for sessions
+# (or a Valkey or Redis elsewhere: docs/operations.md, "External services").
 #   prod: docker compose up -d --build --wait     -> http://localhost:14000
 #   dev:  docker compose watch dev                -> http://localhost:14001
 # Host ports: published on 127.0.0.1 only, in an uncommon block (14000-14003) next to gen9-langfuse (13000-13007).
@@ -11,7 +12,12 @@ x-app-env: &app-env
     - path: keycloak.local.env        # gen9-keycloak/init-env.sh --ui-env-file (issuer, client id/secret)
   environment: &app-environment
     SESSION_SECRET: ${SESSION_SECRET:?run ./init-env.sh first}
-    SESSION_STORE_URL: redis://:${VALKEY_PASSWORD:?run ./init-env.sh first}@valkey:6379/0
+    # The bundled Valkey, or another Valkey or Redis given by its URL (rediss:// for TLS), with
+    # valkey left out of COMPOSE_PROFILES in .env
+    SESSION_STORE_URL: ${SESSION_STORE_URL:-redis://:${VALKEY_PASSWORD:?run ./init-env.sh first}@valkey:6379/0}
+    # Over TLS (rediss://), its certificate checked against Node's CAs and this one: a file of
+    # certs/, mounted at /etc/gen9/certs
+    NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-}
     # keycloak.local.env holds host-side URLs (localhost:<published port>); containers reach the
     # other stacks over their networks instead, at container ports
     KEYCLOAK_INTERNAL_URL: http://gen9-keycloak:8080
@@ -39,7 +45,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: gen9-ui:prod
+    image: ${GEN9_UI_IMAGE:-gen9-ui:prod}
     labels:  # where to open it; the root Makefile lists these after make up
       gen9.name: Gen9
       gen9.url: ${GEN9_UI_URL:-http://localhost:14000}
@@ -52,6 +58,9 @@ services:
     depends_on:
       valkey:
         condition: service_healthy
+        required: false  # not there when SESSION_STORE_URL points elsewhere
+    volumes:
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     ports:
       - "127.0.0.1:${GEN9_UI_PORT:-14000}:3000"
     networks:
@@ -74,7 +83,7 @@ services:
   # the web app's. Each server gets its own host name under it (MCP_APPS_SANDBOX_URL).
   sandbox:
     logging: *logging
-    image: gen9-ui:prod
+    image: ${GEN9_UI_IMAGE:-gen9-ui:prod}
     command: ["node", "sandbox/server.ts"]
     environment:
       PORT: "3001"
@@ -84,6 +93,10 @@ services:
         condition: service_started  # builds the image first
     ports:
       - "127.0.0.1:${GEN9_UI_SANDBOX_PORT:-14003}:3001"
+    networks:
+      default:
+      gen9-ui:
+        aliases: [gen9-ui-apps]  # gen9-edge serves it under the domain (U5b)
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
@@ -110,6 +123,9 @@ services:
     depends_on:
       valkey:
         condition: service_healthy
+        required: false  # not there when SESSION_STORE_URL points elsewhere
+    volumes:
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     ports:
       - "127.0.0.1:${GEN9_UI_DEV_PORT:-14001}:3000"
     networks:
@@ -137,24 +153,28 @@ services:
 
   valkey:
     logging: *logging
+    # Runs while .env's COMPOSE_PROFILES lists it (init-env.sh writes it so); left out, the setting
+    # in the label points gen9-ui at another, and make up refuses to start without it
+    profiles: [valkey]
+    labels:
+      gen9.external: SESSION_STORE_URL
     # Server-side sessions (encrypted records, TTL = refresh token lifetime). BSD-licensed Redis fork.
     # Pinned as tag@digest. To upgrade: docker buildx imagetools inspect valkey/valkey:<version>-trixie
     image: valkey/valkey:9.1.2-trixie@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
     # Memory is capped: anyone can start a sign-in, and each start stores a 10-minute record. At the
     # cap, keys closest to expiring go first (volatile-ttl): sign-in records before sessions. Every
     # key has a TTL. 256 MB holds about 60,000 signed-in sessions.
+    # The password goes in as config on stdin (`-`), not as `--requirepass`: an argument stays in
+    # PID 1's command line, which `docker inspect` shows and any user of a Docker Engine host can
+    # read (/proc/<pid>/cmdline). Its `"` and `\` are escaped for the
+    # config's quotes. The image's entrypoint still runs it as the valkey user (manual-e2e.md, P8-M6)
     command:
-      - valkey-server
-      - --requirepass
-      - ${VALKEY_PASSWORD:?run ./init-env.sh first}
-      - --appendonly
-      - "yes"
-      - --save
-      - ""
-      - --maxmemory
-      - ${VALKEY_MAXMEMORY:-256mb}
-      - --maxmemory-policy
-      - volatile-ttl
+      - sh
+      - -c
+      - |
+        exec docker-entrypoint.sh valkey-server - --appendonly yes --save "" --maxmemory "${VALKEY_MAXMEMORY:-256mb}" --maxmemory-policy volatile-ttl <<EOF
+        requirepass "$$(printf '%s' "$$VALKEY_PASSWORD" | sed 's/[\\"]/\\&/g')"
+        EOF
     restart: unless-stopped
     volumes:
       - valkey_data:/data

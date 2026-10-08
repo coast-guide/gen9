@@ -16,7 +16,7 @@ services:
   keycloak:
     logging: *logging
     build: .
-    image: gen9-keycloak:26.7.5
+    image: ${GEN9_KEYCLOAK_IMAGE:-gen9-keycloak:26.7.5}
     restart: unless-stopped
     labels:  # where to open it; the root Makefile lists these after make up
       gen9.name: Keycloak admin console
@@ -24,11 +24,25 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false  # not there when KC_DB_URL_HOST names another server
       mailpit:
         condition: service_healthy
+    # Behind gen9-edge (make setup DOMAIN=…): KC_PROXY_HEADERS=xforwarded, so Keycloak reads the
+    # proxy's X-Forwarded-* headers (Keycloak's "Configuring a reverse proxy"); otherwise absent,
+    # as Keycloak refuses an empty value and anyone reaching it directly could set them
+    env_file:
+      - path: edge.local.env
+        required: false
     environment:
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: keycloak
+      # The bundled Postgres, or another by Keycloak's own options, with postgres left out of
+      # COMPOSE_PROFILES in .env (docs/operations.md, "External services"); in KC_DB_URL_PROPERTIES,
+      # ?sslmode=require for TLS, ?sslmode=verify-full&sslrootcert=/etc/gen9/certs/<CA> to check
+      # the server's certificate too
+      KC_DB_URL_HOST: ${KC_DB_URL_HOST:-postgres}
+      KC_DB_URL_PORT: ${KC_DB_URL_PORT:-5432}
+      KC_DB_URL_DATABASE: ${KC_DB_URL_DATABASE:-keycloak}
+      KC_DB_URL_PROPERTIES: ${KC_DB_URL_PROPERTIES:-}
+      KC_DB_USERNAME: ${KC_DB_USERNAME:-keycloak}
       KC_DB_PASSWORD: ${KC_DB_PASSWORD:?run ./init-env.sh first}
       # One issuer for browsers and containers: tokens always say iss=KC_HOSTNAME, while back-channel
       # endpoints (token, JWKS, userinfo) follow the request host, so containers can use
@@ -66,6 +80,7 @@ services:
       GEN9_SEED_USER_PASSWORD: ${GEN9_SEED_USER_PASSWORD:?run ./init-env.sh first}
     volumes:
       - ./realm:/opt/keycloak/data/import:ro
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     networks:
       default: {}
       gen9-keycloak:
@@ -89,7 +104,7 @@ services:
     logging: *logging
     # One-shot: realm settings the first-boot import can't express (config/configure.sh). Runs after
     # every start and exits; each step is idempotent.
-    image: gen9-keycloak:26.7.5
+    image: ${GEN9_KEYCLOAK_IMAGE:-gen9-keycloak:26.7.5}
     depends_on:
       keycloak:
         condition: service_healthy
@@ -101,6 +116,10 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?run ./init-env.sh first}
       GEN9_UI_BACKCHANNEL_LOGOUT_URL: ${GEN9_UI_BACKCHANNEL_LOGOUT_URL:-http://gen9-ui:3000/auth/backchannel-logout}
+      # The web app's addresses, put on its client every start: the realm file sets them only when
+      # first imported, so a later change (make setup DOMAIN=…) reaches the client this way
+      GEN9_UI_URL: ${GEN9_UI_URL:-http://localhost:14000}
+      GEN9_UI_DEV_URL: ${GEN9_UI_DEV_URL:-http://localhost:14001}
       # Temporal's web UI client (make setup STACKS=keycloak adds the secret to an older .env)
       GEN9_TEMPORAL_UI_URL: ${GEN9_TEMPORAL_UI_URL:-http://localhost:18000}
       # Gen9's MCP server (gen9-agent), the audience of tokens for it
@@ -126,7 +145,7 @@ services:
     # configure fails: Compose doesn't wait for a one-shot job that nothing depends on
     # (docker/compose#9273, #9572). Without it, up returned while a new realm still had Keycloak's
     # built-in forgot-password flow. Idles on the image already built; init: true so it stops at once.
-    image: gen9-keycloak:26.7.5
+    image: ${GEN9_KEYCLOAK_IMAGE:-gen9-keycloak:26.7.5}
     entrypoint: ["sleep", "infinity"]
     init: true
     depends_on:
@@ -136,6 +155,11 @@ services:
 
   postgres:
     logging: *logging
+    # Runs while .env's COMPOSE_PROFILES lists it (init-env.sh writes it so); left out, the setting
+    # in the label points Keycloak at another server, and make up refuses to start without it
+    profiles: [postgres]
+    labels:
+      gen9.external: KC_DB_URL_HOST
     # Pinned as tag@digest. To upgrade: docker buildx imagetools inspect postgres:<version>-trixie
     image: postgres:18.6-trixie@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
     restart: unless-stopped

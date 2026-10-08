@@ -9,8 +9,14 @@ export const FIREFOX = BROWSER === "firefox";
 export const CHROME =
   process.env.CHROME_PATH ?? (process.platform === "darwin" ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" : "/usr/bin/google-chrome");
 
+// E2E_INSECURE_CERTS=1: Gen9 under a domain whose certificates come from gen9-edge's own CA,
+// which this machine's browser doesn't trust (gen9-edge/README.md); only the certificate's check
+// goes: what is served, redirects and cookies are the same
+export const INSECURE = process.env.E2E_INSECURE_CERTS === "1" ? { acceptInsecureCerts: true } : {};
+
 /** puppeteer.launch with Chrome's options, carried over to Firefox when it's the one asked for. */
 export async function launch(options = {}) {
+  options = { ...INSECURE, ...options };
   if (!FIREFOX) return puppeteer.launch({ executablePath: CHROME, ...options });
   if (!process.env.FIREFOX_PATH) {
     throw new Error("GEN9_BROWSER=firefox needs FIREFOX_PATH: npx @puppeteer/browsers install firefox@stable prints it");

@@ -62,6 +62,7 @@ asyncio.run(main())
 PY`).out;
   check(obs.apiKeyScope === "200 403 403 401", "the API's router key embeds (and reranks) and nothing else: chat 403, web search 403, admin API 401", obs.apiKeyScope);
   obs.config = sh("make config").out.split("\n").slice(-2);
+  check(obs.config.at(-1)?.startsWith("images: docker-bake.hcl builds what Compose builds"), "make config checks that docker-bake.hcl builds Gen9's images as the Compose files do", obs.config.join(" | "));
 
   // 7.3b What each container holds: every gen9-agent service gets the secrets it uses and no
   // others. Names and states only (set, empty, unset), read from Docker; values never leave awk

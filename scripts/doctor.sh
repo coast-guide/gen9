@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Check what Gen9 needs: Docker running, Docker Compose new enough, the tools the stacks' init-env.sh
-# scripts use, the host ports of stacks that aren't running and (make doctor only) Docker's memory.
+# scripts use, no stack belonging to another copy of Gen9 (scripts/elsewhere.sh), the host ports of
+# stacks that aren't running and (make doctor only) Docker's memory.
 # Used by `make doctor`, and with --preflight by `make setup` and `make up`: then it prints only
-# problems, so up fails before starting anything instead of halfway through a stack.
+# problems, so up fails before starting anything instead of halfway through a stack. make setup's
+# adds --before-setup: what setup itself writes isn't checked yet.
 #
-#   scripts/doctor.sh [--preflight] [STACK...]     STACK: postgres keycloak langfuse temporal models sandbox agent ui (default all)
+#   scripts/doctor.sh [--preflight [--before-setup]] [STACK...]     STACK: postgres keycloak langfuse temporal models sandbox agent ui edge (default all)
+#   scripts/doctor.sh [--preflight] --no-stacks     Docker, Compose, memory and the tools only (make's selection left every stack out)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -16,15 +19,17 @@ MIN_COMPOSE=2.24.0
 # (https://langfuse.com/self-hosting/deployment/docker-compose).
 MIN_MEMORY_MIB_LANGFUSE=8192
 
-PREFLIGHT=false STACKS=()
+PREFLIGHT=false BEFORE_SETUP=false NO_STACKS=false STACKS=()
 for arg in "$@"; do
   case $arg in
     --preflight) PREFLIGHT=true ;;
+    --before-setup) BEFORE_SETUP=true ;;
+    --no-stacks) NO_STACKS=true ;;
     -*) echo "unknown option: $arg" >&2; exit 2 ;;
     *) STACKS+=("$arg") ;;
   esac
 done
-[ ${#STACKS[@]} -gt 0 ] || STACKS=(postgres keycloak langfuse temporal models sandbox agent ui)
+[ ${#STACKS[@]} -gt 0 ] || $NO_STACKS || STACKS=(postgres keycloak langfuse temporal models sandbox agent ui edge)
 
 failed=false
 ok() { $PREFLIGHT || echo "ok    $*"; }
@@ -60,6 +65,9 @@ fi
 for tool in openssl od; do
   if command -v "$tool" >/dev/null; then ok "$tool"; else fail "$tool not found: make setup uses it to generate secrets"; fi
 done
+# Not needed to set up or start Gen9, so a warning: the commands that read Compose's JSON need it
+if command -v python3 >/dev/null; then ok "python3"
+else warn "python3 not found: make diff, make reset, make config's checks and the Kubernetes commands need it"; fi
 
 if $docker_ok; then
   if ! $PREFLIGHT && [[ " ${STACKS[*]} " == *" langfuse "* ]]; then
@@ -73,6 +81,11 @@ if $docker_ok; then
 
   # Host ports each stopped stack will publish, from its own Compose file and .env
   for stack in "${STACKS[@]}"; do
+    # Another copy of Gen9's: what this folder runs would act on it (scripts/elsewhere.sh)
+    if ! from=$(scripts/elsewhere.sh "$stack"); then
+      fail "gen9-$stack belongs to another copy of Gen9, ${from#* }: one Gen9 runs on a Docker host, and this folder's make up would take over its containers. Work in that folder, or stop that copy there first (make down)"
+      continue
+    fi
     if [ -n "$(docker ps -q --filter "label=com.docker.compose.project=gen9-$stack" --filter label=com.docker.compose.oneoff --filter status=running)" ]; then
       ok "gen9-$stack is running"
       continue
@@ -82,7 +95,8 @@ if $docker_ok; then
       continue
     fi
     busy=()
-    for port in $(printf '%s' "$ports" | grep -o '"published": *"[0-9]*"' | grep -o '[0-9][0-9]*'); do
+    # Each port once: a port published for TCP and UDP (gen9-edge's 443, for HTTP/3) is listed twice
+    for port in $(printf '%s' "$ports" | grep -o '"published": *"[0-9]*"' | grep -o '[0-9][0-9]*' | sort -un); do
       # Something answers on it: another program, since this stack isn't running
       if (: </dev/tcp/127.0.0.1/"$port") 2>/dev/null; then busy+=("$port"); fi
     done
@@ -92,6 +106,44 @@ if $docker_ok; then
       for port in "${busy[@]}"; do
         fail "gen9-$stack needs port $port, which another program uses (see: lsof -nP -iTCP:$port -sTCP:LISTEN)"
       done
+    fi
+  done
+fi
+
+# A bundled store left out of the stack's COMPOSE_PROFILES needs the setting its label gen9.external
+# names, which points the stack at another one (docs/operations.md, "External services"); else what
+# uses it starts with nothing to reach. The services Compose would start, and the environment it
+# interpolates with (values only tested, never printed), from Compose itself
+if $docker_ok && ! $BEFORE_SETUP; then
+  for stack in "${STACKS[@]}"; do
+    [ -f "gen9-$stack/.env" ] || continue
+    # "store SETTING" for each service labelled so, from the stack's Compose files
+    stores=$(awk '/^  [a-z][a-z0-9-]*:[[:space:]]*$/ { s = $1; sub(/:$/, "", s) }
+      /^[[:space:]]+gen9\.external:/ { print s, $2 }' gen9-"$stack"/compose*.yaml)
+    [ -n "$stores" ] || continue
+    active=" $(cd "gen9-$stack" && docker compose config --services 2>/dev/null | tr '\n' ' ') "
+    while read -r service setting; do
+      [[ "$active" == *" $service "* ]] && continue
+      # Its value, held here only: the host it names, which mustn't be the store's own service
+      # (Langfuse's DATABASE_URL names the bundled postgres until it's changed)
+      value=$(cd "gen9-$stack" && docker compose config --environment 2>/dev/null | sed -n "s/^$setting=//p" | tail -n 1)
+      host=${value#*://}; host=${host##*@}; host=${host%%/*}; host=${host%%\?*}; host=${host%:*}
+      if [ -n "$value" ] && [ "$host" != "$service" ]; then
+        ok "gen9-$stack: $service is elsewhere ($setting)"
+      else
+        fail "gen9-$stack leaves out its $service (COMPOSE_PROFILES in gen9-$stack/.env), and $setting names no other: set $setting, or add $service to COMPOSE_PROFILES (docs/operations.md, \"External services\")"
+      fi
+    done <<<"$stores"
+  done
+fi
+
+# gen9-agent reaches the database where gen9-postgres/.env says, as make setup copies it: a server
+# named in one and not the other would leave gen9-agent at the wrong one
+if ! $BEFORE_SETUP && [ -f gen9-postgres/.env ] && [ -f gen9-agent/.env ] &&
+  [[ " ${STACKS[*]} " == *" agent "* || " ${STACKS[*]} " == *" postgres "* ]]; then
+  for key in GEN9_POSTGRES_SERVER GEN9_POSTGRES_SERVER_PORT GEN9_POSTGRES_SSLMODE GEN9_POSTGRES_SSLROOTCERT; do
+    if [ "$(sed -n "s/^$key=//p" gen9-postgres/.env | tail -n 1)" != "$(sed -n "s/^$key=//p" gen9-agent/.env | tail -n 1)" ]; then
+      fail "gen9-agent/.env's $key differs from gen9-postgres/.env's: make setup STACKS=\"postgres agent\" copies it"
     fi
   done
 fi

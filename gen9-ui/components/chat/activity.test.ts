@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { describeStep, stepsSummary, stepWords } from "@/components/chat/activity";
+import { clip, describeStep, stepsSummary, stepWords } from "@/components/chat/activity";
 import type { Step } from "@/lib/agent";
 
 const step = (name: string, args: unknown): Step => ({ id: "1", name, args, status: "success" });
@@ -18,6 +18,28 @@ describe("describeStep", () => {
     expect(describeStep(step("task", { description: "Check the sources" }))).toBe("Asked a helper: Check the sources");
     expect(describeStep(step("task", { description: "Check the date", subagent_type: "general-purpose" }))).toBe("Asked a helper: Check the date");
     expect(describeStep(step("task", { description: "Check the date", subagent_type: "fact-checker" }))).toBe("Asked the fact checker: Check the date");
+  });
+
+  it("cuts a long task or command at a word, and says so", () => {
+    const claim = "Fact-check this claim against primary sources: “Valkey 9.1.2 was released on 1 September 2026.” Determine confirmed, contradicted or unverified.";
+    const label = describeStep(step("task", { description: claim, subagent_type: "fact-checker" }));
+    expect(label).toBe("Asked the fact checker: Fact-check this claim against primary sources: “Valkey 9.1.2 was released on 1 September 2026.” Determine confirmed…");
+    expect(describeStep(step("execute", { command: `echo ${"x".repeat(200)}` }))).toBe(`Ran: echo ${"x".repeat(114)}…`);
+    expect(clip("short")).toBe("short");
+    expect(clip("a".repeat(120))).toBe("a".repeat(120));
+    expect(clip("a".repeat(121))).toBe(`${"a".repeat(119)}…`);
+  });
+
+  it("says what a failed step tried, not what it would have done", () => {
+    const failed: Step = { id: "1", name: "edit_file", args: { file_path: "/skills/research-brief/SKILL.md" }, status: "error" };
+    expect(describeStep(failed)).toBe("Couldn’t edit /skills/research-brief/SKILL.md");
+    expect(describeStep({ ...failed, name: "travel__plan_trip", args: {} })).toBe("Couldn’t use travel: plan trip");
+  });
+
+  it("says a connector's tool waits for the person while its server asks them", () => {
+    const asking: Step = { id: "1", name: "travel__plan_trip", args: {}, status: "running" };
+    expect(stepWords(asking, [], true)).toEqual({ text: "Waiting for you: use travel: plan trip", waits: true });
+    expect(stepWords(asking, [], false).waits).toBe(false);
   });
 
   it("names the person's memory instead of its file", () => {

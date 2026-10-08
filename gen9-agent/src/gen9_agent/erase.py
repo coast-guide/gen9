@@ -92,7 +92,8 @@ async def erase(
     users: Sequence[str],
     threads: Sequence[uuid.UUID],
 ) -> dict[str, int]:
-    """The accounts, then the chats not already gone with them. How many of each."""
+    """The accounts, then the chats not already gone with them. How many of each, a chat that
+    went with its account counted too."""
     created, chats = await _load(engine, users, threads)
     done = {"accounts": 0, "chats": 0}
     for sub in users:
@@ -116,7 +117,10 @@ async def erase(
         # traces or history may be back in the stores that were
         created_at, owner = rows.get(thread_id, (EPOCH, OWNER_UNKNOWN))
         if owner in users:
-            continue  # its account's deletion took it
+            # Its account's deletion took it
+            print(f"chat {thread_id}: deleted with its account", flush=True)
+            done["chats"] += 1
+            continue
         await _deleted(
             await start_thread_deletion(
                 temporal, thread_id, created_at, owner, again=True
@@ -126,6 +130,10 @@ async def erase(
         print(f"chat {thread_id}: deleted again", flush=True)
         done["chats"] += 1
     return done
+
+
+def _count(n: int, word: str) -> str:
+    return f"1 {word}" if n == 1 else f"{n} {word}s"
 
 
 async def _main(argv: Sequence[str]) -> int:
@@ -151,7 +159,9 @@ async def _main(argv: Sequence[str]) -> int:
             done = await erase(engine, temporal, keycloak, args.users, args.threads)
     finally:
         await engine.dispose()
-    print(f"deleted again: {done['accounts']} accounts, {done['chats']} chats")
+    print(
+        f"deleted again: {_count(done['accounts'], 'account')}, {_count(done['chats'], 'chat')}"
+    )
     return 0
 
 

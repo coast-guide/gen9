@@ -96,6 +96,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from .api.agui import ANSWERS, waiting_on
+from .api.health import VERSION
 from .api.threads import conversation
 from .auth import Principal, TokenVerifier
 from .models import ACTIVE_RUN_STATUSES, FINAL_RUN_STATUSES, Run, Thread, User
@@ -136,7 +137,8 @@ def card(settings: Settings) -> AgentCard:
             "A research agent: it searches the web, uses the person's connectors and "
             "remembers them, and answers with its sources."
         ),
-        version="1.0.0",
+        # Gen9's own version, as the API and the CLI give it (one version everywhere: deploy.md, U7)
+        version=VERSION,
         supported_interfaces=[
             AgentInterface(
                 url=settings.gen9_a2a_url,

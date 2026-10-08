@@ -1,0 +1,4 @@
+.env
+.setup.*
+# Caddy's root, where README.md copies it to trust it
+gen9-edge-root.crt

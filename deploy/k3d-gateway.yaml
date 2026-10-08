@@ -1,0 +1,28 @@
+# The Gateway deploy/k3d-domain.yaml puts Gen9's routes on, on the k3d cluster deploy/k3d.yaml
+# makes: k3s's Traefik serves it (k3d.yaml turns its Gateway provider on), its HTTPS listener on
+# Traefik's websecure entry point, 8443 in the pod, which k3d publishes as 127.0.0.1:443. The
+# certificate is the Secret gen9-tls in this namespace (docs/operations.md, "Try it on this
+# machine", makes one for *.gen9.localhost)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gen9-gateway
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: gen9
+  namespace: gen9-gateway
+spec:
+  gatewayClassName: traefik
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 8443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: gen9-tls
+      allowedRoutes:
+        namespaces:
+          from: All

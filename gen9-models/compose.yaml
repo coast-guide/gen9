@@ -22,6 +22,11 @@ x-logging: &logging
 services:
   postgres:
     logging: *logging
+    # Runs while .env's COMPOSE_PROFILES lists it (init-env.sh writes it so); left out, the setting
+    # in the label points the router at another server, and make up refuses to start without it
+    profiles: [postgres]
+    labels:
+      gen9.external: LITELLM_DB_HOST
     # Keys, budgets and spend logs. Pinned as tag@digest; to upgrade:
     # docker buildx imagetools inspect postgres:<version>-trixie
     image: postgres:16.15-trixie@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
@@ -50,7 +55,11 @@ services:
     env_file:
       - path: .env  # provider keys (OPENAI_API_KEY, …) that config.yaml names as os.environ/…
     environment:
-      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      # The bundled Postgres, or another: LITELLM_DB_HOST and _PORT, LITELLM_DB_SSLMODE require for
+      # TLS, LITELLM_DB_SSLROOTCERT=/etc/gen9/certs/<CA> to check the server's certificate and name
+      # (docs/operations.md, "External services"). Each client in its own terms: Prisma's here
+      # (sslaccept=strict, sslcert the CA), libpq's in keys' and admin's (verify-full, sslrootcert)
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@${LITELLM_DB_HOST:-postgres}:${LITELLM_DB_PORT:-5432}/litellm?sslmode=${LITELLM_DB_SSLMODE:-prefer}${LITELLM_DB_SSLROOTCERT:+&sslaccept=strict&sslcert=${LITELLM_DB_SSLROOTCERT}}
       # Hardening (README, Security): no admin UI sign-in and no API docs, models only from
       # config.yaml, prices from the map inside this pinned image instead of GitHub's main branch
       DISABLE_ADMIN_UI: "True"
@@ -61,9 +70,11 @@ services:
       LITELLM_LOG: WARNING
     volumes:
       - ./config.yaml:/etc/gen9/config.yaml:ro
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     depends_on:
       postgres:
         condition: service_healthy
+        required: false  # not there when LITELLM_DB_HOST names another server
     ports:
       - "127.0.0.1:${GEN9_MODELS_PORT:-19000}:4000"
     networks:
@@ -189,10 +200,11 @@ services:
       GEN9_USER_BUDGET_PERIOD: ${GEN9_USER_BUDGET_PERIOD:-}
       GEN9_USER_RPM: ${GEN9_USER_RPM:-}
       # As the tables' owner, to keep the admin API's role (gen9_admin) in line
-      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@${LITELLM_DB_HOST:-postgres}:${LITELLM_DB_PORT:-5432}/litellm?sslmode=${LITELLM_DB_SSLMODE:-prefer}${LITELLM_DB_SSLROOTCERT:+&sslmode=verify-full&sslrootcert=${LITELLM_DB_SSLROOTCERT}}
       GEN9_ADMIN_DB_PASSWORD: ${GEN9_ADMIN_DB_PASSWORD:?run make setup STACKS=models}
     volumes:
       - ./scripts:/scripts:ro
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     depends_on:
       litellm:
         condition: service_healthy
@@ -209,9 +221,10 @@ services:
       GEN9_AGENT_MODELS_KEY: ${GEN9_AGENT_MODELS_KEY:?run ./init-env.sh first}
       # gen9-agent's API's key: it may read a person's usage for their data export (admin/app.py)
       GEN9_AGENT_API_MODELS_KEY: ${GEN9_AGENT_API_MODELS_KEY:-}
-      GEN9_ADMIN_DATABASE_URL: postgresql://gen9_admin:${GEN9_ADMIN_DB_PASSWORD}@postgres:5432/litellm
+      GEN9_ADMIN_DATABASE_URL: postgresql://gen9_admin:${GEN9_ADMIN_DB_PASSWORD}@${LITELLM_DB_HOST:-postgres}:${LITELLM_DB_PORT:-5432}/litellm?sslmode=${LITELLM_DB_SSLMODE:-prefer}${LITELLM_DB_SSLROOTCERT:+&sslmode=verify-full&sslrootcert=${LITELLM_DB_SSLROOTCERT}}
     volumes:
       - ./admin:/srv/admin:ro
+      - ../certs:/etc/gen9/certs:ro  # the CAs of stores elsewhere (certs/.gitignore)
     depends_on:
       keys:
         condition: service_completed_successfully

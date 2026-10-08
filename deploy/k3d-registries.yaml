@@ -1,0 +1,8 @@
+# The registry on this machine, as the k3d cluster's nodes reach it: images pushed to
+# 127.0.0.1:5000 (the container gen9-registry) are pulled from it by its name on the cluster's
+# network. `k3d cluster create --config deploy/k3d.yaml --registry-config deploy/k3d-registries.yaml`,
+# then `docker network connect k3d-gen9 gen9-registry` (docs/operations.md, "Try it on this machine")
+mirrors:
+  "127.0.0.1:5000":
+    endpoint:
+      - "http://gen9-registry:5000"

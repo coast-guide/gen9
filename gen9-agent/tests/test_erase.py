@@ -31,7 +31,7 @@ class Keycloak:
 
 
 async def test_what_came_back_is_deleted_again_through_the_workflows(
-    monkeypatch,
+    monkeypatch, capsys
 ) -> None:
     steps: list[tuple] = []
 
@@ -71,7 +71,10 @@ async def test_what_came_back_is_deleted_again_through_the_workflows(
         ["back-with-data", "back-in-keycloak-only", "gone-everywhere"],
         [BACK_CHAT, ALAN_CHAT, ROWLESS_CHAT, ALAN_CHAT],
     )
-    assert done == {"accounts": 3, "chats": 2}
+    # Every chat that came back is gone, the one that went with its account too, as restore.sh
+    # announced them
+    assert done == {"accounts": 3, "chats": 3}
+    assert f"chat {BACK_CHAT}: deleted with its account" in capsys.readouterr().out
     assert steps == [
         # Since their first visit; Keycloak's account deleted too
         ("account", "back-with-data", FIRST_VISIT, True),
@@ -171,3 +174,9 @@ async def test_a_deletion_again_runs_from_the_start_never_joining_one_still_runn
     assert usual == f"delete-thread-{chat}"
     assert again.startswith(f"delete-thread-{chat}-again-") and twice != again
     assert account.startswith("delete-account-alan-again-")
+
+
+async def test_its_counts_read_as_words() -> None:
+    assert erase._count(1, "account") == "1 account"
+    assert erase._count(0, "chat") == "0 chats"
+    assert erase._count(2, "chat") == "2 chats"

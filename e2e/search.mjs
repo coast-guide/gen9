@@ -21,6 +21,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { launch } from "./browser.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { forget } from "./forget.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -362,6 +363,7 @@ try {
   check(false, "the search check ran to the end", e.message);
 } finally {
   if (userId) await admin(`/users/${userId}`, { method: "DELETE" }).catch(() => {});
+  forget(userId);
   await gen9(seededDir, "logout").catch(() => {});
   rmSync(userDir, { recursive: true, force: true });
   rmSync(seededDir, { recursive: true, force: true });

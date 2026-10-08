@@ -243,7 +243,7 @@ def make(app: FastAPI, settings: Settings) -> FastMCP:
 
     @mcp.tool(annotations={"openWorldHint": True})
     async def ask(
-        message: Annotated[MessageText, Field(min_length=1, max_length=8000)],
+        message: MessageText,
         chat_id: Annotated[
             UUID | None,
             Field(description="A chat to continue; a new one when left out"),
@@ -265,7 +265,7 @@ def make(app: FastAPI, settings: Settings) -> FastMCP:
 
     # MCP Tasks for `ask` (mcp_tasks.py): tasks are these runs, read as the token's person
     class AskArgs(BaseModel):
-        message: Annotated[MessageText, Field(min_length=1, max_length=8000)]
+        message: MessageText
         chat_id: UUID | None = None
 
     async def task_start(arguments: dict) -> tuple[UUID, UUID]:

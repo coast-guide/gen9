@@ -30,6 +30,7 @@ import { join } from "node:path";
 import { createRequire } from "node:module";
 import { launch } from "./browser.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
+import { forget } from "./forget.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -248,10 +249,14 @@ try {
     // 6b. Its limits, in the attached chat's environment (gen9-sandbox's config.toml and launch.py)
     const run = (script) => execFileSync("docker", ["exec", attachedBox, "sh", "-c", script], { encoding: "utf8" }).trim();
     const host = JSON.parse(execFileSync("docker", ["inspect", attachedBox], { encoding: "utf8" }))[0].HostConfig;
+    // Its log, bounded: Docker's local driver (launch.py), or on Kubernetes the kubelet's rotation
+    // (e2e/k8s/docker reports the node's)
+    const logs = host.LogConfig;
+    const bounded = (logs.Type === "local" && logs.Config["max-size"] === "10m") || (logs.Type === "kubelet" && logs.Config["max-size"] === "10Mi");
     const status = run("grep -E '^(Seccomp|NoNewPrivs):' /proc/self/status | tr -s '\\t ' ' ' | tr '\\n' ' '; ls /var/run/docker.sock /run/docker.sock 2>&1 | grep -c 'No such'");
     check(
-      /Seccomp: 2/.test(status) && /NoNewPrivs: 1/.test(status) && status.endsWith(" 2") && host.CapDrop.includes("NET_RAW") && host.LogConfig.Type === "local" && host.LogConfig.Config["max-size"] === "10m" && host.MemorySwap === host.Memory,
-      "its environment runs under Docker's seccomp filter, no new privileges, no raw sockets or Docker socket, bounded logs, and memory without swap",
+      /Seccomp: 2/.test(status) && /NoNewPrivs: 1/.test(status) && status.endsWith(" 2") && host.CapDrop.includes("NET_RAW") && bounded && host.MemorySwap === host.Memory,
+      "its environment runs under the runtime's seccomp filter, no new privileges, no raw sockets or Docker socket, bounded logs, and memory without swap",
       `${status}; log ${host.LogConfig.Type} ${host.LogConfig.Config["max-size"]}; memory ${host.Memory} swap ${host.MemorySwap}`,
     );
     const spawned = run(`timeout 60 python3 -c "
@@ -326,6 +331,7 @@ print(len(ps))"`);
     await api(ada, "DELETE", `/v1/threads/${chat}`).catch(() => {});
   }
   if (tempId) await admin("DELETE", `/users/${tempId}`).catch(() => {});
+  forget(tempId);
   for (const dir of [alan, ada]) await gen9(dir, ["logout"]).catch(() => {});
   for (const dir of [alan, ada, temp]) rmSync(dir, { recursive: true, force: true });
 }

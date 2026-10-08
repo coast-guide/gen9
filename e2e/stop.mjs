@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { launch } from "./browser.mjs";
 import { ROOT, signInTerminal } from "./signin.mjs";
 import { secondStep } from "./second-step.mjs";
+import { forget } from "./forget.mjs";
 
 const env = Object.fromEntries(
   readFileSync(`${ROOT}gen9-keycloak/.env`, "utf8")
@@ -44,7 +45,8 @@ function check(ok, what, detail = "") {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const psql = (query) => execFileSync("docker", ["exec", "gen9-postgres-postgres-1", "psql", "-U", "postgres", "-d", "gen9_agent", "-tAc", query], { encoding: "utf8" }).trim();
 const docker = (...args) => spawnSync("docker", args, { encoding: "utf8" });
-const make = (target) => spawnSync("make", [target], { cwd: ROOT, encoding: "utf8" });
+// Against a cluster (make k8s-e2e), the same targets' k8s- ones
+const make = (target) => spawnSync("make", [process.env.E2E_SHAPE === "kubernetes" ? `k8s-${target}` : target], { cwd: ROOT, encoding: "utf8" });
 async function admin(path, init = {}) {
   const token = await fetch(`${KEYCLOAK}/realms/master/protocol/openid-connect/token`, {
     method: "POST",
@@ -175,6 +177,7 @@ try {
     await enable(userId, true).catch(() => {});
     if (taskId) await api(dir, "DELETE", `/v1/tasks/${taskId}`).catch(() => {});
     await admin(`/users/${userId}`, { method: "DELETE" }).catch(() => {});
+    forget(userId);
   }
   rmSync(dir, { recursive: true, force: true });
 }

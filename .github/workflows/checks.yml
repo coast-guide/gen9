@@ -139,6 +139,27 @@ jobs:
       - run: npm ci
       - run: CHROME_PATH="$(command -v google-chrome)" node page.mjs
 
+  charts:
+    # Every stack's Helm chart rendered from its compose.yaml with a stand-in lock: helm lint, then
+    # each object against Kubernetes' own schemas (scripts/check-charts.sh, docs/plans/deploy.md U3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Helm and kubeconform, from their releases, checked against their published checksums
+        run: |
+          curl -fsSLO https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz
+          echo "86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb  helm-v4.3.0-linux-amd64.tar.gz" | sha256sum -c
+          curl -fsSLO https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
+          echo "9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883  kubeconform-linux-amd64.tar.gz" | sha256sum -c
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar xzf helm-v4.3.0-linux-amd64.tar.gz -C "$RUNNER_TEMP" && mv "$RUNNER_TEMP/linux-amd64/helm" "$RUNNER_TEMP/bin/"
+          tar xzf kubeconform-linux-amd64.tar.gz -C "$RUNNER_TEMP/bin" kubeconform
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - run: scripts/check-charts.sh
+
   make-workflow:
     # Linux runs the recipes with dash as /bin/sh and GNU Make 4 (macOS: bash and Make 3.81), and
     # its Docker engine is where cross-stack networking must hold (Docker Desktop is more lenient)
@@ -153,7 +174,7 @@ jobs:
           docker run --rm -v "$PWD:/mnt:ro" -w /mnt
           koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d
           scripts/*.sh gen9-*/init-env.sh gen9-temporal/init-tls.sh gen9-keycloak/verify.sh gen9-keycloak/config/configure.sh gen9-design/sync.sh
-          gen9-learn/tools/*.sh gen9-temporal/scripts/*.sh gen9-temporal/initdb/*.sh gen9-postgres/scripts/*.sh
+          gen9-learn/tools/*.sh gen9-temporal/scripts/*.sh gen9-temporal/initdb/*.sh gen9-postgres/scripts/*.sh e2e/k8s/docker
       - run: make help && make stacks
       - name: an unknown stack is refused
         run: "! make ps STACKS=nope"
@@ -163,7 +184,7 @@ jobs:
           LANGFUSE_NAME: Gen9 CI
         run: make setup < /dev/null
       - run: make doctor
-      - name: make config (with the shared-network name check)
+      - name: make config (with the shared-network name and image checks)
         run: make config
       - name: stacks call each other over their networks
         run: |
