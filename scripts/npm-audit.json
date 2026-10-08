@@ -1,5 +1,5 @@
 {
-  "about": "Advisories npm audit reports that are accepted, each for one version of its package and in the projects named, with why (scripts/npm-audit.mjs). Only ones with no fixed release, from code that takes nothing from outside.",
+  "about": "Advisories npm audit reports that are accepted, each for one version of its package and in the projects named, with why (scripts/npm-audit.mjs). Only ones with no fixed release, or one still inside the 7-day cooldown (.npmrc) with its end date, from code that takes nothing from outside.",
   "accepted": [
     {
       "advisory": "GHSA-vfj7-8cjw-p6xm",
@@ -14,6 +14,34 @@
       "version": "4.2.0",
       "in": ["scripts/updates"],
       "reason": "no fixed release; only in Renovate's HTTP client (got, cacheable-request) for make updates, a dry run one person makes on their own machine: no cache there is shared between users"
+    },
+    {
+      "advisory": "GHSA-v5rq-49vh-5v5c",
+      "package": "@simple-git/argv-parser",
+      "version": "1.1.1",
+      "in": ["scripts/updates"],
+      "reason": "fixed by Renovate 44.145.3 (simple-git 4.0.2), released 2026-10-08, inside the 7-day cooldown until 2026-10-15; Renovate 44.126.0, the newest past it, still pins simple-git 3.36.0. Only in make updates, a dry run of Renovate's local platform over this repository's own files, on the machine of whoever runs it: no git command takes options from outside. Take 44.145.3 or later from 2026-10-15"
+    },
+    {
+      "advisory": "GHSA-x6jw-m9v5-85vh",
+      "package": "simple-git",
+      "version": "3.36.0",
+      "in": ["scripts/updates"],
+      "reason": "fixed by Renovate 44.145.3 (simple-git 4.0.2), released 2026-10-08, inside the 7-day cooldown until 2026-10-15; Renovate 44.126.0, the newest past it, still pins simple-git 3.36.0. Only in make updates, a dry run of Renovate's local platform over this repository's own files, on the machine of whoever runs it: no git command takes options from outside. Take 44.145.3 or later from 2026-10-15"
+    },
+    {
+      "advisory": "GHSA-g4wm-2vf7-vfgr",
+      "package": "simple-git",
+      "version": "3.36.0",
+      "in": ["scripts/updates"],
+      "reason": "fixed by Renovate 44.145.3 (simple-git 4.0.2), released 2026-10-08, inside the 7-day cooldown until 2026-10-15; Renovate 44.126.0, the newest past it, still pins simple-git 3.36.0. Only in make updates, a dry run of Renovate's local platform over this repository's own files, on the machine of whoever runs it: no git command takes options from outside. Take 44.145.3 or later from 2026-10-15"
+    },
+    {
+      "advisory": "GHSA-858h-whjf-mvg5",
+      "package": "simple-git",
+      "version": "3.36.0",
+      "in": ["scripts/updates"],
+      "reason": "fixed by Renovate 44.145.3 (simple-git 4.0.2), released 2026-10-08, inside the 7-day cooldown until 2026-10-15; Renovate 44.126.0, the newest past it, still pins simple-git 3.36.0. Only in make updates, a dry run of Renovate's local platform over this repository's own files, on the machine of whoever runs it: no git command takes options from outside. Take 44.145.3 or later from 2026-10-15"
     }
   ]
 }
