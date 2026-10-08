@@ -5358,6 +5358,10 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
 
 - [ ] Y1 P7-A1 to A3, carried: each when it lands (deepagents 0.7.21 from 2026-10-07; Keycloak
   26.8.0 and Temporal UI v2.55.0 from 2026-10-08; OpenSandbox 1.1.1 and #1759; the watches).
+  And Renovate 44.145.3 or later in `scripts/updates` from 2026-10-15, past the 7-day cooldown:
+  it brings simple-git 4.0.2, so the four simple-git advisories accepted until then in
+  `scripts/npm-audit.json` (#151) come out (the audit fails on an accepted advisory no longer
+  there).
 
 ### P8-Z. Destructive, last
 
@@ -5622,6 +5626,11 @@ Budget: $0.30 of router spend for the phase, measured at each section's end.
     Live, gen9-ui built from it: `stacks.mjs` and `apps.mjs` pass.
   - **`make-workflow`:** Temporal's internal frontend didn't answer the CLI within its deadline
     (DNS, TCP and TLS fine); it had passed on the same branch; run again.
+  - **After the merges** (#145, then the six standalone pull requests as #146, then Dependabot's
+    updates redone within the cooldown as #151): `main` tested as it is, every image built from
+    it (`make up IMAGES=local`, 144 s) and `make e2e` in full, 2,942 s: all 49 scripts, 694
+    checks, none failed, reranking skipped as always; afterwards only Ada and Alan in
+    gen9-postgres.
   - **After a host restart** every container starts at once: Temporal fetched Keycloak's keys
     before Keycloak listened ("error during initial retrieval of token keys … connection
     refused"), and gen9-agent's worker was refused ("PermissionDenied: Request unauthorized")
