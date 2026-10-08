@@ -343,7 +343,7 @@ takes several minutes.
 
 | Step | Checked |
 | --- | --- |
-| A one-off two minutes ahead (a delayed start) | "Next: in 2 minutes"; it fires by itself, in a chat named after it, and answers with the task's unguessable phrase; the task says Done |
+| A one-off two minutes ahead (a delayed start) | "Next: in 2 minutes" (its minute is 61 to 120 s ahead when set, so 1 minute, or under a minute after a slow save); it fires by itself, in a chat named after it, and answers with the task's unguessable phrase; the task says Done |
 | Every hour at a minute two ahead | A Temporal Schedule; it fires once at its minute; Run now makes another chat; Pause pauses the Schedule (the row says Paused, no next run) and Resume resumes it; Edit renames it |
 | axe; the seeded admin | No serious violations; another person sees none of it and can't run it (`404`) |
 | `gen9 tasks`, `add`, `delete` | Lists it; a weekly one is scheduled ("Every Friday at 07:30"), then deleted, its Schedule gone |
