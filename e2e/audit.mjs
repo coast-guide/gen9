@@ -229,7 +229,8 @@ try {
     );
   }
 
-  // 4b. Each record is also a line of the API's log, the stream an operator sends to a separate
+  // 4b. Each record is also a line of the log of the process that made it, the API's or, for the
+  // accounts its sweep finds deleted, the worker's: the stream an operator sends to a separate
   // system (docs/logging.md, "Sending the logs elsewhere"); Keycloak's log has the sign-ins that
   // succeeded and the admin changes too, not only failures
   const logOf = (container) => {
@@ -237,14 +238,15 @@ try {
     return `${out.stdout}${out.stderr}`.split("\n");
   };
   const apiLog = logOf("gen9-agent-api-1");
-  const lines = apiLog.flatMap((l) => {
-    const m = / INFO: +audit (\{.*\})$/.exec(l);
+  // The API's lines read "INFO:     audit {…}", the worker's "INFO gen9_agent.deletion: audit {…}"
+  const lines = [...apiLog, ...logOf("gen9-agent-worker-1")].flatMap((l) => {
+    const m = / INFO:? +(?:[\w.]+: )?audit (\{.*\})$/.exec(l);
     return m ? [JSON.parse(m[1])] : [];
   });
   const asLines = new Set(lines.map((e) => `${e.actor}|${e.action}|${e.outcome}|${e.target ?? ""}|${e.where}`));
   const stored = events().map((e) => e.split("|").slice(0, 5).join("|"));
   const missing = stored.filter((e) => !asLines.has(e));
-  check(stored.length > 0 && !missing.length, "each audit record is also a line of JSON in the API's log, with the same who, what, outcome, target and route", `${stored.length} records, ${lines.length} lines${missing.length ? `; missing: ${missing.slice(0, 3).join(", ")}` : ""}`);
+  check(stored.length > 0 && !missing.length, "each audit record is also a line of JSON in the API's or the worker's log, with the same who, what, outcome, target and route", `${stored.length} records, ${lines.length} lines${missing.length ? `; missing: ${missing.slice(0, 3).join(", ")}` : ""}`);
   check(apiLog.every((l) => !l.includes(SECRET_VALUE)), "no secret's value is in the API's log");
   const keycloakLog = logOf("gen9-keycloak-keycloak-1").filter((l) => l.includes("[org.keycloak.events]"));
   const signedIn = keycloakLog.find((l) => / INFO  /.test(l) && l.includes('type="LOGIN"') && l.includes(`userId="${otherId}"`));

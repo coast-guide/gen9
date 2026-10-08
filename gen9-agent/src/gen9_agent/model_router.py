@@ -23,7 +23,12 @@ from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool, tool
 from langchain_openai import ChatOpenAI
 
+from . import partial_json
 from .settings import Settings
+
+# A streamed tool call's arguments parsed in linear time, wherever langchain-core parses them: a
+# model that ran away inside one held the worker's event loop for minutes (partial_json.py)
+partial_json.install()
 
 END_USER_HEADER = "x-litellm-end-user-id"
 # The model that served a call. The router answers with the alias in the body of a chat completion
@@ -96,6 +101,10 @@ def chat_model(
         base_url=f"{settings.gen9_models_url}/v1",
         api_key=settings.gen9_models_key,
         http_async_client=http,
+        # The HTTP client's timeouts: the OpenAI client langchain-openai makes sends each request
+        # with its own, none unless given, in their place, and a router that never answered
+        # (its address dropping connections) held a turn until the kernel gave up, 2 minutes
+        timeout=http.timeout,
         # The router already retries and falls back (gen9-models/config.yaml) and Temporal retries
         # the turn; a third layer here would only multiply attempts
         max_retries=0,

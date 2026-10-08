@@ -168,7 +168,7 @@ class Settings(DatabaseSettings):
     sandbox_url: str | None = None
     sandbox_api_key: SecretStr | None = None
     # What an environment runs: its image (pinned), and each one's share of the machine
-    sandbox_image: str = "python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f"
+    sandbox_image: str = "python:3.12.15-slim-trixie@sha256:29113dcae7aad06daa8e95260fa09f27d62be33b9687ea3774f771d601a02256"
     sandbox_cpu: str = "1"
     sandbox_memory: str = "1Gi"
     # How long an unused environment lives before it's removed (a later command starts a new one)

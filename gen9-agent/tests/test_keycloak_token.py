@@ -2,6 +2,7 @@
 API, is judged by wall time, as its expiry is: a host that slept paused Docker's VM, whose monotonic
 clock then lagged, and an expired token looked fresh for minutes (M9)."""
 
+import asyncio
 from types import SimpleNamespace
 
 import httpx
@@ -10,6 +11,7 @@ from pydantic import SecretStr
 
 from gen9_agent import keycloak_admin
 from gen9_agent.keycloak_admin import KeycloakAdmin
+from gen9_agent.temporal import keep_token_fresh
 
 pytestmark = pytest.mark.asyncio
 
@@ -54,3 +56,25 @@ async def test_after_the_host_slept_the_token_is_renewed_at_once(monkeypatch) ->
     assert await kc.access_token() == "token-1"
     wall[0] += 600
     assert await kc.access_token() == "token-2"
+
+
+async def test_the_temporal_token_is_renewed_with_half_its_life_left(
+    monkeypatch,
+) -> None:
+    """A stall of the event loop skips renewal rounds: the token in use keeps half its 5 minutes,
+    so a stall of up to 2.5 minutes leaves Temporal a valid one (deploy.md, Z1)."""
+    now = [1_000_000.0]
+    monkeypatch.setattr(keycloak_admin.time, "time", lambda: now[0])
+    issued: list[int] = []
+    kc = admin(issued)
+    client = SimpleNamespace(api_key=await kc.access_token())
+    renewing = asyncio.create_task(keep_token_fresh(client, kc, every_s=0))  # ty: ignore[invalid-argument-type]
+    try:
+        now[0] += 140  # 160 s left: kept
+        await asyncio.sleep(0.01)
+        assert client.api_key == "token-1"
+        now[0] += 20  # 140 s left: renewed
+        await asyncio.sleep(0.01)
+        assert client.api_key == "token-2"
+    finally:
+        renewing.cancel()

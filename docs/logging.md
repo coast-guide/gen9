@@ -84,7 +84,8 @@ application is breached, the logs are not compromised". Gen9 doesn't run that sy
 (Loki, Elasticsearch, a SIEM, syslog) is the operator's. What to send, and how:
 
 - **What: every container's log.** It carries what an investigation needs: each audit record
-  (gen9-agent's API writes it as a line, `audit {…}` in JSON, before the row), every sign-in and
+  (gen9-agent's API writes it as a line, `audit {…}` in JSON, before the row; its worker, the
+  accounts its sweep finds deleted in Keycloak), every sign-in and
   sign-in failure and every change made through Keycloak's Admin API (its `jboss-logging`
   listener, successes at INFO), refused keys and budgets at the router, an environment's denied
   lookups, the services' errors.
@@ -130,8 +131,8 @@ P6-C2; the audit lines and Keycloak's sign-ins since P6-C6), and why each is the
   email, or the email tried) and the address it came from.** Needed: logging sign-ins and their
   failures is how an attack on an account is seen (ASVS 16.3.1); its database copy goes after 30
   days.
-- **gen9-agent's API: each audit record**, which names people by their `sub` alone, and what they
-  named (a connector, a secret and its host), never a value.
+- **gen9-agent's API: each audit record** (and its worker, the sweep's), which names people by
+  their `sub` alone, and what they named (a connector, a secret and its host), never a value.
 - **SearXNG: a search an engine refused, with its address**, which holds the agent's query. Kept:
   SearXNG has no setting to leave it out, and the same query went to that engine.
 - Nothing else. The API and the sandbox server mask query values (searches, file names, emails

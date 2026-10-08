@@ -191,8 +191,11 @@ Temporal's ports are published on 127.0.0.1 only; other stacks reach its fronten
 build). Roles come from the `permissions` claim as `<namespace>:<role>` (worker < reader < writer <
 admin), granted as roles of Keycloak client `temporal`:
 - gen9-agent's service account holds `gen9:write`. Its client connects with the token as
-  `api_key` (`tls=False` inside Docker), checks it every 15 s and renews it before it expires,
-  judged by wall time; the SDK sends a new key on the next call (`gen9_agent/temporal.py`). With
+  `api_key` (`tls=False` inside Docker), checks it every 15 s and renews it while half its 5
+  minutes are still left, judged by wall time; the SDK sends a new key on the next call
+  (`gen9_agent/temporal.py`). The checks run on the event loop, so a stall of it skips them: with
+  30 s left, a model that ran away inside a tool call stalled the worker past its token's end, and
+  Temporal stopped the worker; now a stall of up to 2.5 minutes passes. With
   the monotonic clock instead, a host that slept (Docker's VM paused) kept an expired token for
   minutes after waking, and Temporal refused it ("Token is expired").
 - Gen9 admins hold `gen9:admin` and `temporal-system:read` (the UI reads the cluster; the system

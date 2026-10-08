@@ -16,6 +16,7 @@ from temporalio.client import Client
 from temporalio.service import RPCError, RPCStatusCode
 
 from . import accounts
+from .audit import line
 from .keycloak_admin import KeycloakAdmin, KeycloakAdminError
 from .langfuse_erasure import erase_session_traces, erase_user_traces
 from .models import AuditEvent, Connector, Thread, User
@@ -226,16 +227,18 @@ class DeletionActivities:
             )
             for m in missing:
                 if m.sub not in recorded:
-                    session.add(
-                        AuditEvent(
-                            actor="sweep",
-                            action="account.sweep",
-                            outcome="success",
-                            target=m.sub,
-                            where="SweepDeletedUsersWorkflow",
-                            detail={},
-                        )
+                    event = AuditEvent(
+                        actor="sweep",
+                        action="account.sweep",
+                        outcome="success",
+                        target=m.sub,
+                        where="SweepDeletedUsersWorkflow",
+                        detail={},
                     )
+                    # A line of the worker's log too, as audit.record writes each of the API's:
+                    # the stream an operator sends to a separate system (docs/logging.md)
+                    log.info("audit %s", line(event))
+                    session.add(event)
             await session.commit()
         return [DeletedUser(sub=m.sub, since=m.since.isoformat()) for m in missing]
 
