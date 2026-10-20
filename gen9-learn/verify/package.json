@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "1.2.1",
-    "@modelcontextprotocol/client": "2.1.0",
+    "@modelcontextprotocol/client": "2.3.1",
     "@modelcontextprotocol/ext-tasks": "0.1.0",
     "axe-core": "4.13.0",
     "puppeteer-core": "25.12.0"
